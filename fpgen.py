@@ -1,0 +1,3569 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+from optparse import OptionParser
+from time import gmtime, strftime
+from subprocess import call
+import re, sys, string, os, shutil
+import textwrap
+import codecs
+import platform
+
+VERSION="4.15"
+# 20140214 bugfix: handle mixed quotes in toc entry
+#          added level='3' to headings for subsections
+# 20140216 lg.center to allow mt/b decimal value
+# 20140217 windows path bugfix; rend=block propogate error
+# 20140220 switch mobi generator from ebook-convert to kindlegen
+# 20140221 changes to OPT_PDF_ARGS
+# 20140226 allows specifying .8em in addition to 0.8em margins
+# 20140228 --disable-remove-fake-margins added to PDF and mobi
+# 20140304 TESTING. wide spaces as nbsp. mobi from epub.
+# 20140307 TESTING for Ross. XP compatibile build test.
+# 20140316 added lg rend='right'
+# 4.04     bugfix. illustration links. kindle added to !t.
+#          --level1-toc "//h:h1" --level2-toc "//h:h2" added for epub
+#          <br> in heading handled in text
+# 4.05/6   epub margin user option. Alex's "nobreak" option
+# 4.07     fractional thought breaks
+# 4.08     overline <ol>line over text</ol>
+# 4.09     tags in <lit> blocks
+# 4.10     alternate comment form "//"
+# 4.11     <br><br> converts to "—" in tablet versions
+# 4.12     meta line restrictions imposed for PGC
+# 4.13     <hang> tag (alex)
+# 4.14     allow <pn=''> anywhere on line
+# 4.15     used &ensp; instead of &nbsp; as leader for indented poetry lines
+
+NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
+
+"""
+
+  fpgen.py
+
+  Copyright 2014, Asylum Computer Services LLC
+  Licensed under the MIT license:
+  http://www.opensource.org/licenses/mit-license.php
+
+  Roger Frank (rfrank@rfrank.net)
+
+  Permission is hereby granted, free of charge, to any person obtaining
+  a copy of this software and associated documentation files (the
+  "Software"), to deal in the Software without restriction, including
+  without limitation the rights to use, copy, modify, merge, publish,
+  distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to
+  the following conditions:
+
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+"""
+
+# class to save user options
+class userOptions(object):
+  def __init__(self):
+    self.opt = {}
+
+  def addopt(self,k,v):
+    # print("adding {}:{}".format(k, v))
+    self.opt[k] = v
+
+  def getopt(self,k):
+    if k in self.opt:
+      return self.opt[k]
+    else:
+      return ""
+
+pn_cover = ""
+
+empty = re.compile("^$")
+
+class Book(object):
+  wb = []
+  supphd =[] # user's supplemental header lines
+
+  def __init__(self, ifile, ofile, d, fmt):
+    self.debug = d # numeric, 0=no debug, 1=function level, 2=line level
+    self.srcfile = ifile
+    self.dstfile = ofile
+    self.gentype = fmt
+    self.back2 = -1 # loop detector
+    self.back1 = -1
+    self.poetryindent = 'left'
+    self.italicdef = 'emphasis'
+
+  # safe print of possible UTF-8 character strings on ISO-8859 terminal
+  def cprint(self, s):
+    s = re.sub("◻"," ", s)
+    t = "".join([x if ord(x) < 128 else '?' for x in s])
+    print(t)
+
+  # display (fatal) error and exit
+  def fatal(self, message):
+    sys.stderr.write("fatal: " + message + "\n")
+    exit(1)
+
+  # level is set by calling program and is compared to self.debug.
+  # >= means print msg
+  def dprint(self, level, msg):
+    if int(self.debug) >= level:
+      self.cprint("{}: {}".format(self.__class__.__name__, msg))
+
+  numeral_map = tuple(zip(
+      (1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1),
+      ('m', 'cm', 'd', 'cd', 'c', 'xc', 'l', 'xl', 'x', 'ix', 'v', 'iv', 'i')
+  ))
+
+  def int_to_roman(self,i):
+      result = []
+      for integer, numeral in self.numeral_map:
+          count = i // integer
+          result.append(numeral * count)
+          i -= integer * count
+      return ''.join(result)
+
+  def roman_to_int(self,n):
+      i = result = 0
+      for integer, numeral in self.numeral_map:
+          while n[i:i + len(numeral)] == numeral:
+              result += integer
+              i += len(numeral)
+      return result
+
+  # validate file as UTF-8
+  def checkFile(self, fn):
+    fileOk = True
+    file = open(fn, 'rb')
+    for i,line in enumerate(file):
+      try:
+        converted = line.decode('utf-8')
+      except:
+        if fileOk:
+            self.cprint("fatal: file is not UTF-8")
+            self.cprint("lines:")
+        fileOk = False
+        s = str(line)
+        s = re.sub("^b'","",s)
+        s = re.sub("'$","",s)
+        s = re.sub(r"\\r","",s)
+        s = re.sub(r"\\n","",s)
+        self.cprint("  {}: ".format(i) + s)
+    file.close()
+    if not fileOk:
+        exit(1)
+
+  # load file from specified source file
+  def loadFile(self, fn):
+    self.dprint(1, "loadFile")
+    self.checkFile(fn)
+    try:
+      wbuf = open(fn, "r", encoding='UTF-8').read()
+      self.wb = wbuf.split("\n")
+      t = ":".join("{0:x}".format(ord(c)) for c in self.wb[0])
+      if t[0:4] == 'feff':
+        self.wb[0] = self.wb[0][1:]
+    except UnicodeDecodeError:
+      self.fatal("loadFile: source file {} not UTF-8".format(fn))
+    except:
+      self.fatal("loadFile: cannot open source file {}".format(fn))
+    self.wb.insert(0,"")
+    self.wb = [s.rstrip() for s in self.wb]
+
+    i = 0
+    while i < len(self.wb):
+      if re.match("\/\/", self.wb[i]): # line starts with "//"
+        del self.wb[i]
+        continue
+      if re.match("<!--.*?-->", self.wb[i]):
+        del self.wb[i]
+        continue
+      # multi-line
+      if re.match("<!--", self.wb[i]):
+        while not re.search("-->", self.wb[i]):
+          del self.wb[i]
+          continue
+        del self.wb[i]
+      # ANSI standard
+      if re.match(r"^\/\*.*?\*\/$", self.wb[i]): # entire line is comment
+        del self.wb[i]
+        continue
+      if re.search(r"\/\*.*?\*\/", self.wb[i]): # comment as part of line
+        self.wb[i] = re.sub(r"\/\*.*?\*\/", "", self.wb[i])
+        self.wb[i] = self.wb[i].rstrip()
+        continue
+      # multi-line (must be last)
+      if re.match(r"\/\*", self.wb[i]):
+        while not re.search("\*\/", self.wb[i]):
+          del self.wb[i]
+          continue
+        del self.wb[i] # closing comment line
+      i += 1
+
+    # page number tags
+    # force page numbers to separate line and to single-quote version
+    i = 0
+    while i < len(self.wb):
+      self.wb[i] = re.sub(r"<pn=[\"'](.+?)[\"']>",  r"<pn='\1'>", self.wb[i])
+      m = re.search("^(.*?)(\s?<pn='.*?'>\s?)(.*)$", self.wb[i])
+      if m:
+        if m.group(1) != "" and m.group(3) != "":
+          t = [m.group(1), m.group(2).strip(), m.group(3)]
+          self.wb[i:i+1] = t
+          i += 2
+        if m.group(1) != "" and m.group(3) == "":
+          t = [m.group(1), m.group(2).strip()]
+          self.wb[i:i+1] = t
+          i += 1
+        if m.group(1) == "" and m.group(3) != "":
+          t = [m.group(2).strip(), m.group(3)]
+          self.wb[i:i+1] = t
+          i += 1
+      i += 1
+      
+    # process optional formatting (DEPRECATED)
+    # <I>..</I> will be italics only in media that can render it natively.
+    # <B>..</B> will be bold only in media that can render it natively.
+    # both are ignored in Text
+    #
+    i = 0
+    while i < len(self.wb):
+      if self.gentype == 't':
+        self.wb[i] = re.sub("<\/?I>", "", self.wb[i])
+        self.wb[i] = re.sub("<\/?B>", "", self.wb[i])
+      else:
+        self.wb[i] = re.sub("<I>", "<i>", self.wb[i])
+        self.wb[i] = re.sub("<B>", "<b>", self.wb[i])
+        self.wb[i] = re.sub("<\/I>", "</i>", self.wb[i])
+        self.wb[i] = re.sub("<\/B>", "</b>", self.wb[i])
+      i += 1
+
+    # process conditional source directives
+    self.dprint(1,"conditionals")
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<if type=['\"](.*?)['\"]", self.wb[i])
+      if m:
+        j = i
+        conditional_type = m.group(1)
+        if conditional_type == "!t": # 08-Sep-2013
+          conditional_type = 'hepk' # 26-Mar-2014
+        if self.gentype in conditional_type:
+          del self.wb[i] # <if
+          while not re.match("<\/if>", self.wb[i]):
+            i += 1
+          del self.wb[i] # </if
+        else:
+          del self.wb[i] # <if
+          while not re.match("<\/if>", self.wb[i]):
+            del self.wb[i] # lines for other formats
+          del self.wb[i] # </if
+        i = j-1
+      i += 1
+
+    # 19-Nov-2013
+    i = 0
+    self.supphd = []
+    while i < len(self.wb):
+      if re.match("<lit section=['\"]head['\"]>", self.wb[i]):
+        del(self.wb[i])
+        while not re.match(r"<\/lit>", self.wb[i]):
+          self.supphd.append(self.wb[i])
+          del(self.wb[i])
+        del(self.wb[i])
+        i -= 1
+      i += 1
+
+    # 29-Oct-2013 literals after conditionals
+    i = 0
+    inliteral = False
+    while i < len(self.wb):
+      if re.match("<lit", self.wb[i]):
+        inliteral = True
+        i += 1
+        continue
+      if re.match("<\/lit>", self.wb[i]):
+        inliteral = False
+        i += 1
+        continue
+      if inliteral:
+        self.wb[i] = re.sub(r"<",'≼', self.wb[i]) # literal open tag marks
+        self.wb[i] = re.sub(r">",'≽', self.wb[i]) # literal close tag marks
+      i += 1
+
+    # combine multi-line <caption>...</caption> lines into one.
+    i = 0
+    while i < len(self.wb):
+      if re.match("<caption>", self.wb[i]) and not re.search("<\/caption>", self.wb[i]):
+        while not re.search("<\/caption>", self.wb[i]):
+          self.wb[i] = self.wb[i] + " " + self.wb[i+1]
+          del self.wb[i+1]
+      i += 1
+
+    # add id to unadorned heading lines
+    self.dprint(1,"headings+id")
+    i = 0
+    while i < len(self.wb):
+      if re.match("<heading", self.wb[i]):
+        if not re.search("id=", self.wb[i]):
+          genid = "t{}".format(i)
+          self.wb[i] = re.sub("<heading", "<heading id='{}'".format(genid), self.wb[i])
+      i += 1
+
+    # ensure heading has a blank line before
+    self.dprint(1,"headings+spacing")
+    i = 0
+    while i < len(self.wb):
+      if re.match("<heading", self.wb[i]):
+        if not empty.match(self.wb[i-1]):
+          t = self.wb[i]
+          self.wb[i:i+1] = ["", t]
+          i += 1
+      i += 1
+
+    # ensure line group has a blank line before
+    self.dprint(1,"line group+spacing")
+    i = 0
+    while i < len(self.wb):
+      if re.match("<lg", self.wb[i]):
+        if not empty.match(self.wb[i-1]):
+          t = self.wb[i]
+          self.wb[i:i+1] = ["", t]
+          i += 1
+      i += 1
+
+    # ensure line group has a blank line after
+    i = 0
+    while i < len(self.wb):
+      if re.match("<\/lg", self.wb[i]):
+        if not empty.match(self.wb[i+1]):
+          t = self.wb[i]
+          self.wb[i:i+1] = [t,""]
+          i += 1
+      i += 1
+
+    # ensure standalone illustration line has blank lines before, after
+    i = 0
+    while i < len(self.wb):
+      if re.match("<illustration.*?\/>", self.wb[i]):
+        t = self.wb[i]
+        u = []
+        if not empty.match(self.wb[i-1]):
+          u.append("")
+        u.append(t)
+        if not empty.match(self.wb[i+1]):
+          u.append("")
+        self.wb[i:i+1] = u
+        i += len(u)
+      i += 1
+
+    # ensure illustration line has blank lines before
+    i = 0
+    while i < len(self.wb):
+      if re.match("<illustration", self.wb[i]):
+        t = self.wb[i]
+        u = []
+        if not empty.match(self.wb[i-1]):
+          u.append("")
+        u.append(t)
+        self.wb[i:i+1] = u
+        i += len(u)
+      i += 1
+
+    # illustration close
+    i = 0
+    while i < len(self.wb):
+      if re.match("<\/illustration>", self.wb[i]):
+        t = self.wb[i]
+        u = []
+        u.append(t)
+        if not empty.match(self.wb[i+1]):
+          u.append("")
+        self.wb[i:i+1] = u
+        i += len(u)
+      i += 1
+
+    # map drop caps requests
+    for i, line in enumerate(self.wb):
+      self.wb[i] = re.sub("<drop>", "☊", self.wb[i])
+      self.wb[i] = re.sub("<\/drop>", "☋", self.wb[i])
+
+    # courtesy remaps mr:0 to mr:0em, etc. for all formats
+    for i,line in enumerate(self.wb):
+      self.wb[i] = re.sub("mr:0", "mr:0em", self.wb[i])
+      self.wb[i] = re.sub("ml:0", "ml:0em", self.wb[i])
+      self.wb[i] = re.sub("mt:0", "mt:0em", self.wb[i])
+      self.wb[i] = re.sub("mb:0", "mb:0em", self.wb[i])
+      self.wb[i] = re.sub("<br>", "<br/>", self.wb[i])
+
+    # normalize rend format to have trailing semicolons
+    # honor <lit>...</lit> blocks
+    in_pre = False
+    for i,line in enumerate(self.wb):
+      if "<lit" in line:
+        in_pre = True
+      if "</lit" in line:
+        in_pre = False
+      m = re.search('rend="(.*?)"', line)
+      if m:
+        self.wb[i] = re.sub('rend=".*?"', "rend='{}'".format(m.group(1)), self.wb[i])
+      m = re.search("rend='(.*?)'", self.wb[i])
+      if not in_pre and m:
+        therend = m.group(1)
+        therend = re.sub(" ",";", therend)
+        therend += ";"
+        therend = re.sub(";;", ";", therend)
+        self.wb[i] = re.sub("rend='.*?'", "rend='{}'".format(therend), self.wb[i])
+
+    # isolate <pn to separate lines
+    i = 0
+    while i < len(self.wb):
+      # standalone pn
+      if re.match("^<pn=[\"'].*?[\"']>$", self.wb[i]):
+        i += 1
+        continue
+      m = re.match("^(.*?)(<pn=[\"'].*?[\"']>)(.*?)$", self.wb[i])
+      if m:
+        t = []
+        if not empty.match(m.group(1)):
+          t.append(m.group(1))
+        t.append(m.group(2))
+        if not empty.match(m.group(3)):
+          t.append(m.group(3))
+        self.wb[i:i+1] = t
+        i += 2
+      i += 1
+
+    # process macros
+    self.dprint(1,"macros")
+    macro = {}
+
+    # define macros and save
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<macro (.*?)=\"(.*?)\"\/?>",self.wb[i])
+      if m:
+        macroName = m.group(1)
+        macroDef = m.group(2)
+        macro[macroName] = macroDef
+        del self.wb[i] # macro has been stored
+        i -= 1
+      i += 1
+
+    # apply macros to text
+    i = 0
+    while i < len(self.wb):
+      m = re.search("%([^;].*?)%", self.wb[i])
+      while m: # found a macro
+        if m.group(1) in macro: # is this in our list of macros already defined?
+          self.wb[i] = re.sub("%{}%".format(m.group(1)), macro[m.group(1)], self.wb[i], 1)
+          m = re.search("%(.*?)%", self.wb[i])
+        else:
+          self.fatal("macro %{}% undefined in line\n{}".format(m.group(1), self.wb[i]))
+      i += 1
+
+    # ensure spacing around standalone <l> or <l/> elements that are not in a line group
+    i = 0
+    inLineGroup = False
+    while i < len(self.wb):
+      if re.match("<lg", self.wb[i]):
+          inLineGroup = True
+      if re.match("<\/lg", self.wb[i]):
+          inLineGroup = False
+      if inLineGroup:
+          i += 1
+          continue
+      m = re.search("<l[^i]", self.wb[i])
+      if m:
+        # if the line before this isn't blank or another <l element, add a blank line before
+        if not empty.match(self.wb[i-1]) and not re.match("^<l", self.wb[i-1]):
+          self.wb[i:i+1] = ["", self.wb[i]]
+          i += 1
+        # if the line after this isn't blank or another <l element, add a blank line after
+        if not empty.match(self.wb[i+1]) and not re.match("^<l", self.wb[i+1]):
+          self.wb[i:i+1] = [self.wb[i],""]
+          i += 1
+      i += 1
+
+    # display user-supplied warnings (<warn>...</warn>)
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<warning>(.*?)<\/warning>", self.wb[i])
+      if m:
+        self.cprint("warning: {}".format(m.group(1)))
+        del self.wb[i]
+      i += 1
+
+    # format footnotes to standard form 08-Sep-2013
+    i = 0
+    fnc = 1 # footnote counter to autonumber if user has used '#'
+    while i < len(self.wb):
+
+      # all on one line
+      m = re.match("(<footnote id=[\"'].*?[\"']>)(.+?)(<\/footnote>)", self.wb[i])
+      if m:
+        mg1 = m.group(1).strip()
+        mg2 = m.group(2).strip()
+        mg3 = m.group(3).strip()
+        m = re.search("id=[\"']#[\"']", mg1)
+        if m:
+          mg1 = "<footnote id='{}'>".format(fnc)
+          fnc += 1
+        self.wb[i:i+1] = [mg1, mg2, mg3]
+        i += 2
+
+      # starts but doesn't end on this line
+      m = re.match("(<footnote id=[\"'].*?[\"']>)(.+?)$", self.wb[i])
+      if m:
+        mg1 = m.group(1).strip()
+        mg2 = m.group(2).strip()
+        m = re.search("id=[\"']#[\"']", mg1)
+        if m:
+          mg1 = "<footnote id='{}'>".format(fnc)
+          fnc += 1
+        self.wb[i:i+1] = [mg1, mg2]
+        i += 1
+
+      # starts without text on this line
+      m = re.match("<footnote id=[\"'].*?[\"']>$", self.wb[i])
+      if m:
+        m = re.search("id=[\"']#[\"']", self.wb[i])
+        if m:
+          self.wb[i] = "<footnote id='{}'>".format(fnc)
+          fnc += 1
+        i += 1
+
+      # ends but didn't start on this line
+      m = re.match("^(.+?)(<\/footnote>)", self.wb[i])
+      if m:
+        self.wb[i:i+1] = [m.group(1).strip(),m.group(2).strip()]
+        i += 1
+
+      i += 1
+
+
+  # save file to specified dstfile
+  def saveFile(self, fn):
+    self.dprint(1,"saveFile")
+    if os.linesep == "\r\n":
+      self.dprint(1, "running on Win machine")
+      lineEnd = "\n"
+    else:
+      self.dprint(1, "running on Mac/Linux machine")
+      lineEnd = "\r\n"
+    f1 = open(fn, "w", encoding='utf-8')
+    for index,t in enumerate(self.wb):
+        f1.write( "{:s}{}".format(t,lineEnd) )
+    f1.close()
+
+  # snapshot to named file and continue
+  def snap(self, fn):
+    f1 = open(fn, "w", encoding='utf-8')
+    if os.linesep == "\r\n":
+      for index,t in enumerate(self.wb):
+        f1.write( "{:s}\n".format(t) )
+    else:
+      for index,t in enumerate(self.wb):
+        f1.write( "{:s}\r\n".format(t) )
+    f1.close()
+
+  # bailout after saving working buffer
+  def bailout(self):
+    self.dprint(1,"bailout")
+    f1 = open("bailout.txt", "w", encoding='utf-8')
+    for index,t in enumerate(self.wb):
+      f1.write( "{:s}\n".format(t) )
+    f1.close()
+    exit(1)
+
+  # loop detector
+  def checkLoop(self, i, c):
+    if i == self.back1 and i == self.back2:
+      self.fatal("loop detected at line {}: {} (referrer: {})".format(i, self.wb[i], c))
+    self.back2 = self.back1
+    self.back1 = i
+
+  def __str__(self):
+    return "fpgen"
+
+# ===== class Lint ============================================================
+
+class Lint(Book):
+
+  def __init__(self, ifile, ofile, d, fmt):
+    Book.__init__(self, ifile, ofile, d, fmt)
+
+  def process(self):
+    inLineGroup = False
+    reports = []
+    for i,line in enumerate(self.wb):
+
+      if re.match("<tb\/?>", line) and (not empty.match(self.wb[i+1]) or not empty.match(self.wb[i-1])):
+        reports.append("non-isolated <tb> tag:\nline number: {}".format(i))
+
+      if re.match("<pb\/?>", line) and (not empty.match(self.wb[i+1]) or not empty.match(self.wb[i-1])):
+        reports.append("non-isolated <pb> tag:\nline number: {}".format(i))
+
+      # all lines stand alone
+      if re.match("<l[> ]", line) and not re.search("<\/l>$", line):
+        reports.append("line missing closing </l>:\nline number: {}\n{}".format(i,line))
+      if not re.match("<l[> ]", line) and re.search("<\/l>$", line):
+        reports.append("line missing opening <l>:\nline number: {}\n{}".format(i,line))
+
+      # no nested line groups
+      if re.match("<lg", line):
+        if inLineGroup:
+          reports.append("line group error: unexpected <lg tag\nline number: {}\nunclosed lg started at line: {}".format(i,lineGroupStartLine))
+        inLineGroup = True
+        lineGroupStartLine = i
+      if re.match("<\/lg", line):
+        if not inLineGroup:
+          reports.append("line group error: closing a </lg that is not open:\nline number: {}".format(i))
+        inLineGroup = False
+
+      # while in a line group all inline tags must be paired
+      if inLineGroup:
+        oLine = line
+
+        m = re.search("<sc>", line)
+        while m:
+          line = re.sub("<sc>", "", line, 1)
+          if not re.search("<\/sc>", line):
+            reports.append("error:unclosed <sc> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
+          line = re.sub("<\/sc>", "", line, 1)
+          m = re.search("<sc>", line)
+        line = oLine
+        m = re.search("<\/sc>", line)
+        while m:
+          line = re.sub("<\/sc>", "", line, 1)
+          if not re.search("<sc>", line):
+            reports.append("error:unopened </sc> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
+          line = re.sub("<sc>", "", line, 1)
+          m = re.search("<\/sc>", line)
+
+        line = oLine
+        m = re.search("<i>", line)
+        while m:
+          line = re.sub("<i>", "", line, 1)
+          if not re.search("<\/i>", line):
+            reports.append("error:unclosed <i> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
+          line = re.sub("<\/i>", "", line, 1)
+          m = re.search("<i>", line)
+        line = oLine
+        m = re.search("<\/i>", line)
+        while m:
+          line = re.sub("<\/i>", "", line, 1)
+          if not re.search("<i>", line):
+            reports.append("error:unopened </i> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
+          line = re.sub("<i>", "", line, 1)
+          m = re.search("<\/i>", line)
+
+        line = oLine
+        m = re.search("<b>", line)
+        while m:
+          line = re.sub("<b>", "", line, 1)
+          if not re.search("<\/b>", line):
+            reports.append("error:unclosed <b> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
+          line = re.sub("<\/b>", "", line, 1)
+          m = re.search("<b>", line)
+        line = oLine
+        m = re.search("<\/b>", line)
+        while m:
+          line = re.sub("<\/b>", "", line, 1)
+          if not re.search("<b>", line):
+            reports.append("error:unopened </b> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
+          line = re.sub("<b>", "", line, 1)
+          m = re.search("<\/b>", line)
+
+    # check for obsolete rend markup
+    for i,line in enumerate(self.wb):
+      if re.search("fs\d", line) or re.search("m[ltrb]\d", line):
+        reports.append("error:obsolete markup:\nline number: {}\n{}".format(i, line))
+
+    logfile = "errorlog.txt"
+    if len(reports) > 0:
+      self.cprint("\nThis file cannot be processed due to errors.")
+      self.cprint("report is in file: {}\n".format(logfile))
+      f1 = open(logfile, "w", encoding='utf-8')
+      for line in reports:
+        f1.write( "{:s}\n".format(line) )
+      f1.close()
+      exit(1)
+    else:
+      # remove error log file if present
+      if os.path.exists(logfile):
+        os.remove(logfile)
+
+  def run(self):
+    self.loadFile(self.srcfile)
+    self.process()
+
+  def __str__(self):
+    return "fpgen lint"
+
+# ===== class HTML ============================================================
+
+class HTML(Book):
+
+  def __init__(self, ifile, ofile, d, fmt):
+    Book.__init__(self, ifile, ofile, d, fmt)
+    self.css = self.CSS()
+    self.uprop = self.userProperties()
+    self.umeta = self.userMeta()
+    self.srcfile = ifile
+    self.dstfile = ofile
+    self.cpn = 0
+    self.showPageNumbers = False
+
+  # internal class to manage CSS as it is added at runtime
+  class CSS(object):
+    def __init__(self):
+      self.cssline = {}
+
+    def addcss(self, s):
+      if s in self.cssline:
+        self.cssline[s] += 1
+      else:
+        self.cssline[s] = 1
+
+    def show(self):
+      t = []
+      keys = list(self.cssline.keys())
+      keys.sort()
+      for s in keys:
+        t.append("      " + s[6:])
+      return t
+
+  # internal class to save user properties
+  class userProperties(object):
+    def __init__(self):
+      self.prop = {}
+
+    def addprop(self,k,v):
+      self.prop[k] = v
+
+    def show(self):
+      self.cprint(self.prop)
+
+  # internal class to save user meta information
+  class userMeta(object):
+    def __init__(self):
+      self.meta = []
+
+    def addmeta(self,s):
+      self.meta.append(s)
+
+    def show(self):
+      t = []
+      for s in self.meta:
+        t.append("    " + s)
+      return t
+
+  def shortHeading(self):
+    global pn_cover
+    # allow shortcut heading
+    #
+    # .title (default "Unknown")
+    # .author (default "Unknown")
+    # .language (default "en")
+    # .created (no default) alternate: "date"
+    # .cover (default "images/cover.jpg")
+    # .display title (default "{.title}, by {.author}")
+    #
+    h = []
+    dc_title = "Unknown"
+    dc_author = "Unknown"
+    dc_language = "en"
+    dc_created = ""
+    pn_cover = "images/cover.jpg"
+    pn_displaytitle = ""
+    m_generator = "fpgen {}".format(VERSION)
+    i = 0
+    where = 0
+    shortused = False
+    while i < len(self.wb):
+
+      m = re.match(r"\.title (.*)", self.wb[i])
+      if m:
+        dc_title = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.author (.*)", self.wb[i])
+      if m:
+        dc_author = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.language (.*)", self.wb[i])
+      if m:
+        dc_language = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.created (.*)", self.wb[i])
+      if m:
+        dc_created = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.date (.*)", self.wb[i])
+      if m:
+        dc_created = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r".cover (.*)", self.wb[i])
+      if m:
+        pn_cover = m.group(1)
+        where = i
+        del(self.wb[i])
+
+      m = re.match(r".displaytitle (.*)", self.wb[i])
+      if m:
+        pn_displaytitle = m.group(1)
+        where = i
+        del(self.wb[i])
+
+      i += 1
+
+    # if user hasn't specified display title, build it from title+author
+    if pn_displaytitle == "":
+      pn_displaytitle = "{}, by {}".format(dc_title, dc_author)
+
+    if shortused:
+      self.umeta.addmeta("<meta name='DC.Title' content='{}'/>".format(dc_title))
+      self.umeta.addmeta("<meta name='DC.Creator' content='{}'/>".format(dc_author))
+      self.umeta.addmeta("<meta name='DC.Language' content='{}'/>".format(dc_language))
+      if dc_created != "":
+        self.umeta.addmeta("<meta name='DC.Created' content='{}'/>".format(dc_created))
+
+    self.uprop.addprop("cover image", "{}".format(pn_cover))
+    self.uprop.addprop("display title", "{}".format(pn_displaytitle))
+
+  # translate marked-up line to HTML
+  # input:
+  #   s:   line in <l>...</l> markup
+  #   pf:  true if line being used in poetry
+  #   lgr: encompassing markup (i.e. from a lg rend attribute)
+
+  def m2h(self, s, pf='False', lgr=''):
+    incoming = s
+    m = re.match("<l(.*?)>(.*?)<\/l>",s)
+    if not m:
+      self.fatal("malformed line: {}".format(s))
+    # combine rend specified on line with rend specified for line group
+    t1 = m.group(1).strip() + " " + lgr
+    t2 = m.group(2)
+
+    setid = ""
+    m = re.search("id=[\"'](.*?)[\"']", t1) # an id (target)
+    if m:
+      setid = m.group(1)
+      t1 = re.sub("id=[\"'](.*?)[\"']", "", t1)
+
+    therend = t1
+
+    if re.match("(◻+)", t2) and re.search("center", therend):
+      self.fatal("indent requested on centered line. exiting")
+    if re.match("(◻+)", t2) and re.search("right", therend):
+      self.fatal("indent requested on right-aligned line. exiting")
+
+    # with poetry, leave indents as hard spaces; otherwise, convert to ml
+    m = re.match("(\s+)", t2) # leading spaces on line
+    if m:
+      if not pf: # not poetry
+        therend += "ml:{}em".format(len(m.group(1)))
+        t2 = re.sub("^\s+","",t2)
+      else:
+        t2 = "&#160;"*len(m.group(1)) + re.sub("^\s+","",t2)
+
+    thetext = t2
+    therend = therend.strip()
+    thestyle = "" # reset the style
+
+    # ----- alignment -----------
+    if re.search("center", therend):
+      thestyle += "text-align:center;"
+      therend = re.sub("center", "", therend)
+
+    if re.search("right", therend):
+      thestyle += "text-align:right;"
+      therend = re.sub("right", "", therend)
+
+    if re.search("left", therend):
+      thestyle += "text-align:left;"
+      therend = re.sub("left", "", therend)
+
+    # ----- margins -------------
+
+    # three forms: mt:2em or mt:2.5em or mt:.8em
+
+    m = re.search("m[tblr]:\.\d+em", therend)
+    if m:
+      therend = re.sub(":\.",":0.", therend)
+
+    m = re.search("mt:(\d+)em", therend)
+    if m:
+      thestyle += "margin-top:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+    m = re.search("mt:(\d+\.\d+)em", therend)
+    if m:
+      thestyle += "margin-top:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+
+    m = re.search("mr:(\d+)em", therend)
+    if m:
+      thestyle += "text-align:right;margin-right:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+    m = re.search("mr:(\d+\.\d+)em", therend)
+    if m:
+      thestyle += "text-align:right;margin-right:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+
+    m = re.search("mb:(\d+)em", therend)
+    if m:
+      thestyle += "margin-bottom:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+    m = re.search("mb:(\d+\.\d+)em", therend)
+    if m:
+      thestyle += "margin-bottom:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+
+    m = re.search("ml:(\d+)em", therend)
+    if m:
+      thestyle += "text-align:left;margin-left:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+    m = re.search("ml:(\d+\.\d+)em", therend)
+    if m:
+      thestyle += "text-align:left;margin-left:{}em;".format(m.group(1))
+      therend = re.sub(m.group(0), "", therend)
+
+    # check that all mt, mr, mb and ml have been handled
+    if re.search(r"mt|mr|mb|ml", therend):
+      print("unhandled margin: {}".format(incoming))
+
+    # ----- font size -----------
+    if re.search("xlg", therend):
+      thestyle += "font-size:x-large;"
+      therend = re.sub("xlg", "", therend)
+    if re.search("lg", therend):
+      thestyle += "font-size:large;"
+      therend = re.sub("lg", "", therend)
+
+    if re.search("xsm", therend):
+      thestyle += "font-size:x-small;"
+      therend = re.sub("xsm", "", therend)
+    if re.search("sm", therend):
+      thestyle += "font-size:small;"
+      therend = re.sub("sm", "", therend)
+
+    m = re.search("fs:([\d\.]+)em", therend)
+    if m:
+      thestyle += "font-size:{}em;".format(m.group(1))
+      therend = re.sub("fs([\d\.]+)em", "", therend)
+
+    # ----- font presentation ---
+    if re.search("under", therend):
+      thestyle += "text-decoration:underline;"
+      therend = re.sub("under", "", therend)
+    if re.search("bold", therend):
+      thestyle += "font-weight:bold;"
+      therend = re.sub("bold", "", therend)
+    if re.search("sc", therend):
+      thestyle += "font-variant:small-caps;"
+      therend = re.sub("sc", "", therend)
+    if re.search("i", therend):
+      thestyle += "font-style:italic;"
+      therend = re.sub("i", "", therend)
+
+    thestyle = thestyle.strip()
+    hstyle = ""
+    if not empty.match(thestyle):
+      hstyle = "style='{}'".format(thestyle)
+    hid = ""
+    if not empty.match(setid):
+      hid = "id='{}'".format(setid)
+
+    if pf: # poetry
+      self.css.addcss("[511] div.lgp p.line0 { text-indent:-3em; margin:0 auto 0 3em; }")
+      s =  "<p class='line0' {} {}>".format(hstyle,hid) + thetext + "</p>"
+    else:
+      self.css.addcss("[510] p.line { text-indent:0; margin-top:0; margin-bottom:0; }")
+      s =  "<p class='line' {} {}>".format(hstyle,hid) + thetext + "</p>"
+    s = re.sub(" +>", ">", s) # trailing internal spaces in tags
+
+    # ensure content in blank lines
+    if re.search("<p class='line[^>]*?><\/p>", s):
+      s = re.sub("<p class='line[^>]*?><\/p>", "<p class='line'>&#160;</p>", s)
+    return s
+
+  # preprocess text
+  def preprocess(self):
+    self.dprint(1,"preprocess")
+
+    i = 0
+    while i < len(self.wb):
+
+      if not re.match("▹", self.wb[i]):
+        # protect special characters
+        self.wb[i] = re.sub(r"\\ ",'◻', self.wb[i]) # escaped (hard) spaces
+        self.wb[i] = re.sub(r"\\%",'⊐', self.wb[i]) # escaped percent signs (macros)
+        self.wb[i] = re.sub(r"\\#",'⊏', self.wb[i]) # escaped octothorpes (page links)
+        self.wb[i] = re.sub(r"\\<",'≼', self.wb[i]) # escaped open tag marks
+        self.wb[i] = re.sub(r"\\>",'≽', self.wb[i]) # escaped close tag marks
+
+        while re.search(r"\. \.", self.wb[i]):
+          self.wb[i] = re.sub(r"\. \.",'.◻.', self.wb[i]) # spaces in spaced-out ellipsis
+        self.wb[i] = re.sub(r"\\'",'⧗', self.wb[i]) # escaped single quote
+        self.wb[i] = re.sub(r'\\"','⧢', self.wb[i]) # escaped double quote
+        self.wb[i] = re.sub(r"&",'⧲', self.wb[i]) # ampersand
+        self.wb[i] = re.sub("<l\/>","<l></l>", self.wb[i]) # allow user shortcut <l/> -> </l></l>
+      i += 1
+
+    i = 0
+    while i < len(self.wb):
+      # unadorned lines in line groups get marked here
+      m = re.match("<lg(.*?)>",self.wb[i])
+      if m:
+        lgopts = m.group(1) # what kind of line group
+        i += 1
+        if re.search("rend='center'",lgopts): # it's a centered line group
+          while not re.match("<\/lg>",self.wb[i]): # go over each line until </lg>
+            # already marked? <l or <ill..
+            if not re.match("^\s*<",self.wb[i]) or re.match("<link",self.wb[i]):
+              self.wb[i] = "<l>" + self.wb[i] + "</l>" # no, mark it now.
+            i += 1
+        else: # not a centered line group so honor leading spaces
+          while not re.search("<\/lg>",self.wb[i]): # go over each line until </lg>
+            if not re.match("^\s*<l",self.wb[i]) or re.match("<link",self.wb[i]): # already marked?
+              self.wb[i] = "<l>" + self.wb[i].rstrip() + "</l>"
+              m = re.match(r"(<l.*?>)(\s+)(.*?)<\/l>", self.wb[i])
+              if m:
+                self.wb[i] = m.group(1) + "◻"*len(m.group(2)) + m.group(3) + "</l>"
+            i += 1
+      i += 1
+
+    i = 1
+    while i < len(self.wb)-1:
+      if re.match("<quote", self.wb[i]) and not empty.match(self.wb[i+1]):
+        t = [self.wb[i], ""]
+        # inject blank line
+        self.wb[i:i+1] = t
+        i += 1
+      if re.match("</quote>", self.wb[i]) and not empty.match(self.wb[i-1]):
+        t = ["", "</quote>"]
+        # inject blank line
+        self.wb[i:i+1] = t
+        i += 1
+      i += 1
+
+    # single-line or split-line format footnotes to multi
+    i = 0
+    while i < len(self.wb):
+      m = re.match("(<footnote id=[\"'].*?[\"']>)(.*?)(<\/footnote>)", self.wb[i])
+      if m:
+        self.wb[i:i+1] = [m.group(1),m.group(2).strip(),m.group(3)]
+        i += 2
+        continue
+      m = re.match("(<footnote id=[\"'].*?[\"']>)(.*?)$", self.wb[i]) # closing tag on separate line
+      if m:
+        self.wb[i:i+1] = [m.group(1),m.group(2).strip()]
+        i += 1
+        continue
+      i += 1
+
+    # whitespace around <footnote and </footnote
+    i = 0
+    while i < len(self.wb):
+      if re.match("<\/?footnote", self.wb[i]):
+        self.wb[i:i+1] = ["", self.wb[i], ""]
+        i += 2
+      i += 1
+
+  #
+  def processLiterals(self):
+    self.dprint(1,"processLiterals")
+    i = 0
+    while i < len(self.wb):
+      if re.match("<lit>", self.wb[i]):
+        del self.wb[i] # <lit
+        while not re.match("<\/lit>", self.wb[i]):
+          self.wb[i] = re.sub('≼', "⨭", self.wb[i]) # literal open tag marks
+          self.wb[i] = re.sub('≽', '⨮', self.wb[i]) # literal close tag marks
+          self.wb[i] = "▹"+self.wb[i]
+          i += 1
+        del self.wb[i] # </lit
+      i += 1
+
+  def userHeader(self):
+    global pn_cover
+    self.dprint(1,"userHeader")
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<property name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
+      if m:
+        self.uprop.addprop(m.group(1), m.group(2))
+        # 22-Feb-2014 if it's a specified cover, need to put it in global variable
+        # so epub &c. can use it after instance is complete
+        if m.group(1) == "cover image":
+          pn_cover = m.group(2)
+          # print("cover image: {}".format(pn_cover))
+        del self.wb[i]
+        continue
+
+      m = re.match("<meta", self.wb[i])
+      if m:
+        if not re.search("\/>$", self.wb[i]):
+          self.wb[i] =re.sub(">$", "/>", self.wb[i])
+        self.umeta.addmeta(self.wb[i])
+        del self.wb[i]
+        continue
+
+      m = re.match("<option name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
+      if m:
+        uopt.addopt(m.group(1), m.group(2))
+        del self.wb[i]
+        continue
+      i += 1
+
+  # page numbers honored in HTML, if present
+  # convert all page numbers to absolute
+  def processPageNum(self):
+    self.dprint(1,"processPageNum")
+
+    cpn = ""
+    for i, line in enumerate(self.wb):
+      if line.startswith("▹"): # no page numbers in preformatted text
+        continue
+      m = re.search(r"pn=['\"](\+?)(.+?)['\"]", self.wb[i])
+      if m:
+        self.showPageNumbers = True
+        if not m.group(1):
+          cpn = m.group(2) # page number specified literally
+        else:
+          if cpn != "":
+            # increment page number by specified amount
+            if cpn.isdigit():
+              cpn = str(int(cpn) + int(m.group(2)))
+            else:
+              increment = int(m.group(2))
+              cpn = self.int_to_roman(self.roman_to_int(cpn) + increment)
+          else:
+            self.fatal("no starting page number" + self.wb[i])
+        self.wb[i] = re.sub(r"pn=['\"](\+?)(.+?)['\"]", "⪦{}⪧".format(cpn), self.wb[i], 1)
+        if "heading" not in self.wb[i]:
+          self.wb[i] = re.sub("<⪦","⪦", self.wb[i])
+          self.wb[i] = re.sub("⪧>","⪧", self.wb[i])
+
+  def userToc(self):
+    self.dprint(1,"userToc")
+
+    needToc = False
+    for i,line in enumerate(self.wb):
+      if re.match("<tocloc", line):
+        needToc = True
+        break
+
+    if needToc:
+      m = re.match("<tocloc(.*?)>", line)
+      if m:
+          attrib = m.group(1)
+      m = re.search("heading=[\"'](.*?)[\"']", attrib)
+      usehead = "Table of Contents"
+      if m:
+          usehead = m.group(1)
+      t = [] # build replacement stanza
+      t.append("<div class='literal-container'>")
+      t.append("<p class='toch'>{}</p>".format(usehead))
+      self.css.addcss("[972] p.toch { text-align:center; text-indent: 0; font-size:1.2em; margin:1em auto; }")
+      t.append("<div class='literal'>")
+      self.css.addcss("[970] .literal-container { text-align:center; margin:1em auto; }")
+      self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
+      # now scan the book for headings with toc='' entries
+      for i,line in enumerate(self.wb):
+        m1 = re.match(r"<heading",line)
+        m2 = re.search(r"level=[\"'](\d)[\"']",line)
+        if re.search(r"toc='", line): # single quote delimiter
+          m3 = re.search(r"toc='(.*?)'",line)
+        else:
+          m3 = re.search(r'toc="(.*?)"',line)
+        m4 = re.search(r"id=[\"'](.*?)[\"']",line)
+        if m1 and m2: # we have a line for the TOC
+          htoc = ""
+          if m3:
+            htoc = m3.group(1) # optional toc contents
+          hid = ""
+          if m4:
+            hid = m4.group(1) # optional id for toc link
+          indent = 2*(int(m2.group(1))-1) # indent based on heading level
+          if indent > 0:
+            t.append("<p class='toc' style='margin-left: {0}em'><a href='#{1}'>{2}</a></p>".format(indent,hid,htoc))
+          else:
+            t.append("<p class='toc'><a href='#{0}'>{1}</a></p>".format(hid,htoc))
+          self.css.addcss("[972] p.toc { text-align:left; text-indent:0; margin-top:0; margin-bottom:0; }")
+      t.append("</div>")
+      t.append("</div>")
+      # insert TOC into document
+      for i,line in enumerate(self.wb):
+        if re.search("<tocloc", line):
+          self.wb[i:i+1] = t
+
+  def processLinks(self):
+    self.dprint(1,"processLinks")
+    for i,line in enumerate(self.wb):
+      m = re.search("<link target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
+      if m:
+        self.wb[i] = re.sub("<link target=[\"'].*?[\"']>","⩤a href='#{}'⩥".format(m.group(1)), self.wb[i])
+        self.wb[i] = re.sub("<\/link>","⩤/a⩥",self.wb[i])
+
+  def processTargets(self):
+    self.dprint(1,"processTargets")
+    for i,line in enumerate(self.wb):
+      m = re.search("<target id=[\"'](.*?)[\"']\/?>", self.wb[i])
+      if m:
+        self.wb[i] = re.sub("<target id=[\"'].*?[\"']\/?>","⩤a id='{}'⩥⩤/a⩥".format(m.group(1)), self.wb[i])
+
+  def protectMarkup(self):
+    fnc = 1 # available to autonumber footnotes
+    self.dprint(1,"protectMarkup")
+    for i,line in enumerate(self.wb):
+      self.wb[i] = re.sub("<em>",'⩤em⩥', self.wb[i])
+      self.wb[i] = re.sub("<\/em>",'⩤/em⩥', self.wb[i])
+      self.wb[i] = re.sub("<i>",'⩤i⩥', self.wb[i])
+      self.wb[i] = re.sub("<\/i>",'⩤/i⩥', self.wb[i])
+      self.wb[i] = re.sub("<sc>",'⩤sc⩥', self.wb[i])
+      self.wb[i] = re.sub("<\/sc>",'⩤/sc⩥', self.wb[i])
+      self.wb[i] = re.sub("<b>",'⩤b⩥', self.wb[i])
+      self.wb[i] = re.sub("<\/b>",'⩤/b⩥', self.wb[i])
+      self.wb[i] = re.sub("<u>",'⩤u⩥', self.wb[i])
+      self.wb[i] = re.sub("<\/u>",'⩤/u⩥', self.wb[i])
+      self.wb[i] = re.sub("<g>",'⩤g⩥', self.wb[i])
+      self.wb[i] = re.sub("<\/g>",'⩤/g⩥', self.wb[i])
+      self.wb[i] = re.sub("<r>",'⩤r⩥', self.wb[i])
+      self.wb[i] = re.sub("<\/r>",'⩤/r⩥', self.wb[i])
+      while re.search("fn id=['\"]#['\"]", self.wb[i]):
+        self.wb[i] = re.sub("fn id=['\"]#['\"]", "fn id='{}'".format(fnc), self.wb[i], 1)
+        fnc += 1
+      self.wb[i] = re.sub(r"<(fn id=['\"].*?['\"]/?)>",r'⩤\1⩥', self.wb[i])
+
+      # new inline tags 2014.01.27
+      self.wb[i] = re.sub("<(\/fs)>", r'⩤\1⩥', self.wb[i])
+      self.wb[i] = re.sub("<(fs:.+?)>", r'⩤\1⩥', self.wb[i])
+
+      # overline 13-Apr-2014
+      if re.search("<ol>", self.wb[i]):
+        self.css.addcss("[116] .ol { text-decoration:overline; }")
+      self.wb[i] = re.sub("<ol>", '⎧', self.wb[i]) # overline
+      self.wb[i] = re.sub("<\/ol>", '⎫', self.wb[i]) # overline
+
+  def markPara(self):
+    self.dprint(1,"markPara")
+
+    if uopt.getopt("pstyle") == "indent": # new 27-Mar-2014
+      self.css.addcss("[811] .pindent { margin-top:0; margin-bottom:0; text-indent:1.5em; }")
+      self.css.addcss("[812] .noindent { margin-top:0; margin-bottom:0; text-indent:0; }")
+      indent = True
+      defaultPara = "<p class='pindent'>"
+      noIndentPara = "<p class='noindent'>"
+    else:
+      defaultPara = "<p>"
+      indent = False
+    hangPara = "<p class='hang'>"
+    self.css.addcss("[813] .hang { padding-left:1.5em; text-indent:-1.5em; }");
+    paragraphTag = defaultPara
+
+    i = 1
+    while i < len(self.wb)-1:
+
+      if re.match("▹", self.wb[i]): # preformatted
+        i += 1
+        continue
+
+      if re.match("<d",self.wb[i]): # no paragraphs in drama 16-Sep-2013
+        while not re.match("<\/d",self.wb[i]):
+          i += 1
+        i += 1
+        continue
+
+      if re.match("<lg",self.wb[i]): # no paragraphs in line groups
+        while not re.match("<\/lg",self.wb[i]):
+          i += 1
+        i += 1
+        continue
+
+      if re.match("<table",self.wb[i]): # no paragraphs in tables
+        while not re.match("<\/table",self.wb[i]):
+          i += 1
+        i += 1
+        continue
+
+      if re.match("<nobreak>", self.wb[i]): # new 27-Mar-2014
+        if not indent:
+          self.fatal("<nobreak> only legal with option pstyle set to indent")
+        paragraphTag = noIndentPara
+        self.wb[i] = re.sub("<nobreak>", "", self.wb[i])
+
+      if re.match("<hang>", self.wb[i]):
+        paragraphTag = hangPara
+        self.wb[i] = re.sub("<hang>", "", self.wb[i])
+
+      # outside of tables and line groups, no double blank lines
+      if empty.match(self.wb[i-1]) and empty.match(self.wb[i]):
+        del (self.wb[i])
+        i -= 1
+        continue
+
+      # a single, unmarked line # 07-Mar-2014 edit
+      if (empty.match(self.wb[i-1]) and empty.match(self.wb[i+1])
+        and not re.match("^<", self.wb[i]) and not re.match(">$", self.wb[i])
+        and not empty.match(self.wb[i])):
+          self.wb[i] = paragraphTag + self.wb[i] + "</p>" #27-Mar-2014
+          paragraphTag = defaultPara
+          i +=  1
+          continue
+
+      # start of paragraph # 07-Mar-2014 edit
+      if (empty.match(self.wb[i-1]) and not empty.match(self.wb[i])
+        and not re.match("<", self.wb[i])):
+          self.wb[i] = paragraphTag + self.wb[i] # 27-Mar-2014
+          paragraphTag = defaultPara
+          i +=  1
+          continue
+
+      # end of paragraph
+      if (empty.match(self.wb[i+1]) and not empty.match(self.wb[i])
+         and not re.search(">$", self.wb[i])):
+        self.wb[i] = self.wb[i] + "</p>"
+        i +=  1
+        continue
+
+      i += 1
+
+  def restoreMarkup(self):
+    self.dprint(1,"restoreMarkup")
+    for i,line in enumerate(self.wb):
+      self.wb[i] = re.sub("⩤",'<', self.wb[i])
+      self.wb[i] = re.sub("⩥",'>', self.wb[i])
+
+      if re.search("<i>", self.wb[i]):
+        self.css.addcss("[110] .it { font-style:italic; }")
+      self.wb[i] = re.sub("<i>","①", self.wb[i])
+      self.wb[i] = re.sub("</i>",'②', self.wb[i])
+
+      if re.search("<b>", self.wb[i]):
+        self.css.addcss("[111] .bold { font-weight:bold; }")
+      self.wb[i] = re.sub("<b>","③", self.wb[i])
+      self.wb[i] = re.sub("</b>",'②', self.wb[i])
+
+      if re.search("<sc>", self.wb[i]):
+        self.css.addcss("[112] .sc { font-variant:small-caps; }")
+      self.wb[i] = re.sub("<sc>","④", self.wb[i])
+      self.wb[i] = re.sub("</sc>",'②', self.wb[i])
+
+      if re.search("<u>", self.wb[i]):
+        self.css.addcss("[113] .ul { text-decoration:underline; }")
+      self.wb[i] = re.sub("<u>","⑤", self.wb[i])
+      self.wb[i] = re.sub("</u>",'②', self.wb[i])
+
+      if re.search("<g>", self.wb[i]):
+        self.css.addcss("[114] .gesp { letter-spacing:0.2em; }")
+      self.wb[i] = re.sub("<g>","⑥", self.wb[i])
+      self.wb[i] = re.sub("</g>",'②', self.wb[i])
+
+      if re.search("<r>", self.wb[i]):
+        self.css.addcss("[115] .red { color: red; }")
+      self.wb[i] = re.sub("<r>","⑦", self.wb[i])
+      self.wb[i] = re.sub("</r>",'②', self.wb[i])
+
+      self.wb[i] = re.sub(r"⩤(fn id=['\"].*?['\"]/?)⩥",r'<\1>', self.wb[i])
+
+      # new inline tags 2014.01.27
+      self.wb[i] = re.sub(r"<fs:l>",'⓯', self.wb[i])
+      self.wb[i] = re.sub(r"<fs:xl>",'⓰', self.wb[i])
+      self.wb[i] = re.sub(r"<fs:s>",'⓱', self.wb[i])
+      self.wb[i] = re.sub(r"<fs:xs>",'⓲', self.wb[i])
+      self.wb[i] = re.sub(r"<\/fs>",'⓳', self.wb[i])
+
+  def startHTML(self):
+    self.dprint(1,"startHTML")
+
+    body_defined = False
+    if 'e' in self.gentype:
+      self.css.addcss("[100] body { margin-left:0;margin-right:0; }")
+      body_defined = True
+    if 'k' in self.gentype:
+      self.css.addcss("[100] body { margin-left:0;margin-right:0; }")
+      body_defined = True
+    if 'p' in self.gentype:
+      self.css.addcss("[100] body { margin-left:0;margin-right:0; }")
+      body_defined = True
+    if not body_defined:
+      self.css.addcss("[100] body { margin-left:8%;margin-right:10%; }")
+
+    if self.showPageNumbers: # only possible in HTML
+      if 'h' == self.gentype:
+        self.css.addcss("[105] .pagenum { right: 1%; font-size: x-small; background-color: inherit; color: silver;")
+        self.css.addcss("[106]          text-indent: 0em; text-align: right; position: absolute;")
+        self.css.addcss("[107]          border: 1px solid silver; padding: 1px 3px; font-style: normal;")
+        self.css.addcss("[108]          font-variant: normal; font-weight: normal; text-decoration: none; }")
+      else:
+        self.css.addcss("[105] .pagenum { display:none; }") # no visible page numbers in non-browser HTML
+
+    self.css.addcss("[170] p { text-indent:0; margin-top:0.5em; margin-bottom:0.5em;") # para style
+    align_defined = False
+    if 'e' in self.gentype:
+      self.css.addcss("[171]     text-align: left; }") # epub ragged right
+      align_defined = True
+    if 'k' in self.gentype:
+      self.css.addcss("[171]     text-align: left; }") # mobi ragged right
+      align_defined = True
+    if not align_defined:
+      self.css.addcss("[171]     text-align: justify; }") # browser HTML justified
+
+    t =[]
+    t.append("<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"")
+    t.append("    \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">")
+    t.append("<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">")
+    t.append("  <head>")
+    t.append("    <meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\" />")
+
+    if "display title" in self.uprop.prop:
+      t.append("    <title>{}</title>".format(self.uprop.prop["display title"]))
+    else:
+      # use default title
+      t.append("    <title>{}</title>".format(re.sub("-src.txt", "", self.srcfile)))
+
+    if "cover image" in self.uprop.prop:
+      t.append("    <link rel=\"coverpage\" href=\"{}\"/>".format(self.uprop.prop["cover image"]))
+      t.append("    <meta name=\"cover\" content=\"{}\" />".format(self.uprop.prop["cover image"]))
+    else:
+      # self.cprint("warning: no cover image specified")
+      t.append("    <link rel=\"coverpage\" href=\"{}\"/>".format("images/cover.jpg"))
+      t.append("    <meta name=\"cover\" content=\"images/cover.jpg\" />")
+
+    t.append("      META PLACEHOLDER")
+    t.append("    <style type=\"text/css\">")
+    t.append("      CSS PLACEHOLDER")
+    t.append("    </style>")
+
+    if len(self.supphd) > 0:
+      t += self.supphd
+
+    t.append("  </head>")
+    t.append("  <body>   ")
+
+    self.wb = t + self.wb # prepend header
+
+  def cleanup(self):
+    self.dprint(1,"cleanup")
+    for i in range(len(self.wb)):
+      self.wb[i] = re.sub('⧗', "'", self.wb[i]) # escaped single quote
+      self.wb[i] = re.sub('⧢', '"', self.wb[i]) # double quote
+      self.wb[i] = re.sub('⧲', '&amp;', self.wb[i]) # ampersand
+
+      self.wb[i] = re.sub('◻', '&ensp;', self.wb[i]) # wide space
+      # self.wb[i] = re.sub('◻', '&nbsp;', self.wb[i]) # wide space
+
+      self.wb[i] = re.sub('▹', '', self.wb[i]) # unprotect literal lines
+      self.wb[i] = re.sub('⧀', '<', self.wb[i]) # protected tag braces
+      self.wb[i] = re.sub('⧁', '>', self.wb[i])
+      self.wb[i] = re.sub('⊐', '%', self.wb[i]) # escaped percent signs (macros)
+      self.wb[i] = re.sub('⊏', '#', self.wb[i]) # escaped octothorpes (page links)
+      self.wb[i] = re.sub('≼', '&lt;', self.wb[i]) # escaped <
+      self.wb[i] = re.sub('≽', '&gt;', self.wb[i]) # escaped >
+
+      self.wb[i] = re.sub('⨭', '<', self.wb[i]) # protected <
+      self.wb[i] = re.sub('⨮', '>', self.wb[i]) # protected >
+
+      self.wb[i] = re.sub("☊", "<span style='float:left; clear: left; margin:0 0.1em 0 0; padding:0; line-height: 1.0em; font-size: 200%;'>", self.wb[i])
+      self.wb[i] = re.sub("☋", "</span>", self.wb[i])
+
+      self.wb[i] = re.sub("①","<span class='it'>", self.wb[i])
+      self.wb[i] = re.sub("②","</span>", self.wb[i])
+      self.wb[i] = re.sub("③","<span class='bold'>", self.wb[i])
+      self.wb[i] = re.sub("④","<span class='sc'>", self.wb[i])
+      self.wb[i] = re.sub("⑤","<span class='ul'>", self.wb[i])
+      self.wb[i] = re.sub("⑥","<span class='gesp'>", self.wb[i])
+      self.wb[i] = re.sub("⑦","<span class='red'>", self.wb[i])
+
+      self.wb[i] = re.sub("⎧","<span class='ol'>", self.wb[i])
+      self.wb[i] = re.sub("⎫","</span>", self.wb[i])
+
+    # superscripts, subscripts
+    for i in range(len(self.wb)):
+      # special cases first: ^{} and _{}
+      self.wb[i] = re.sub('\^\{\}', r'<sup>&#8203;</sup>', self.wb[i])
+      self.wb[i] = re.sub('_\{\}', r'<sub>&#8203;</sub>', self.wb[i])
+      self.wb[i] = re.sub('\^\{(.*?)\}', r'<sup>\1</sup>', self.wb[i]) # superscript format 1: Rob^{t}
+      self.wb[i] = re.sub('\^(.)', r'<sup>\1</sup>', self.wb[i]) # superscript format 2: Rob^t
+      self.wb[i] = re.sub('_\{(.*?)\}', r'<sub>\1</sub>', self.wb[i]) # subscript: H_{2}O
+
+    # 2014.01.27 new font size inline
+    for i in range(len(self.wb)):
+      self.wb[i] = re.sub('⓯', "<span style='font-size:larger'>", self.wb[i])
+      self.wb[i] = re.sub('⓰', "<span style='font-size:x-large'>", self.wb[i])
+      self.wb[i] = re.sub('⓱', "<span style='font-size:smaller'>", self.wb[i])
+      self.wb[i] = re.sub('⓲', "<span style='font-size:x-small'>", self.wb[i])
+      self.wb[i] = re.sub('⓳', "</span>", self.wb[i])
+
+  # page links
+  # 2014.01.14 new in 3.02c
+  def plinks(self):
+    self.dprint(1,"plinks")
+
+    # of the form #124:ch03#
+    # displays 124, links to ch03
+    for i in range(len(self.wb)): # new 2014.01.13
+      m = re.search(r"#\d+:.*?#", self.wb[i])
+      while m:
+        self.wb[i] = re.sub(r"#(\d+):(.*?)#", r"<a href='#\2'>\1</a>", self.wb[i],1)
+        m = re.search(r"#\d+\:.*?#", self.wb[i])
+
+    # of the form #274#
+    # displays 274, links to Page_274
+    for i in range(len(self.wb)):
+      m = re.search(r"#\d+#", self.wb[i])
+      while m:
+        self.wb[i] = re.sub(r"#(\d+)#", r"<a href='#Page_\1'>\1</a>", self.wb[i],1)
+        m = re.search(r"#\d+#", self.wb[i])
+
+  def placeCSS(self):
+    self.dprint(1,"placeCSS")
+    i = 0
+    notplaced = True
+    while i < len(self.wb) and notplaced:
+      if re.search("CSS PLACEHOLDER", self.wb[i]):
+        self.wb[i:i+1] = self.css.show()
+        notplaced = False
+      i += 1
+
+  def placeMeta(self):
+    self.dprint(1,"placeMeta")
+    i = 0
+    while i < len(self.wb):
+      if re.search("META PLACEHOLDER", self.wb[i]):
+        t = self.umeta.show()
+        u = []
+        for mline in t:
+          if "Gutenberg Canada" in mline:
+            print("discarding: {}".format(mline))
+          else:
+            u.append(mline)
+        self.wb[i:i+1] = u
+        return
+      i += 1
+
+  def endHTML(self):
+    self.dprint(1,"endHTML")
+    self.wb.append("  </body>")
+    self.wb.append("  <!-- created with fpgen.py {} on {} -->".format(VERSION, NOW))
+    self.wb.append("</html>")
+
+  def doHeadings(self):
+    self.dprint(1,"doHeadings")
+    for i,line in enumerate(self.wb):
+      m = re.match("<heading(.*?)>(.*?)<\/heading>",line)
+      if m:
+        harg = m.group(1)
+        htitle = m.group(2)
+        htarget = ""
+        hlevel = 0
+        showpage = False
+
+        m = re.search("id=[\"'](.*?)[\"']", harg)
+        if m:
+          htarget = m.group(1)
+
+        m = re.search("level=[\"'](.*?)[\"']", harg)
+        if m:
+          hlevel = int(m.group(1))
+
+        m = re.search("⪦([^-]+)⪧", harg)
+        if m:
+          self.cpn = m.group(1)
+          showpage = True
+
+        style = ""
+        m = re.search("hidden", harg)
+        if m:
+          style = " style='visibility:hidden; margin:0; font-size:0;' "
+
+        useclass = ""
+        if re.search("nobreak", harg):
+          useclass = " class='nobreak'"
+          self.css.addcss("[427] h1.nobreak { page-break-before: avoid; }")
+
+        if not showpage: # no visible page numbers
+
+          if hlevel == 1:
+            if not empty.match(htarget):
+              self.wb[i] = "<h1{}{} id='{}'>{}</h1>".format(style, useclass, htarget, htitle)
+            else:
+              self.wb[i] = "<h1{}{}>{}</h1>".format(style, useclass, htitle)
+            self.css.addcss("[250] h1 { text-align:center; font-weight:normal;")
+            if self.gentype != 'h':
+              self.css.addcss("[251]  page-break-before:always; ")
+            self.css.addcss("[252]      font-size:1.2em; margin:2em auto 1em auto}")
+
+          if hlevel == 2:
+            if not empty.match(htarget):
+              self.wb[i] = "<h2{}{} id='{}'>{}</h2>".format(style, useclass, htarget, htitle)
+            else:
+              self.wb[i] = "<h2{}{}>{}</h2>".format(style, useclass, htitle)
+            self.css.addcss("[254] h2 { text-align:center; font-weight:normal;")
+            self.css.addcss("[255]      font-size:1.1em; margin:1em auto 0.5em auto}")
+
+          if hlevel == 3:
+            if not empty.match(htarget):
+              self.wb[i] = "<h3{}{} id='{}'>{}</h3>".format(style, useclass, htarget, htitle)
+            else:
+              self.wb[i] = "<h3{}{}>{}</h3>".format(style, useclass, htitle)
+            self.css.addcss("[258] h3 { text-align:center; font-weight:normal;")
+            self.css.addcss("[259]      font-size:1.0em; margin:1em auto 0.5em auto}")
+
+        if showpage:
+
+          if self.gentype != 'h': # other than browser HTML, just the link
+            span = "<a name='Page_{0}' id='Page_{0}'></a>".format(self.cpn)
+          else:
+            span = "<span class='pagenum'><a name='Page_{0}' id='Page_{0}'>{0}</a></span>".format(self.cpn)
+
+          if hlevel == 1:
+            if not empty.match(htarget):
+             self.wb[i] = "<div>{}<h1{}{} id='{}'>{}</h1></div>".format(span, style, useclass, htarget, htitle)
+            else:
+             self.wb[i] = "<div>{}<h1{}{}>{}</h1></div>".format(span, style, useclass, htitle)
+            self.css.addcss("[250] h1 { text-align:center; font-weight:normal;")
+            if self.gentype != 'h':
+              self.css.addcss("[251]  page-break-before:always; ")
+            self.css.addcss("[252]      font-size:1.2em; margin:2em auto 1em auto}")
+
+          if hlevel == 2:
+            if not empty.match(htarget):
+             self.wb[i] = "<h2{}{} id='{}'>{}{}</h2>".format(style, useclass, htarget, span, htitle)
+            else:
+             self.wb[i] = "<h2{}{}>{}{}</h2>".format(style, useclass, span, htitle)
+            self.css.addcss("[254] h2 { text-align:center; font-weight:normal;")
+            self.css.addcss("[255]      font-size:1.1em; margin:1em auto 0.5em auto}")
+
+          if hlevel == 3:
+            if not empty.match(htarget):
+             self.wb[i] = "<h3{}{} id='{}'>{}{}</h3>".format(style, useclass, htarget, span, htitle)
+            else:
+             self.wb[i] = "<h3{}{}>{}{}</h3>".format(style, useclass, span, htitle)
+            self.css.addcss("[254] h3 { text-align:center; font-weight:normal;")
+            self.css.addcss("[255]      font-size:1.0em; margin:1em auto 0.5em auto}")
+
+  def doBlockq(self):
+    self.dprint(1,"doBlockq")
+    for i,line in enumerate(self.wb):
+      owned = False
+      m = re.match("<quote(.*?)>",line)
+      if m:
+        rendatt = m.group(1)
+
+        # is a width specified? must be in em
+        m = re.search("w:(\d+)em", rendatt)
+        if m:
+          rendw = m.group(1)
+          self.wb[i] = "<div class='blockquote"+rendw+"'>"
+          self.css.addcss("[391] div.blockquote"+rendw+" { margin:1em auto; width:"+rendw+"em; }")
+          self.css.addcss("[392] div.blockquote"+rendw+" p { text-align:left; }")
+          owned = True
+
+        # is a font size specified? must be in em
+        m = re.search("fs:([\d\.]+)em", rendatt)
+        if m:
+          if owned:
+            self.fatal("doBlockq rend overload")
+          rendfs = m.group(1)
+          # user-specified font size.
+          drendfs = re.sub("\.","r", rendfs)
+          self.wb[i] = "<div class='blockquote"+drendfs+"'>"
+          stmp = "[391] div.blockquote" + drendfs+ " { margin:1em 2em; }"
+          self.css.addcss(stmp)
+          stmp = "[392] div.blockquote" + drendfs + " p { font-size: " + rendfs + "em }"
+          self.css.addcss(stmp)
+          owned = True
+
+        # nothing special specified
+        if not owned:
+          self.wb[i] = "<div class='blockquote'>"
+          self.css.addcss("[390] div.blockquote { margin:1em 2em; text-align:justify; }")
+      if re.match("<\/quote>",line):
+        self.wb[i] = "</div>"
+
+  def doBreaks(self): # 02-Apr-2014 rewrite
+    self.dprint(1,"doBreaks")
+    cssc = 100
+
+    for i,line in enumerate(self.wb):
+
+      m = re.search("<tb(.*?)\/?>",line)
+      if m:
+        # set defaults
+        tb_thick = "1px"
+        tb_linestyle = "solid"
+        tb_color = "black"
+        tb_width = "30"
+        tb_mt = "0.5em"
+        tb_mb = "0.5em"
+        tb_align = "text-align:center"
+
+        m = re.search(r"rend='(.*?)'", self.wb[i])
+        if m:
+          style = ""
+          border = ""
+          tbrend = m.group(1)
+
+          m = re.search("mt:(\-?\d+\.?\d*)+(px|%|em)", tbrend)
+          if m:
+            tb_mt = "{}{}".format(m.group(1),m.group(2))
+
+          m = re.search("mb:(\-?\d+\.?\d*)+(px|em)", tbrend)
+          if m:
+            tb_mb = "{}{}".format(m.group(1),m.group(2))
+
+          # line style:
+          m = re.search("ls:(\w+?);", tbrend)
+          if m:
+            tb_linestyle = m.group(1)
+
+          # line color
+          m = re.search("lc:(\w+?)[;']", tbrend)
+          if m:
+            tb_color = m.group(1)
+
+          m = re.search("thickness:(\w+?)[;']", tbrend)
+          if m:
+            tb_thick = m.group(1)
+
+          m = re.search("w:(\d+)%", tbrend)
+          if m:
+            tb_width = "{}".format(m.group(1))
+
+          tb_marginl = str((100 - int(tb_width))//2) + "%" # default if centered
+          tb_marginr = tb_marginl
+
+          m = re.search("right", tbrend)
+          if m:
+            tb_align = "text-align:right"
+            tb_marginl = "auto"
+            tb_marginr = "0"
+
+          m = re.search("left", tbrend)
+          if m:
+            tb_align = "text-align:left"
+            tb_marginl = "0"
+            tb_marginr = "auto"
+
+          # m = re.search("s:([\d\.]+?)em", tbrend) # special form: invisible, for spacing
+          # if m:
+          # ...
+
+          # build the css class
+          bcss = "border:none; border-bottom:{} {} {}; width:{}%; margin-top:{}; margin-bottom:{}; {}; margin-left:{}; margin-right:{}".format(tb_thick, tb_linestyle, tb_color, tb_width, tb_mt, tb_mb, tb_align, tb_marginl, tb_marginr)
+          self.css.addcss("[370] hr.tbk{}".format(cssc) + "{ " + bcss + " }")
+          self.wb[i]= "<hr class='tbk{}'/>".format(cssc)
+          cssc += 1
+        else:
+          self.css.addcss("[370] hr.tbk { border:none; border-bottom:1px solid black; width:30%; margin-left:35%; margin-right:35%; }")
+          self.wb[i]= "<hr class='tbk'/>"
+
+      if re.match("<pb\/?>",line):
+        if self.gentype == 'h':
+          self.wb[i]= "<hr class='pbk'/>"
+          self.css.addcss("[372] hr.pbk { border:none; border-bottom:1px solid silver; width:100%; margin-top:2em; margin-bottom:2em }")
+        else:
+          self.wb[i]= "<div class='pbba'></div>"
+          self.css.addcss("[372] div.pbba { page-break-before:always; }")
+
+      m = re.match("<hr rend='(.*?)'\/?>",line)
+      if m:
+        if re.search("footnotemark", m.group(1)):
+          self.wb[i]= "<hr class='footnotemark'/>"
+          self.css.addcss("[378] hr.footnotemark { border:none; border-bottom:1px solid silver; width:10%; margin:1em auto 1em 0; }")
+        else:
+          self.fatal("unknown hr rend: /{}/".format(m.group(1)))
+
+
+  def doTables(self):
+    self.dprint(1,"doTables")
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<table(.*?)>",self.wb[i])
+      if m:
+
+        vpad = "2" # defaults
+        hpad = "5"
+        # can include rend and pattern
+        tattr = m.group(1)
+        self.css.addcss("[560] table.center { margin:0.5em auto; border-collapse: collapse; padding:3px; }")
+
+        # pull the pattern
+        m = re.search("pattern=[\"'](.*?)[\"']", tattr)
+        if m:
+          tpat = m.group(1)
+
+        # pull the rend attributes
+        trend = ""
+        useborder = False
+        m = re.search("rend='(.*?)'", tattr)
+        if m:
+          trend = m.group(1)
+          m = re.search("vp:(\d+)", trend) # vertical cell padding
+          if m:
+            vpad = int(m.group(1))
+          m = re.search("hp:(\d+)", trend) # horizontal cell padding
+          if m:
+            hpad = int(m.group(1))
+          useborder = re.search("border", trend) # table uses borders
+
+        # fill uw list with widths of columns as integers
+        userWidth = False
+        uw = []
+        if re.search("\d", tpat):
+          # user has specified width
+          userWidth = True
+          m = re.search("(\d+)", tpat)
+          while m:
+            uw.append(int(m.group(1)))
+            tpat = re.sub("\d+", "", tpat, 1)
+            m = re.search("(\d+)", tpat)
+
+        # build the table header
+        u = tpat.split(" ")   # u is list of the pattern specifiers
+        t = []
+        j = i + 1
+
+        if useborder:
+          t.append("<table summary=\"\" class='center border'>")
+          self.css.addcss("[561] table.border td { border: 1px solid black; }")
+        else:
+          t.append("<table summary=\"\" class='center'>")
+        if userWidth:
+          t.append("<colgroup>")
+          for n in uw:
+            t.append("<col span='1' style='width: {}em;'/>".format(n//2))
+          t.append("</colgroup>")
+
+        # emit each row of table
+        while not re.match("<\/table>", self.wb[j]):
+          if empty.match(self.wb[j]):
+            self.wb[j] = "<tr><td colspan='{}'>&nbsp;</td></tr>".format(len(uw))
+          else:
+            self.wb[j] = re.sub("\|","</td><td>", self.wb[j])
+            self.wb[j] = "<tr><td>" + self.wb[j].rstrip() + "</td></tr>"
+            for k,a in enumerate(u):
+                if a == 'l':
+                  self.wb[j] = re.sub("<td>","<td style='padding: {}px {}px; text-align:left; vertical-align:top'>".format(vpad,hpad), self.wb[j], 1)
+                if a == 'c':
+                  self.wb[j] = re.sub("<td>","<td style='padding: {}px {}px; text-align:center; vertical-align:top'>".format(vpad,hpad), self.wb[j], 1)
+                if a == 'r':
+                  self.wb[j] = re.sub("<td>","<td style='padding: {}px {}px; text-align:right; vertical-align:top'>".format(vpad,hpad), self.wb[j], 1)
+          t.append(self.wb[j])
+          j += 1
+        self.wb[i:j] = t
+        i = j
+      i += 1
+
+  def doIllustrations(self):
+    self.dprint(1,"doIllustrations")
+    idcnt = 0 # auto id counter
+    i_w = 0 # image width
+    i_h = 0 # image height
+    i_caption = "" # image caption or "" if no caption
+    i_posn = "" # placement, left, center, right
+    i_filename ="" # filename
+    i_rend = "" # rend string
+    i_clear = 0 # how many lines of source to replace
+    i_link = "" # name of file to be linked-to or "" if no link
+
+    i = 0
+    while i < len(self.wb):
+      m = re.search("<illustration(.*?)", self.wb[i])
+      if m:
+
+        # --------------------------------------------------------------------
+        # set i_filename ("content" or "src")
+        m = re.search("(content|src)=[\"'](.*?)[\"']", self.wb[i])
+        if m:
+          i_filename = m.group(2)
+        if i_filename == "":
+          self.fatal("no image filename specified in {}".format(self.wb[i]))
+
+        # --------------------------------------------------------------------
+        # pull rend string, if any
+        m = re.search("rend=[\"'](.*?)[\"']", self.wb[i])
+        if m:
+          i_rend = m.group(1)
+
+        # --------------------------------------------------------------------
+        # set i_id
+        m = re.search("id=[\"'](.*?)[\"']", self.wb[i])
+        if m:
+          i_id = m.group(1)
+        else:
+          i_id = "iid-{:04}".format(idcnt)
+          idcnt += 1
+
+        # --------------------------------------------------------------------
+        # set i_posn placement
+        i_posn = "center" # default
+        if re.search("left", i_rend):
+          i_posn = "left"
+        if re.search("right", i_rend):
+          i_posn = "right"
+
+        if i_posn == "right":
+          self.css.addcss("[380] .figright { float:right; clear:right; margin-left:1em;")
+          self.css.addcss("[381]             margin-bottom:1em; margin-top:1em; margin-right:0;")
+          self.css.addcss("[382]             padding:0; text-align:center; }")
+        if i_posn == "left":
+          self.css.addcss("[383] .figleft  { float:left; clear:left; margin-right:1em;")
+          self.css.addcss("[384]             margin-bottom:1em; margin-top:1em; margin-left:0;")
+          self.css.addcss("[385]             padding:0; text-align:center; }")
+        if i_posn == "center":
+          self.css.addcss("[386] .figcenter { text-align:center; margin:1em auto;}")
+
+        # --------------------------------------------------------------------
+        # set i_w, i_h width and height
+        i_w = "none"
+        m = re.search(r"w:(\d+)(px)?[;'\"]", i_rend)
+        if m:
+          i_w = m.group(1) + "px"
+        m = re.search(r"w:(\d+)%[;'\"]", i_rend)
+        if m:
+          i_w = m.group(1) + "%"
+        i_h = "auto"
+        m = re.search(r"h:(\d+)(px)?[;'\"]", i_rend)
+        if m:
+          i_h = m.group(1)+"px"
+        if i_w == "none":
+          self.fatal("must specify image width\n{}".format(self.wb[i]))
+
+        # --------------------------------------------------------------------
+        # determine if link to larger image is requested.
+        # if so, link is to filename+f in images folder.
+        i_link = "" # assume no link
+        m = re.search(r"link", i_rend)
+        if m:
+          i_link = re.sub(r"\.", "f.", i_filename)
+
+        # --------------------------------------------------------------------
+        # illustration may be on one line (/>) or three (>)
+        if re.search("\/>", self.wb[i]): # one line, no caption
+          i_caption = ""
+          i_clear = 1
+        else:
+          i_caption = self.wb[i+1]
+          i_caption = re.sub(r"<\/?caption>", "", i_caption)
+          i_caption = re.sub("<br>","<br/>", i_caption) # honor hard breaks in captions
+          i_clear = 3
+
+        # --------------------------------------------------------------------
+        #
+        t = []
+        style="width:{};height:{};".format(i_w,i_h)
+        t.append("<div class='fig{}'>".format(i_posn, i_w))
+
+        # handle link to larger images in HTML only
+        s0 = ""
+        s1 = ""
+        if 'h' == self.gentype and i_link != "":
+          s0 = "<a href='{}'>".format(i_link)
+          s1 = "</a>"
+        t.append("{}<img src='{}' alt='' id='{}' style='{}'/>{}".format(s0, i_filename, i_id, style, s1))
+        if i_caption != "":
+          self.css.addcss("[392] p.caption { text-align:center; margin:0 auto; width:100%; }")
+          t.append("<p class='caption'>{}</p>".format(i_caption))
+        t.append("</div>")
+        self.wb[i:i+i_clear] = t
+
+      i += 1
+
+  def doLinks(self):
+    self.dprint(1,"doLinks")
+    for i,line in enumerate(self.wb):
+      m = re.search("<link target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
+      if m:
+        tgt = m.group(1)
+        self.wb[i] = re.sub("<link target=[\"'].*?[\"']>","<a href='#{}'>".format(tgt),self.wb[i])
+        self.wb[i] = re.sub("<\/link>","</a>",self.wb[i])
+
+  def doFootnotes(self):
+    self.dprint(1,"doFootnotes")
+
+    # footnote marks in text
+    i = 0
+    while i < len(self.wb):
+      m = re.search("<fn id=[\"'](.*?)[\"']\/?>", self.wb[i])
+      while m: # two footnotes on same line
+        fmid = m.group(1)
+        self.wb[i] = re.sub("<fn id=[\"'](.*?)[\"']\/?>",
+          "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
+          self.wb[i],1)
+        m = re.search("<fn id=[\"'](.*?)[\"']\/?>", self.wb[i])
+      i += 1
+
+    # footnote targets and text
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<footnote id=[\"'](.*?)[\"']>", self.wb[i])
+      if m:
+        fnid = m.group(1)
+        self.wb[i] = "<div id='f{0}'><a href='#r{0}'>[{0}]</a></div>".format(fnid)
+        while not re.match("<\/footnote>", self.wb[i]):
+          i += 1
+        self.wb[i] = "</div> <!-- footnote end -->"
+      i += 1
+
+  # setup the framework around the lines
+  # if a rend option of mt or mb appears, it applies to the entire block
+  # other rend options apply to the contents of the block
+  def doLineGroups(self):
+    self.dprint(1,"doLineGroups")
+    for i,line in enumerate(self.wb):
+      m = re.match("<lg(.*?)>", line)
+      if m:
+        lgopts = m.group(1).strip()
+
+        # if a rend option of mt or mb is included, pull it out.
+        # 16-Feb-2014 may be decimal
+        blockmargin = "style='"
+        m = re.search("mt:([\d]+)(em|px)", lgopts)
+        if m:
+          blockmargin += " margin-top: {}{}; ".format(m.group(1),m.group(2))
+          lgopts = re.sub("mt:([\d]+)(em|px)\;?","", lgopts)
+        m = re.search("mt:([\d]+\.[\d]+)(em|px)", lgopts)
+        if m:
+          blockmargin += " margin-top: {}{}; ".format(m.group(1),m.group(2))
+          lgopts = re.sub("mt:([\d]+\.[\d]+)(em|px)\;?","", lgopts)
+        m = re.search("mb:([\d]+)(em|px)", lgopts)
+        if m:
+          blockmargin += " margin-bottom: {}{}; ".format(m.group(1),m.group(2))
+          lgopts = re.sub("mb:([\d]+)(em|px)\;?","", lgopts)
+        m = re.search("mb:([\d]+\.[\d]+)(em|px)", lgopts)
+        if m:
+          blockmargin += " margin-bottom: {}{}; ".format(m.group(1),m.group(2))
+          lgopts = re.sub("mb:([\d]+\.[\d]+)(em|px)\;?","", lgopts)
+        blockmargin += "'"
+
+        # default is left
+        if empty.match(lgopts) or re.search("left", lgopts):
+          lgopts = re.sub("left", "", lgopts) # 17-Feb-2014
+          self.wb[i] = "<div class='lgl' {}> <!-- {} -->".format(blockmargin,lgopts)
+          self.css.addcss("[220] div.lgl { }")
+          self.css.addcss("[221] div.lgl p { text-indent: -17px; margin-left:17px; margin-top:0; margin-bottom:0; }")
+          while not re.match("<\/lg>", self.wb[i]):
+            i += 1
+          self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
+          continue
+
+        if re.search("center", lgopts):
+          lgopts = re.sub("center", "", lgopts) # 17-Feb-2014
+          self.wb[i] = "<div class='lgc' {}> <!-- {} -->".format(blockmargin,lgopts)
+          self.css.addcss("[220] div.lgc { }")
+          self.css.addcss("[221] div.lgc p { text-align:center; text-indent:0; margin-top:0; margin-bottom:0; }")
+          while not re.match("<\/lg>", self.wb[i]):
+            i += 1
+          self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
+          continue
+
+        if re.search("right", lgopts):
+          lgopts = re.sub("right", "", lgopts) # 16-Mar-2014
+          self.wb[i] = "<div class='lgr' {}> <!-- {} -->".format(blockmargin,lgopts)
+          self.css.addcss("[220] div.lgr { }")
+          self.css.addcss("[221] div.lgr p { text-align:right; text-indent:0; margin-top:0; margin-bottom:0; }")
+          while not re.match("<\/lg>", self.wb[i]):
+            i += 1
+          self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
+          continue
+
+        if re.search("block", lgopts):
+          lgopts = re.sub("block", "", lgopts) # 17-Feb-2014
+          self.wb[i] = "<div class='literal-container' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
+          self.css.addcss("[970] .literal-container { text-align:center; margin:0 0; }")
+          self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
+          while not re.match("<\/lg", self.wb[i]):
+            i += 1
+          self.wb[i] = "</div></div> <!-- end rend -->" # closing </lg>
+          continue
+
+        if re.search("poetry", lgopts):
+          lgopts = re.sub("poetry", "", lgopts) # 17-Feb-2014
+          if self.poetryindent == 'left':
+              self.wb[i] = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
+              self.css.addcss("[230] div.lgp { }")
+              self.css.addcss("[231] div.lgp p { text-align:left; text-indent:0; margin-top:0; margin-bottom:0; }")
+              self.css.addcss("[233] .poetry-container { display:inline-block; text-align:left; margin-left:2em; }")
+              while not re.match("<\/lg", self.wb[i]):
+                i += 1
+              # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
+              self.wb[i] = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
+              continue
+          else: # centered
+              self.css.addcss("[233] .poetry-container { text-align:center; }")
+              self.css.addcss("[230] div.lgp { display: inline-block; text-align: left; }")
+              self.wb[i] = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
+              self.css.addcss("[231] div.lgp p { text-align:left; margin-top:0; margin-bottom:0; }")
+              while not re.match("<\/lg", self.wb[i]):
+                i += 1
+              # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
+              self.wb[i] = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
+              continue
+
+  # process lines, in or outside a line group
+  def doLines(self):
+    self.dprint(1,"doLines")
+    i = 0
+    rendopts = ""
+    inPoetry = False
+    while i < len(self.wb):
+      if re.search("<l[ig]", self.wb[i]): # skip links or linegroups
+        i += 1
+        continue
+
+      m = re.search("<!-- rend='(.*?)' -->", self.wb[i])
+      if m:
+        rendopts = m.group(1)
+      m = re.search("<!-- end rend -->", self.wb[i])
+      if m:
+        rendopts = ""
+
+      if re.search("poetry-container", self.wb[i]):
+        inPoetry = True # poetry lines are different
+      if re.search("<!-- end poetry block -->", self.wb[i]):
+        inPoetry = False
+
+      m = re.search("<l(.*?)>", self.wb[i]) and not re.search("<li", self.wb[i])
+      if m: # we have a line to rend
+        self.wb[i] = self.m2h(self.wb[i], inPoetry, rendopts)
+      i += 1
+
+  # anything particular for derived-class media (epub, mobi, PDF)
+  # can use this as an overridden method
+  def mediaTweak(self):
+    # for HTML, gather footnotes into a table structure
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<div id='f(.+?)'><a href='#r.+?'>\[.*?\]<\/a>", self.wb[i])
+      if m:
+        t = []
+        t.append("<table style='margin:0 4em 0 0;' summary='footnote_{}'>".format(m.group(1)))
+
+        t.append("<colgroup>")
+        t.append("<col span='1' style='width: 3em;'/>")
+        t.append("<col span='1'/>")
+        t.append("</colgroup>")
+
+        t.append("<tr><td style='vertical-align:top;'>")
+        t.append(self.wb[i])
+        del(self.wb[i])
+        t.append("</td><td>")
+        while not re.search("<!-- footnote end -->",self.wb[i]):
+          t.append(self.wb[i])
+          del(self.wb[i])
+        del(self.wb[i]) # closing div
+        t.append("</td></tr>")
+        t.append("</table>")
+        t.append("")
+        self.wb[i:i+1] = t
+        i += len(t)-1
+      i += 1
+
+  def processPageNumDisp(self):
+    inBlockElement = False
+    for i,line in enumerate(self.wb):
+      if re.search("<p", line):
+        inBlockElement = True
+      m = re.search("⪦([^-]+)⪧", self.wb[i])
+      if m:
+        cpn = m.group(1)
+        if 'h' in self.gentype:
+          if inBlockElement:
+            self.wb[i]=re.sub("⪦.+?⪧","<span class='pagenum'><a name='Page_{0}' id='Page_{0}'>{0}</a></span>".format(cpn), self.wb[i])
+          else:
+            self.wb[i]=re.sub("⪦.+?⪧","<div class='pagenum'><a name='Page_{0}' id='Page_{0}'>{0}</a></div>".format(cpn), self.wb[i])
+        else:
+          self.wb[i]=re.sub("⪦.+?⪧","<a name='Page_{0}' id='Page_{0}'></a>".format(cpn), self.wb[i])
+      if re.search("<\/p", line):
+        inBlockElement = False
+
+  def processMarkup(self):
+    self.doHeadings()
+    # self.doDrama()
+    self.doBlockq()
+    self.doBreaks()
+    self.doTables()
+    self.doIllustrations()
+    self.doLinks()
+    self.doFootnotes()
+    self.doLineGroups()
+    self.doLines()
+
+  def process(self):
+    self.shortHeading()
+    self.processLiterals()
+    self.processPageNum()
+    self.protectMarkup()
+    self.preprocess()
+    self.userHeader()
+    self.userToc()
+    self.processLinks()
+    self.processTargets()
+    self.markPara()
+    self.restoreMarkup()
+    self.startHTML()
+    self.processMarkup()
+    self.processPageNumDisp()
+    self.placeCSS()
+    self.placeMeta()
+    self.cleanup()
+    self.plinks()
+    self.endHTML()
+    self.mediaTweak()
+
+  def run(self):
+    self.loadFile(self.srcfile)
+    self.process()
+    self.saveFile(self.dstfile)
+
+# ===== class Text ============================================================
+
+class Text(Book):
+  def __init__(self, ifile, ofile, d, fmt):
+    Book.__init__(self, ifile, ofile, d, fmt)
+    self.srcfile = ifile
+    self.dstfile = ofile
+
+    self.qstack = [] # quote level stack
+
+  # save file to specified dstfile
+  # overload to do special wrapping for text output only
+  def saveFile(self, fn):
+    while empty.match(self.wb[-1]): # no trailing blank lines
+      self.wb.pop()
+    nwrapped = 0
+    self.dprint(1,"text:saveFile")
+    if os.linesep == "\r\n":
+      self.dprint(1, "running on Win machine")
+      lineEnd = "\n"
+    else:
+      self.dprint(1, "running on Mac/Linux machine")
+      lineEnd = "\r\n"
+    f1 = open(fn, "w", encoding='utf-8')
+    for index,t in enumerate(self.wb):
+      if len(t) < 75:
+        f1.write( "{:s}{}".format(t,lineEnd) ) # no wrapping required
+      else:
+        sliceat = 0
+        try:
+          sliceat = t.rindex(" ", 0, 75)
+        except:
+          self.fatal("text: cannot wrap in saveFile")
+        m = re.match("( +)", t)
+        if m:
+          userindent = len(m.group(1))
+        else:
+          userindent = 0
+        firstline = " " * userindent + t[0:sliceat].strip()
+        f1.write( "{:s}{}".format(firstline,lineEnd) )
+        t = t[sliceat:].strip()
+        nwrapped += 1
+        while len(t) > 0:
+          if len(t) < 72:
+            f1.write( " " * userindent + "  {:s}{}".format(t,lineEnd) )
+            t = ""
+          else:
+            try:
+              sliceat = t.rindex(" ", 0, 75)
+            except:
+              self.fatal("text: cannot wrap in saveFile")
+            nextline = t[0:sliceat].strip()
+            f1.write( " " * userindent + "  {:s}{}".format(nextline,lineEnd) )
+            t = t[sliceat:].strip()
+            nwrapped += 1
+    f1.close()
+    if nwrapped > 0:
+      self.cprint ("info: {} lines rewrapped in text file.".format(nwrapped))
+
+  # 19-Sep-2013 this should be superfluous.
+  # removes tags or converts to text representation
+  # one line as string
+  def detag(self, s):
+    s = re.sub("\[\[\/?i\]\]", "_", s) # italics
+    s = re.sub("\[\[\/?b\]\]", "=", s) # bold
+    s = re.sub("\[\[\/?u\]\]", "=", s) # underline
+
+    m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s) # small-caps
+    while m:
+      replace = m.group(1).upper()
+      s = re.sub("\[\[sc\]\].*?\[\[\/sc\]\]", replace, s, 1)
+      m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s)
+
+    m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s) # gesperrt
+    while m:
+      replace = ""
+      x = m.group(1)
+      for i in range(len(x)-1):
+        replace += x[i] + " "
+      replace += x[-1]
+      s = re.sub("\[\[g\]\].*?\[\[/g\]\]", replace, s, 1)
+      m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s)
+    return s
+
+  # convert all inline markup to text equivalent at start of run
+  def processInline(self):
+    if self.italicdef == "decorative":
+        replacewith = "" # decorative. ignore
+    else:
+        replacewith = "_" # emphasis. treat as <em>
+    i = 0
+    while i < len(self.wb):
+
+        self.wb[i] = re.sub("<\/?ol>", "‾", self.wb[i]) # overline 10-Apr-2014
+
+        self.wb[i] = re.sub("<\/?i>", replacewith, self.wb[i]) # italic
+        self.wb[i] = re.sub("<\/?em>", "_", self.wb[i]) # italic
+        self.wb[i] = re.sub("<\/?b>", "=", self.wb[i]) # bold
+
+        # self.wb[i] = re.sub("<\/?sc>", "=", self.wb[i]) # small-caps
+        self.wb[i] = re.sub("<\/?sc>", "", self.wb[i]) # small-caps
+
+        self.wb[i] = re.sub("<\/?u>", "=", self.wb[i]) # underline
+        while re.search(r"\. \.", self.wb[i]):
+            self.wb[i] = re.sub(r"\. \.", ".□.", self.wb[i], 1) # spaces in ellipsis
+        self.wb[i] = re.sub(r"…", "...", self.wb[i]) # unwrap ellipsis UTF-8 character for text
+        self.wb[i] = re.sub(r"\\%",'⊐', self.wb[i]) # escaped percent signs (macros)
+        self.wb[i] = re.sub(r"\\#",'⊏', self.wb[i]) # escaped octothorpes (page links)
+        self.wb[i] = re.sub(r"\\<",'≼', self.wb[i]) # escaped open tag marks
+        self.wb[i] = re.sub(r"\\>",'≽', self.wb[i]) # escaped close tag marks
+
+        m = re.search(r"<g>(.*?)<\/g>", self.wb[i]) # gesperrt
+        while m:
+          replace = ""
+          x = m.group(1)
+          for j in range(len(x)-1):
+            replace += x[j] + "□" # space after all but last character
+          replace += x[-1] # last character
+          self.wb[i] = re.sub(r"<g>.*?<\/g>", replace, self.wb[i], 1)
+          m = re.search(r"<g>(.*?)<\/g>", self.wb[i])
+
+        # new inline tags 2014.01.27
+        # inline font size changes ignored in text
+        # <fs:l> ... </fs>
+        # <fs:xl> ... </fs>
+        # <fs:s> ... </fs>
+        # <fs:xs> ... </fs>
+        self.wb[i] = re.sub("<\/fs>", "", self.wb[i])
+        self.wb[i] = re.sub("<fs:.+?>", "", self.wb[i])
+
+        # remove table super/subscript balance tokens
+        self.wb[i] = re.sub('\^\{\}', '', self.wb[i])
+        self.wb[i] = re.sub('_\{\}', '', self.wb[i])
+
+        i += 1
+
+
+  # wrap string s, returns wrapped list
+  # parameters
+  #   lm left margin default=0
+  #   rm right margin default=0
+  #   li left indent default = 0
+  #   ti temporary indent default=0
+  # notes
+  #   base line length is 72 - lm - rm - li
+  #   first line indent is lm + li - ti
+  #   subsequent lines indent is lm + li
+  #   gesperrt comes in with ◮ in for spaces.
+
+  def wrap2h(self, s, lm, rm, li, ti):  # 22-Feb-2014
+    lines = []
+    if ti != 0:
+      s = "◮"*ti + s
+    wrapper = textwrap.TextWrapper()
+    wrapper.width = 72 - lm - rm - li
+    wrapper.break_long_words = False
+    wrapper.break_on_hyphens = False
+    s = re.sub("—", "◠◠", s) # compensate long dash
+    lines = wrapper.wrap(s)
+    for i, line in enumerate(lines):
+        lines[i] = re.sub("◠◠", "—", lines[i]) # restore dash
+        lines[i] = re.sub("◮", " ", lines[i]) # restore spaces from gesperrt or ti
+        lines[i] = " " * lm + lines[i]
+    return lines
+
+  def wrap2(self, s, lm=0, rm=0, li=0, ti=0):  # 22-Feb-2014
+    lines = []
+    while re.search("<br\/>", s):
+      m = re.search("(.*?)<br\/>(.*)", s)
+      if m:
+        lines += self.wrap2h(m.group(1).strip(), lm, rm, li, ti)
+        s = m.group(2)
+    lines += self.wrap2h(s.strip(), lm, rm, li, ti) # last or only piece to wrap
+    return lines
+
+  def wrap2_old(self, s, lm=0, rm=0, li=0, ti=0):
+    line1 = []
+    lines = []
+    if ti != 0: # first line manual
+        length = 72 - lm - rm - li - ti # first line length
+        indent = lm + li + ti # first line indent
+        snip_at = s.rindex(" ", 0, length)
+        line1.append(" " * indent + s[:snip_at]) # first line
+        s = s[snip_at+1:] # use textwrap for remainder
+    wrapper = textwrap.TextWrapper()
+    wrapper.width = 72 - lm - rm - li
+    wrapper.break_long_words = False
+    wrapper.break_on_hyphens = False
+    indent = lm + li # subsequent indent ignores ti
+    s = re.sub("—", "◠◠", s) # compensate long dash
+    lines = wrapper.wrap(s)
+    for i, line in enumerate(lines):
+        lines[i] = re.sub("◠◠", "—", lines[i]) # restore dash
+        lines[i] = re.sub("◮", " ", lines[i]) # restore spaces from gesperrt
+        lines[i] = " " * indent + lines[i]
+    return line1 + lines
+
+  # 19-Sep-2013 self.wrap no longer used. superseded by wrap2
+  # wraps string. returns wrapped list.
+  def wrap(self, s, llen=72, leader=''):
+    wrapper = textwrap.TextWrapper()
+    wrapper.width = llen
+    wrapper.break_long_words = False
+    wrapper.break_on_hyphens = False
+
+    s = re.sub("\[\[\/?i\]\]", "_", s) # italics
+    s = re.sub("\[\[\/?b\]\]", "=", s) # bold
+    s = re.sub("\[\[\/?u\]\]", "=", s) # underline
+
+    m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s) # small-caps
+    while m:
+      replace = m.group(1).upper()
+      s = re.sub("\[\[sc\]\].*?\[\[\/sc\]\]", replace, s, 1)
+      m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s)
+
+    m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s) # gesperrt
+    while m:
+      replace = ""
+      x = m.group(1)
+      for i in range(len(x)-1):
+        replace += x[i] + "◮"
+      replace += x[-1]
+      s = re.sub("\[\[g\]\].*?\[\[/g\]\]", replace, s, 1)
+      m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s)
+    s = re.sub("—", "◠◠", s) # compensate long dash
+    lines = wrapper.wrap(s)
+    for i, line in enumerate(lines):
+      lines[i] = re.sub("◠◠", "—", lines[i])
+
+      # lines[i] = re.sub("◮", '\u2002', lines[i]) # a nut space
+      lines[i] = re.sub("◮", ' ', lines[i]) # a regular space
+
+      lines[i] = leader + lines[i]
+    return lines
+
+  # literals are marked as preformatted
+  # tag delimeters are protected
+  def processLiterals(self):
+    self.dprint(1,"processLiterals")
+    i = 0
+    while i < len(self.wb):
+      if re.match("<lit>", self.wb[i]):
+        del self.wb[i] # <lit
+        while not re.match("<\/lit>", self.wb[i]):
+          self.wb[i] = re.sub(r"<",'⨭', self.wb[i])
+          self.wb[i] = re.sub(r">",'⨮', self.wb[i])
+          self.wb[i] = "▹"+self.wb[i]
+          i += 1
+        del self.wb[i] # </lit
+      i += 1
+
+  #
+  def genToc(self):
+    self.dprint(1,"genToc")
+    tocrequest = False
+    for index, line in enumerate(self.wb):
+      self.checkLoop(index,32)
+      if re.match("<tocloc", line):
+        tocrequest = True
+        m = re.match("<tocloc(.*?)>", line)
+        if m:
+            attrib = m.group(1)
+        tocwhere = index
+        self.wb[index] = "TOCPLACE"
+        break
+    if tocrequest:
+      m = re.search("heading=[\"'](.*?)[\"']", attrib)
+      usehead = "Table of Contents"
+      if m:
+          usehead = m.group(1)
+      t = ["<l rend='center'>{}</l>".format(usehead)]
+      t.append("<lg rend='block'>")
+      for line in self.wb:
+        if re.match(r"<heading", line):
+          if re.search('toc="', line): # TOC content in double quotes
+            # may have embedded single quotes
+            # double quotes must be escaped
+            line = re.sub(r'\\"', '\u25D0', line)
+            # single quotes may be escaped
+            line = re.sub(r"\\'", '\u25D1', line)
+            m1 = re.match(r"<heading",line)
+            m2 = re.search(r"level=[\"'](\d)[\"']",line)
+            m3 = re.search(r"toc=\"(.*?)\"",line) # double quotes
+            if m1 and m2 and m3:
+              entry = " " * (2 * (int(m2.group(1)) -1)) + m3.group(1)
+              entry = re.sub('\u25D0', '"', entry)
+              entry = re.sub('\u25D1', "'", entry)
+              entry = self.detag(entry)
+              t.append("<l>{}</l>".format(entry))
+          if re.search("toc='", line): # TOC content in single quotes
+            # may have embedded double quotes
+            # single quotes must be escaped
+            line = re.sub(r"\\'", '\u25D1', line)
+            # double quotes may be escaped
+            line = re.sub(r'\\"', '\u25D0', line)
+            m1 = re.match(r"<heading",line)
+            m2 = re.search(r"level=[\"'](\d)[\"']",line)
+            m3 = re.search(r"toc='(.*?)'",line) # single quotes
+            if m1 and m2 and m3:
+              entry = " " * (2 * (int(m2.group(1)) -1)) + m3.group(1)
+              entry = re.sub('\u25D0', '"', entry)
+              entry = re.sub('\u25D1', "'", entry)
+              entry = self.detag(entry)
+              t.append("<l>{}</l>".format(entry))
+      t.append("</lg>")
+      self.wb[tocwhere:tocwhere+1] = t
+
+  def processPageNum(self):
+    self.dprint(1,"processPageNum")
+    i = 0
+    while i < len(self.wb):
+      if re.match("<pn", self.wb[i]):
+        del self.wb[i]
+        continue
+      i += 1
+
+  #
+  def stripHeader(self):
+    self.dprint(1,"stripHeader")
+    i = 0
+    while i < len(self.wb):
+      if (re.match("<option", self.wb[i])
+          or re.match("<property", self.wb[i])
+          or re.match("<meta", self.wb[i])
+          or re.match("\.[a-z]", self.wb[i])):
+        del self.wb[i]
+        continue
+      i += 1
+
+  # strip links and targets
+  def stripLinks(self):
+    self.dprint(1,"stripLinks")
+    i = 0
+    while i < len(self.wb):
+      self.wb[i] = re.sub("<\/?link.*?>", "", self.wb[i])
+      self.wb[i] = re.sub("<target.*?>", "", self.wb[i])
+      i += 1
+
+  # simplify footnotes, move <l> to left, unadorn page links
+  # preformat hr+footnotemark
+  def preProcess(self):
+    fnc = 1
+    self.dprint(1,"preProcess")
+    for i in range(len(self.wb)):
+
+      self.wb[i] = re.sub("<nobreak>", "", self.wb[i])  # 28-Mar-2014
+      self.wb[i] = re.sub("<hang>", "", self.wb[i])  # 05-Jun-2014
+
+      self.wb[i] = re.sub("#(\d+)#", r'\1', self.wb[i]) # page number links
+      self.wb[i] = re.sub("#(\d+):.*?#", r'\1', self.wb[i]) # page number links type 2 2014.01.14
+
+      while re.search("fn id=['\"]#['\"]", self.wb[i]):
+        self.wb[i] = re.sub("fn id=['\"]#['\"]", "fn id='{}'".format(fnc), self.wb[i], 1)
+        fnc += 1
+
+      m = re.search(r"<fn id=['\"](.*?)['\"]\/?>", self.wb[i])
+      if m:
+        while m:
+          self.wb[i] = re.sub(r"<fn id=['\"](.*?)['\"]\/?>", r'[\1]', self.wb[i], 1)
+          m = re.search(r"<fn id=['\"](.*?)['\"]\/?>", self.wb[i])
+
+      m = re.match("\s+(<l.*)$", self.wb[i])
+      if m:
+        self.wb[i] = m.group(1)
+
+      # allow user shortcut <l/> -> </l></l>
+      self.wb[i] = re.sub("<l\/>","<l></l>", self.wb[i])
+
+      if re.match("<hr rend='footnotemark'>", self.wb[i]):
+        s = re.sub("<hr rend='footnotemark'>", "▹-----", self.wb[i])
+        self.wb[i:i+1] = [".rs 1", s, ".rs 1"]
+
+      # remove any target tags
+      if re.search("<target.*?\/>", self.wb[i]):
+        self.wb[i] = re.sub("<target.*?\/>", "", self.wb[i])
+
+    # leading spaces inside pre-marked standalong line
+    # example:       <l>  This was indented.</l>
+    # converts to:   <l>\ \ This was indented.</l>
+    i = 0
+    while i < len(self.wb):
+      m = re.match(r"<l>(\s+)(.*?)<\/l>", self.wb[i])
+      if m:
+        self.wb[i] = "<l>" + "\\ "*len(m.group(1)) + m.group(2) + "</l>"
+      i += 1
+
+  # after 19-Sep-2013 should be superfluous
+  # protect inline markup
+  def protectInline(self):
+    self.dprint(1,"protectInline")
+    i = 0
+    while i < len(self.wb):
+      s = self.wb[i]
+      s = re.sub("<(\/?i)>", r"[[\1]]", s) # italics
+      s = re.sub("<(\/?b)>", r"[[\1]]", s) # bold
+      s = re.sub("<(\/?sc)>", r"[[\1]]", s) # small caps
+      s = re.sub("<(\/?g)>", r"[[\1]]", s) # gesperrt
+      s = re.sub("<(\/?u)>", r"[[\1]]", s) # underline
+      s = re.sub(r"\\ ", "□", s) # hard spaces
+      while re.search(r"\. \.", s):
+        s = re.sub(r"\. \.", ".□.", s) # spaces in ellipsis
+      s = re.sub(r"…", "...", s) # unwrap ellipsis UTF-8 character for text
+      s = re.sub("<\/?r>", "", s) # red markup
+      s = re.sub(r"\\%",'⊐', s) # escaped percent signs (macros)
+      s = re.sub(r"\\#",'⊏', s) # escaped octothorpes (page links)
+      s = re.sub(r"\\<",'≼', s) # escaped open tag marks
+      s = re.sub(r"\\>",'≽', s) # escaped close tag marks
+
+      self.wb[i] = s
+      i += 1
+
+  # mark lines
+  # process any line in a line group that doesn't have <l> markup
+  # include left-indent for poetry
+  def markLines(self):
+    self.dprint(1,"markLines")
+    i = 0
+    while i < len(self.wb):
+      if re.match("<lg", self.wb[i]):
+        i += 1
+        while not re.match("</lg>", self.wb[i]):
+          if not (re.match("<l", self.wb[i]) or re.match("<tb", self.wb[i])):
+            self.wb[i] = re.sub(" ", "□", self.wb[i])
+            self.wb[i] = "<l>{0}</l>".format(self.wb[i])
+          i += 1
+      i += 1
+
+  # illustrations
+  def illustrations(self):
+    self.dprint(1,"illustrations")
+    i = 0
+    while i < len(self.wb):
+      m = re.search("<illustration", self.wb[i])
+      if m:
+        # process with and without caption
+        m = re.search("<illustration.*?\/>", self.wb[i])
+        if m:
+          self.wb[i] = "<l>[Illustration]</l>" # 19-Oct-2013
+          i += 1
+          continue
+        m = re.search("<illustration.*?>", self.wb[i])
+        if m:
+          m = re.match("<caption>(.*?)</caption>", self.wb[i+1])
+          if m:
+            caption = m.group(1)
+            # if there is a <br> in the caption, then user wants
+            # control of line breaks. otherwise, wrap
+            m = re.search("<br\/?>", caption)
+            if m: # user control
+              s = "[Illustration: " + caption + "]"
+              s = re.sub("<br\/?>", "\n", s)
+              t = []
+              t.append("▹.rs 1")
+              u = s.split('\n')
+              for x in u:
+                t.append("▹"+x) # may be multiple lines
+              t.append("▹.rs 1")
+              self.wb[i:i+3] = t
+              i += len(t)
+              continue
+            else: # fpgen wraps illustration line
+              s = "[Illustration: " + caption + "]"
+              t = []
+              t.append("▹.rs 1")
+              u = self.wrap2(s)
+              for x in u:
+                t.append("▹"+x) # may be multiple lines
+              t.append("▹.rs 1")
+              self.wb[i:i+3] = t
+              i += len(t)
+              continue
+      i += 1
+
+  # rewrap
+  # doesn't touch lines that are already formatted
+  # honors <quote> level
+  def rewrap(self):
+    self.dprint(1,"rewrap")
+    self.qstack = [""] # no initial indent
+    i = 0
+    while i < len(self.wb):
+      self.dprint(2,"[rewrap] {}: {}".format(i,self.wb[i]))
+      if re.match("<quote", self.wb[i]):
+        # is there a prescribed width?
+        m = re.match("<quote rend='w:(.*?)em'>", self.wb[i])
+        if m:
+          rendw = int(m.group(1))
+          # user-specified width (in characters). calculate indent
+          indent = " " * ((72 - rendw) // 2)
+          self.qstack.append(indent)
+          del(self.wb[i])
+          continue
+        newlevel = self.qstack[-1] + "    "
+        self.qstack.append(newlevel)
+        del(self.wb[i])
+        continue
+
+      if re.match("<\/quote>", self.wb[i]):
+        self.qstack.pop()
+        del(self.wb[i])
+        continue
+
+      if re.match("▹", self.wb[i]): # already formatted
+        i += 1
+        continue
+
+      if empty.match(self.wb[i]): # toss blank lines
+        del(self.wb[i])
+        continue
+
+      # ----- footnotes -------------------------------------------------------
+
+      m = re.match(r"<footnote id=['\"](.*?)['\"]>", self.wb[i])
+      if m:
+        self.wb[i] = "▹" + "Footnote {}:".format(m.group(1))
+        continue
+
+      m = re.match(r"<\/footnote", self.wb[i])
+      if m:
+        del self.wb[i]
+        continue
+
+      # ----- headings --------------------------------------------------------
+      m = re.match("<heading(.*?)>(.*?)</heading>", self.wb[i])
+      if m:
+        m1 = re.search("rend='(.*?)'", self.wb[i])
+        if m1:
+          rendatt = m1.group(1)
+          if re.search("hidden", rendatt):
+            del self.wb[i]
+            i -= 1
+            continue
+        level = 1 # default
+        att = m.group(1)
+        head = m.group(2)
+        m = re.search("level=[\"'](.*?)[\"']", att)
+        if m:
+          level = int(m.group(1))
+        if level == 1:
+          t = ["▹.rs 4"] # chapters
+        if level == 2:
+          t = ["▹.rs 2"] # sections
+        if level == 3:
+          t = ["▹.rs 1"] # sub-sections
+        # this may be an empty header element
+        if empty.match(head):
+          self.wb[i:i+1] = t
+        else:
+          s = self.detag(head)
+          if "<br" in s: # split into separate lines
+            s1 = re.sub(r"<br(\/)?>", "|", s)
+            t1 = s1.split("|")
+            for s2 in t1:
+              if s2 == "":
+                t.append('▹.rs 1')
+              else:
+                t.append('▹{:^72}'.format(s2))
+          else:
+            t.append('▹{:^72}'.format(s)) # all on one line
+          if level == 1:
+            t.append("▹.rs 2")
+          else:
+            t.append("▹.rs 1")
+          self.wb[i:i+1] = t
+          i += 1
+        i += 1
+        continue
+
+      # ----- thought breaks and hr/footnotemark ------------------------------
+
+      # any thought break in text is just centered asterisks
+      m = re.search("<tb", self.wb[i])
+      if m:
+        t = ["▹.rs 1"]
+        t.append("▹                 *        *        *        *        *")
+        t.append("▹.rs 1")
+        self.wb[i:i+1] = t
+        i += 1
+        continue
+
+      # ----- testing ---------------------------------------------------------
+
+      # 19-Sep-2013
+      m = re.match("<x", self.wb[i])
+      if m:
+        t = ["If you had stood there in the edge of the bleak",
+        "spruce forest, with the wind moaning dismally",
+        "through the twisting trees—midnight of deep",
+        "December—the Transcontinental would have looked",
+        "like a thing of fire; dull fire, glowing with a",
+        "smouldering warmth, but of strange ghostliness and",
+        "out of place. It was a weird shadow, helpless and",
+        "without motion, and black as the half-Arctic night",
+        "save for the band of illumination that cut it in",
+        "twain from the first coach to the last, with a",
+        "space like an inky hyphen where the baggage car",
+        "lay. Out of the North came armies of snow-laden",
+        "clouds that scudded just above the earth, and with",
+        "these clouds came now and then a shrieking mockery",
+        "of wind to taunt this stricken creation of man and",
+        "the creatures it sheltered—men and women who had",
+        "begun to shiver, and whose tense white faces",
+        "stared with increasing anxiety into the mysterious",
+        "darkness of the night that hung like a sable",
+        "curtain ten feet from the car windows."]
+        s = " ".join(t)
+        if re.match("<x1", self.wb[i]):
+            t = self.wrap2(s)
+        if re.match("<x2", self.wb[i]):
+            t = self.wrap2(s, 2, 2, 2, -2)
+        if re.match("<x3", self.wb[i]):
+            t = self.wrap2(s, 2, 2, 2, 2)
+        self.wb[i:i+1] = ["▹.rs 1"] + t + ["▹.rs 1"]
+        i += len(t) + 2
+        continue
+
+      m = re.match("<hr", self.wb[i])
+      if m:
+        m = re.search("rend='(.*?)'\/?>",self.wb[i])
+        t = ["▹.rs 1"]
+        if re.search("footnotemark", m.group(1)):
+          t.append("▹-----")
+        else: # all other hr's default to tb styling
+          t.append("▹                   *     *     *     *     *")
+        t.append("▹.rs 1")
+        self.wb[i:i+1] = t
+        i += 1
+        continue
+
+
+      # ----- page breaks --------------------------------------------------
+      m = re.match("<pb", self.wb[i])
+      if m:
+        self.wb[i] = "▹.rs 4"
+        i += 1
+        continue
+
+      # ----- process standalone line -----------------------------------------
+      m = re.match("<l(.*?)>(.*?)<\/l>",self.wb[i])
+      if m:
+        handled = False
+
+        if not empty.match(m.group(2)):
+          thetext = (self.detag(m.group(2)))
+          therend = m.group(1)
+
+          m = re.search("sb:(\d+)", therend) # text spaces before
+          if m:
+            howmuch = m.group(1)
+            self.wb.insert(i, ".rs {}".format(howmuch))
+            i += 1
+
+          m = re.search("sa:(\d+)", therend) # text spaces after
+          if m:
+            howmuch = m.group(1)
+            self.wb.insert(i+1, ".rs {}".format(howmuch))
+
+          m = re.search("ml:([\d\.]+)em", therend)
+          if m:
+            # indent left
+            howmuch = int(m.group(1))
+            self.wb[i] = self.qstack[-1] + " " * howmuch + thetext.strip()
+            handled = True
+
+          m = re.search("mr:([\d\.]+)em", therend)
+          if m:
+            # indent right
+            howmuch = int(m.group(1))
+            rmar = 72 - len(self.qstack[-1]) - howmuch
+            fstr = "{:>" + str(rmar) + "}"
+            self.wb[i] = fstr.format(thetext.strip())
+            handled = True
+
+          m = re.search("center", therend)
+          if m:
+            # center
+            self.wb[i] = "▹" + '{:^72}'.format(thetext.strip())
+            handled = True
+
+          if not handled:
+            self.wb[i] = self.qstack[-1] + thetext.strip()
+
+        else:
+          self.wb[i] = "▹"
+
+        i += 1
+        continue
+
+      # ----- tables ----------------------------------------------------------
+
+      m = re.match(r"<table.*?pattern='(.*?)'>",self.wb[i])
+      if m:
+        startloc = i
+        j = i
+        while not re.match("<\/table>", self.wb[j]):
+          j += 1
+        endloc = j
+        self.wb[startloc:endloc+1] = self.makeTable(self.wb[startloc:endloc+1])
+
+      # ----- process line group ----------------------------------------------
+      m = re.match("<lg(.*?)>", self.wb[i])
+      if m:
+        self.wb[i] = ".rs 1" # the <lg...
+        i += 1 # first line of line group
+        attrib = m.group(1)
+
+        m = re.search("center", attrib)
+        if m:
+          while not re.match("<\/lg>",self.wb[i]):
+            # bandaid alert: tb in center
+            m = re.search(r"<tb", self.wb[i])
+            if m:
+              self.wb[i] = "▹                 *        *        *        *        *"
+              i += 1
+              continue
+            m = re.match(r"<l.*?>(.*?)</l>", self.wb[i])
+            if m:
+              if not empty.match(m.group(1)):
+                theline = self.detag(m.group(1))
+                if len(theline) > 75:
+                  s = re.sub("□", " ", theline)
+                  self.cprint("warning (long line):\n{}".format(s))
+                self.wb[i] = "▹" + '{:^72}'.format(theline)
+              else:
+                self.wb[i] = "▹"
+            i += 1
+          self.wb[i] = ".rs 1" # overwrites the </lg>
+          continue
+
+        m = re.search("right", attrib)
+        if m:
+          while not re.match("<\/lg>",self.wb[i]):
+            m = re.match(r"<l.*?>(.*?)</l>", self.wb[i])
+            if m:
+              if not empty.match(m.group(1)):
+                theline = self.detag(m.group(1))
+                if len(theline) > 75:
+                  s = re.sub("□", " ", theline)
+                  self.cprint("warning (long line):\n{}".format(s))
+                self.wb[i] = "▹" + '{:>72}'.format(theline)
+              else:
+                self.wb[i] = "▹"
+            i += 1
+          self.wb[i] = ".rs 1" # overwrites the </lg>
+          continue
+
+        # ----- begin poetry code ---------------------------------------------
+        # poetry allows rends: ml:Nem, center, mr:0em
+        m = re.search("poetry", attrib)
+        if m:
+          # first determine maximum width in poetry block
+          j = i
+          maxwidth = 0
+          maxline = ""
+          while not re.match("<\/lg>",self.wb[j]):
+            self.wb[j] = self.detag(self.wb[j])
+            theline = re.sub(r"<.+?>", "", self.wb[j]) # centering tags, etc.
+            if len(theline) > maxwidth:
+              maxwidth = len(self.wb[j])
+              maxline = self.wb[j]
+            j += 1
+          maxwidth -= 3
+          if maxwidth > 70:
+            self.cprint("warning (long poetry line {} chars)".format(maxwidth))
+            self.dprint(1,"  " + maxline) # shown in debug in internal form
+          while not re.match("<\/lg>",self.wb[i]):
+            m = re.match("<l(.*?)>(.*?)</l>", self.wb[i])
+            if m:
+              irend = m.group(1)
+              itext = m.group(2)
+
+              # center and right override ml
+              if re.search("center", irend):
+                tstr = "▹{0:^" + "{}".format(maxwidth) + "}"
+                self.wb[i] = tstr.format(itext)
+                i += 1
+                continue
+              if re.search("mr:0em", irend):
+                tstr = "▹{0:>" + "{}".format(maxwidth) + "}"
+                self.wb[i] = tstr.format(itext)
+                i += 1
+                continue
+
+              m = re.search("ml:(\d+)em", irend)
+              if m:
+                isml = True
+                itext = "□" * int(m.group(1)) + itext
+              if not empty.match(itext):
+                theline = self.detag(itext)
+                if len(theline) > 75:
+                  s = re.sub("□", " ", theline)
+                  self.dprint(1,"warning: long poetry line:\n{}".format(s))
+                if self.poetryindent == 'center':
+                    leader = " " * ((72 - maxwidth) // 2)
+                else:
+                    leader = " " * 4
+                self.wb[i] = "▹" + self.qstack[-1] + leader + "{:<}".format(theline)
+
+              else:
+                self.wb[i] = "▹"
+
+            i += 1
+          self.wb[i] = ".rs 1"  # overwrites the </lg>
+          continue
+        # ----- end of poetry code --------------------------------------------
+
+        # block allows rends: ml, mr
+        m = re.search("block", attrib)
+        if m:
+          # find width of block
+          j = i
+          maxw = 0
+          longline = ""
+          while not re.match("<\/lg>",self.wb[j]):
+            m = re.match("<l(.*?)>(.*?)</l>", self.wb[j])
+            if m:
+              therend = m.group(1)
+              thetext = m.group(2)
+              rendlen = 0
+              textlen = 0
+              m = re.search("m[lr]:([\d\.]+)em", therend)
+              if m: # length may be affected
+                rendlen = int(m.group(1))
+              if not empty.match(thetext): # if not empty
+                thetext = self.detag(thetext) # handle markup
+              textlen = len(thetext) # calculate length
+              totlen = rendlen + textlen
+            else:
+              self.fatal(self.wb[j])
+            if totlen > maxw:
+              maxw = totlen
+              longline = thetext
+            j += 1
+          # have maxw calculated
+          if maxw > 72:
+            self.dprint(1,"warning: long line: ({})\n{}".format(len(longline),longline))
+            leader = ""
+          else:
+            leader = "□" * ((72 - maxw) // 2) # fixed left indent for block
+
+          while not re.match("<\/lg>",self.wb[i]):
+            m = re.match("<l(.*?)>(.*?)</l>", self.wb[i]) # parse each line
+            if m:
+              s = m.group(2) # text part
+              if not empty.match(s):
+                thetext = self.detag(s) # expand markup
+              else:
+                thetext = ""
+              irend = m.group(1)
+
+              m = re.search("ml:([\d\.]+)em", irend) # padding on left?
+              if m:
+                thetext = "□" * int(m.group(1)) + thetext
+
+              m = re.search("mr:([\d\.]+)", irend) # right aligned
+              if m:
+                inright = int(m.group(1))
+                fstr = "{:>"+str(maxw-inright)+"}"
+                thetext = fstr.format(thetext)
+                thetext = re.sub(" ", "□", thetext)
+
+              m = re.search("center", irend) # centered in block
+              if m:
+                thetext = " " * ((maxw - len(thetext))//2) + thetext
+                thetext = re.sub(" ", "□", thetext)
+
+              # if not specified,
+              self.wb[i] = "▹" + leader + thetext
+            else:
+              self.wb[i] = "▹"
+            i += 1
+          self.wb[i] = ".rs 1"
+          continue
+
+        # if not handled, line group is left-align
+        while not re.match("<\/lg>",self.wb[i]):
+          m = re.match("<l.*?>(.*?)</l>", self.wb[i])
+          if m:
+            if empty.match(m.group(1)):
+              self.wb[i] = "▹"
+            else:
+              theline = self.detag(m.group(1))
+              if len(theline) > 75:
+                s = re.sub("□", " ", theline)
+                self.dprint(1,"warning: long line:\n{}".format(s))
+              self.wb[i] = "▹" + '{:<72}'.format(theline)
+          i += 1
+        self.wb[i] = ".rs 1"
+
+      # ----- wrap ------------------------------------------------------------
+
+      # if it's not been handled, it's wrappable.
+      # if it's still a tag, then it's unhandled. fatal.
+      if re.match("<", self.wb[i]):
+        self.fatal("unhandled tag: {}".format(self.wb[i]))
+      t = []
+      mark1 = i
+      while ( i < len(self.wb)
+          and not empty.match(self.wb[i])
+          and not re.match("[<▹]",self.wb[i])):
+        t.append(self.wb[i])
+        i += 1
+      mark2 = i
+      # here at end of para or eof
+      llen = 72 - (2 * len(self.qstack[-1]))
+      leader = self.qstack[-1]
+      s = " ".join(t)
+
+      # u = self.wrap(s, llen, leader) # before 19-Sep-2013
+
+      # leader is a string of spaces. # 19-Sep-2013
+      lm = len(leader)
+      rm = len(leader)
+      li = 0
+      ti = 0
+      u = self.wrap2(s, lm, rm, li, ti)
+
+      u.insert(0, ".rs 1")
+      u.append(".rs 1")
+      self.wb[mark1:mark2] = u
+      i = mark1 + len(u)
+
+  # make printable table from source code block
+  def makeTable(self, t):
+    aligns = [] # 'l', 'r', or 'c'
+    widths = [] # column widths
+    totalwidth = 0
+
+    for k, line in enumerate(t): # 11-Sep-2013
+      t[k] = self.detag(line)
+
+    # the only rend text cares about is "pad"
+    vpad = False
+    m = re.search(r"rend='(.*?)'", t[0])
+    if m:
+      rend = m.group(1)
+      if re.search("pad", rend):
+        vpad = True
+
+    # pattern must be specified
+    m = re.search(r"pattern='(.*?)'", t[0]) # first line
+    if m:
+      pattern = m.group(1)
+      pattern = re.sub("  ", " ", pattern) # ensure single space
+      pa = pattern.split(" ")
+      # user must specify all column widths or none of them
+      if re.search(r"\d", pattern):
+        for item in pa:
+          aligns.append(item[0]) # alignment
+          widths.append(int(item[1:])) # specified col width
+          totalwidth += int(item[1:])
+      else:
+        for item in pa:
+          aligns.append(item[0]) # alignment
+    del t[0] # <table line
+    del t[-1] # </table line
+
+    # calcualte max width if none was specified
+    if totalwidth == 0:
+      widths = [0 for x in range(len(aligns))]
+      # need to calculate max width on each column
+      for line in t:
+        u = line.split("|")
+        for x, item in enumerate(u):
+          if len(item) > widths[x]:
+            widths[x]= len(item)
+      for item in widths:
+        totalwidth += item
+
+    # for text, may have to force narrower to keep totalwidth < 72
+    while totalwidth > 70:
+      widest = 0
+      for x, item in enumerate(widths):
+        if item > widest:
+          widest = item
+          widex = x
+      widths[x] -= 1
+      totalwidth = 0
+      for x,item in enumerate(widths):
+        totalwidth += widths[x]
+
+    # calculate tindent from max table width
+    tindent = (72 - totalwidth) // 2
+
+    u = [".rs 1"]
+    # iterate over all table lines in source
+    # honor blank lines
+    for k, line in enumerate(t):
+      if empty.match(line):
+        u.append("▹")
+        continue
+      rowtext = line.split("|") # split each row into columns
+      # if any cell in la has content, emit a line and remove it from that cell
+      needline = False
+      for col in range(len(rowtext)):
+        if len(rowtext[col]) > 0:
+          needline = True
+      # repeat the emit-line block as long as there is still data
+      while needline:
+        s = ""
+        for col, item in enumerate(rowtext):
+          if aligns[col] == 'l':
+            fstr = '{:<'+str(widths[col])+'}'
+          if aligns[col] == 'c':
+            fstr = '{:^'+str(widths[col])+'}'
+          if aligns[col] == 'r':
+            fstr = '{:>'+str(widths[col])+'}'
+          # what to display
+          s2 = rowtext[col].strip()
+          try:
+            if len(s2) < widths[col]:
+              s3 = s2.strip()
+              s4 = ""
+            else:
+              chopat = s2.rindex(" ", 0, widths[col])
+              s3 = rowtext[col][0:chopat+1].strip()
+              s4 = rowtext[col][chopat+1:].strip()
+          except:
+            s3 = s2.strip()
+            s4 = ""
+          rowtext[col] = s4 # empty or something for another line
+          s += fstr.format(s3) + " "
+        u.append("▹" + " " * tindent + s)
+        # see if there is more to do
+        needline = False
+        for col in range(len(rowtext)):
+          if len(rowtext[col]) > 0:
+            needline = True
+      if vpad:
+        u.append("▹" + ".rs 1")
+    u.append(".rs 1")
+    return u
+
+  # merge all contiguous requested spaces
+  def finalSpacing(self):
+    self.dprint(1,"finalSpacing")
+
+    # merge user-forced lines
+    i = 0
+    while i < len(self.wb):
+      if "▹" == self.wb[i]:
+        startloc = i
+        spacecount = 1
+        i += 1
+        while "▹" == self.wb[i]:
+          spacecount += 1
+          i += 1
+        self.wb[startloc:i] = [".rs {}".format(spacecount)]
+        i -= 1
+      i += 1
+
+    for i in range(len(self.wb)):
+      self.wb[i] = re.sub("\s+\.rs",".rs", self.wb[i])
+
+    i = 0
+    while re.match("▹?\.rs", self.wb[i]): # no initial vertical space
+      del self.wb[0]
+    while i < len(self.wb)-1:
+      m1 = re.match("▹?\.rs (\d+)", self.wb[i])
+      m2 = re.match("▹?\.rs (\d+)", self.wb[i+1])
+      if m1 and m2:
+        self.wb[i] = ".rs {}".format(max(int(m1.group(1)),int(m2.group(1))))
+        del(self.wb[i+1])
+      else:
+        i += 1
+
+  # convert space requests to real (vertical) spaces
+  # convert space markers to real spaces
+  # trim trailing spaces
+  def finalRend(self):
+    self.dprint(1,"finalRend")
+    i = 0
+    while i < len(self.wb):
+
+      self.wb[i] = re.sub("\[\[\/?i\]\]", "_", self.wb[i]) # italics
+
+      self.wb[i] = re.sub("\[\[\/?b\]\]", "=", self.wb[i]) # bold
+      self.wb[i] = re.sub("\[\[\/?u\]\]", "=", self.wb[i]) # underline mark as bold
+      self.wb[i] = re.sub("\[\[\/?sc\]\]", "=", self.wb[i]) # small caps marked as bold
+
+      self.wb[i] = re.sub("▹", "", self.wb[i])
+      self.wb[i] = re.sub("□", " ", self.wb[i])
+      self.wb[i] = re.sub('⊐', '%', self.wb[i]) # escaped percent signs (macros)
+      self.wb[i] = re.sub('⊏', '#', self.wb[i]) # escaped octothorpes (page links)
+      self.wb[i] = re.sub("≼", "<", self.wb[i]) # <
+      self.wb[i] = re.sub("≽", ">", self.wb[i]) # >
+
+      self.wb[i] = re.sub("⨭", "<", self.wb[i]) # literal <
+      self.wb[i] = re.sub("⨮", ">", self.wb[i]) # literal >
+
+      self.wb[i] = re.sub("☊", "", self.wb[i]) # start dropcap
+      self.wb[i] = re.sub("☋", "", self.wb[i]) # end dropcap
+
+      self.wb[i] = self.wb[i].rstrip()
+      m = re.match(".rs (\d+)", self.wb[i])
+      if m:
+        nspaces = int(m.group(1))
+        t = []
+        while nspaces > 0:
+          t.append("")
+          nspaces -= 1
+        self.wb[i:i+1] = t
+      i += 1
+
+  def process(self):
+    self.processInline()
+    self.processLiterals()
+    self.processPageNum()
+    self.stripHeader()
+    self.stripLinks()
+    self.preProcess()
+    self.protectInline() # should be superfluous as of 19-Sep-13
+    self.illustrations()
+    self.genToc()
+    self.markLines()
+    self.rewrap()
+    self.finalSpacing()
+    self.finalRend()
+
+  def run(self):
+    self.loadFile(self.srcfile)
+    self.process()
+    self.saveFile(self.dstfile)
+
+# ===== main ==================================================================
+
+uopt = userOptions()
+
+# process command line
+parser = OptionParser()
+parser.add_option("-i", "--infile",
+    dest="infile", default="",
+    help="input file")
+parser.add_option("-f", "--format",
+    dest="formats", default="th",
+    help="format=thkep (text,HTML,Kindle,Epub,PDF)")
+parser.add_option("-d", "--debug",
+    dest="debug", default="0",
+    help="set debug mode level")
+parser.add_option("", "--save",
+    action="store_true", dest="saveint", default=False,
+    help="save intermediate file")
+(options, args) = parser.parse_args()
+
+print("fpgen {}".format(VERSION))
+
+tmp = options.formats
+tmp = re.sub('a|h|t|k|e|p', '', tmp)
+if not empty.match(tmp):
+  print("format option {} not supported".format(tmp))
+  exit(1)
+
+# 'a' format is 'all'
+if options.formats == 'a':
+  options.formats = "htpek"
+
+# check input filename
+m = re.match('(.*?)-src.txt', options.infile)
+if not m:
+  print("source filename must end in \"-src.txt\".")
+  print("example: midnight-src.txt will generate midnight.html, midnight.txt")
+  exit(1)
+else:
+  bn = m.group(1)
+
+# run Lint for every format specified
+# user may have included conditional code blocks
+if 't' in options.formats:
+  lint = Lint(options.infile, "", options.debug, 't')
+  lint.run()
+# all HTML derivatives
+if re.search('h|k|e|p', options.formats):
+  lint = Lint(options.infile, "", options.debug, 'h')
+  lint.run()
+
+# set defaults
+#  --remove-paragraph-spacing removed
+#  --remove-first-image removed
+OPT_EPUB_ARGS = [
+ "ebook-convert",
+ "",
+ "",
+ "--cover", "\"images/cover.jpg\"",
+ "--change-justification", "\"left\"",
+ "--chapter-mark", "\"none\"",
+ "--disable-remove-fake-margins",
+ "--page-breaks-before", "\"//h:div[@style='page-break-before:always'] | //*[(name()='h1' or name()='h2') and not(@class='nobreak')]\"",
+ "--sr1-search", "\"<hr class=.pbk./>\"",
+ "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
+ "--sr1-search", "\"<br\/><br\/>\"",
+ "--sr1-replace", "—",
+ "--chapter", "\"//*[(name()='h1' or name()='h2')]\"",
+ "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\""
+]
+
+# unused kindle options
+# "--change-justification", "left", (destroys centered blocks)
+# "--mobi-file-type", "new",
+#
+OPT_KINDLE_ARGS = [
+  "ebook-convert",
+  "",
+  "",
+  "--cover", "\"images/cover.jpg\"",
+  "--no-inline-toc",
+  "--sr1-search", "\"<hr class=.pbk./>\"",
+  "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
+  "--sr1-search", "\"<br\/><br\/>\"",
+  "--sr1-replace", "—",
+  "--chapter", "\"//*[(name()='h1' or name()='h2')]\""
+]
+
+OPT_PDF_ARGS = [
+ "ebook-convert",
+ "",
+ "",
+ "--cover", "\"images/cover.jpg\"",
+ "--paper-size", "\"a5\"",
+ "--pdf-default-font-size", "\"13\"",
+ "--margin-left", "\"20\"",
+ "--margin-right", "\"20\"",
+ "--margin-top", "\"20\"",
+ "--margin-bottom", "\"20\"",
+ "--chapter-mark", "\"none\"",
+ "--disable-remove-fake-margins",
+ "--page-breaks-before", "\"//h:div[@style='page-break-before:always'] | //*[(name()='h1' or name()='h2') and not(@class='nobreak')]\"",
+ "--sr1-search", "\"<hr class=.pbk./>\"",
+ "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
+ "--sr1-search", "\"<br\/><br\/>\"",
+ "--sr1-replace", "—"
+]
+
+# generate desired output formats
+
+if 't' in options.formats:
+  outfile = "{}.txt".format(bn)
+  tb = Text(options.infile, outfile, options.debug, 't')
+  print("creating UTF-8 text")
+  tb.run()
+
+if 'h' in options.formats:
+  outfile = "{}.html".format(bn)
+  hb = HTML(options.infile, outfile, options.debug, 'h')
+  print("creating HTML")
+  hb.run()
+
+madeEpub = False
+if 'e' in options.formats:
+  outfile = "{}-e.html".format(bn)
+  hb = HTML(options.infile, outfile, options.debug, 'e')
+  print("creating Epub")
+  hb.run()
+  OPT_EPUB_ARGS[1] = "{}-e.html".format(bn)
+  OPT_EPUB_ARGS[2] = "{}.epub".format(bn)
+  if pn_cover != "":
+    OPT_EPUB_ARGS[4] = pn_cover
+
+  if uopt.getopt('epub-margin-left') != "": # added 27-Mar-2014
+    OPT_EPUB_ARGS.append("--margin-left")
+    OPT_EPUB_ARGS.append("{}".format(uopt.getopt('epub-margin-left')))
+
+  if uopt.getopt('epub-margin-right') != "": # added 27-Mar-2014
+    OPT_EPUB_ARGS.append("--margin-right")
+    OPT_EPUB_ARGS.append("{}".format(uopt.getopt('epub-margin-right')))
+
+  # call(OPT_EPUB_ARGS, shell=False)
+  js = " ".join(OPT_EPUB_ARGS)
+  os.system(js)
+
+  if not options.saveint:
+    os.remove(outfile)
+  madeEpub = True
+
+if 'k' in options.formats:
+  print("creating Kindle")
+  # make epub as source for kindle
+  outfile = "{}-e2.html".format(bn)
+  hb = HTML(options.infile, outfile, options.debug, 'e')
+  hb.run()
+  OPT_EPUB_ARGS[1] = "{}-e2.html".format(bn)
+  OPT_EPUB_ARGS[2] = "{}-e2.epub".format(bn)
+  if pn_cover != "":
+    OPT_EPUB_ARGS[4] = pn_cover
+  # call(OPT_EPUB_ARGS, shell=False)
+  js = " ".join(OPT_EPUB_ARGS)
+  os.system(js)
+
+  # generate mobi with Kindlegen based on epub made by ebook-convert
+  # os.system("kindlegen {0}-k.html -o {0}.mobi".format(bn))
+  os.system("kindlegen {0}-e2.epub -o {0}.mobi".format(bn))
+
+  if not options.saveint:
+    os.remove("{0}-e2.epub".format(bn))
+    os.remove("{0}-e2.html".format(bn))
+
+if 'p' in options.formats:
+  outfile = "{}-p.html".format(bn)
+  hb = HTML(options.infile, outfile, options.debug, 'p')
+  print("creating PDF")
+  hb.run()
+  OPT_PDF_ARGS[1] = "{}-p.html".format(bn)
+  OPT_PDF_ARGS[2] = "{}-a5.pdf".format(bn)
+
+  if uopt.getopt('pdf-default-font-size') != "":
+    OPT_PDF_ARGS.append("--pdf-default-font-size")
+    OPT_PDF_ARGS.append("{}".format(uopt.getopt('pdf-default-font-size')))
+
+  if uopt.getopt('pdf-margin-left') != "":
+    OPT_PDF_ARGS.append("--margin-left")
+    OPT_PDF_ARGS.append("{}".format(uopt.getopt('pdf-margin-left')))
+
+  if uopt.getopt('pdf-margin-right') != "":
+    OPT_PDF_ARGS.append("--margin-right")
+    OPT_PDF_ARGS.append("{}".format(uopt.getopt('pdf-margin-right')))
+
+  if pn_cover != "":
+    OPT_PDF_ARGS[4] = pn_cover
+
+  # call(OPT_PDF_ARGS, shell=False)
+  js = " ".join(OPT_PDF_ARGS)
+  os.system(js)
+
+  if not options.saveint:
+    os.remove(outfile)
