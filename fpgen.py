@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.16"
+VERSION="4.17"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -35,6 +35,7 @@ VERSION="4.16"
 # 4.14     allow <pn=''> anywhere on line
 # 4.15     used &ensp; instead of &nbsp; as leader for indented poetry lines
 # 4.16     drop cap property to use an image
+# 4.17     pagenum->pageno, so not part of copy/paste
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -1421,12 +1422,13 @@ class HTML(Book):
 
     if self.showPageNumbers: # only possible in HTML
       if 'h' == self.gentype:
-        self.css.addcss("[105] .pagenum { right: 1%; font-size: x-small; background-color: inherit; color: silver;")
+        self.css.addcss("[105] .pageno  { right: 1%; font-size: x-small; background-color: inherit; color: silver;")
         self.css.addcss("[106]          text-indent: 0em; text-align: right; position: absolute;")
-        self.css.addcss("[107]          border: 1px solid silver; padding: 1px 3px; font-style: normal;")
-        self.css.addcss("[108]          font-variant: normal; font-weight: normal; text-decoration: none; }")
+        self.css.addcss("[107]          border:1px solid silver; padding:1px 3px; font-style:normal;")
+        self.css.addcss("[108]          font-variant: normal; font-weight: normal; text-decoration:none; }")
+        self.css.addcss("[109] .pageno:after { color: gray; content: attr(title); }") # new 4.17
       else:
-        self.css.addcss("[105] .pagenum { display:none; }") # no visible page numbers in non-browser HTML
+        self.css.addcss("[105] .pageno { display:none; }") # no visible page numbers in non-browser HTML
 
     self.css.addcss("[170] p { text-indent:0; margin-top:0.5em; margin-bottom:0.5em;") # para style
     align_defined = False
@@ -1670,7 +1672,7 @@ class HTML(Book):
           if self.gentype != 'h': # other than browser HTML, just the link
             span = "<a name='Page_{0}' id='Page_{0}'></a>".format(self.cpn)
           else:
-            span = "<span class='pagenum'><a name='Page_{0}' id='Page_{0}'>{0}</a></span>".format(self.cpn)
+            span = "<span class='pageno' title='{0}' id='Page_{0}'></span>".format(self.cpn)
 
           if hlevel == 1:
             if not empty.match(htarget):
@@ -2226,9 +2228,9 @@ class HTML(Book):
         cpn = m.group(1)
         if 'h' in self.gentype:
           if inBlockElement:
-            self.wb[i]=re.sub("⪦.+?⪧","<span class='pagenum'><a name='Page_{0}' id='Page_{0}'>{0}</a></span>".format(cpn), self.wb[i])
+            self.wb[i]=re.sub("⪦.+?⪧","<span class='pageno' title='{0}' id='Page_{0}'></span>".format(cpn), self.wb[i])
           else:
-            self.wb[i]=re.sub("⪦.+?⪧","<div class='pagenum'><a name='Page_{0}' id='Page_{0}'>{0}</a></div>".format(cpn), self.wb[i])
+            self.wb[i]=re.sub("⪦.+?⪧","<div class='pageno' title='{0}' id='Page_{0}'></div>".format(cpn), self.wb[i])
         else:
           self.wb[i]=re.sub("⪦.+?⪧","<a name='Page_{0}' id='Page_{0}'></a>".format(cpn), self.wb[i])
       if re.search("<\/p", line):
