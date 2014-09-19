@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.17"
+VERSION="4.17A"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -36,6 +36,7 @@ VERSION="4.17"
 # 4.15     used &ensp; instead of &nbsp; as leader for indented poetry lines
 # 4.16     drop cap property to use an image
 # 4.17     pagenum->pageno, so not part of copy/paste
+# 4.17A    <l rend='right'> now works like <l rend='mr:0'>
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -2939,10 +2940,17 @@ class Text(Book):
             self.wb[i] = self.qstack[-1] + " " * howmuch + thetext.strip()
             handled = True
 
-          m = re.search("mr:([\d\.]+)em", therend)
+          m = re.search("right", therend)
           if m:
-            # indent right
-            howmuch = int(m.group(1))
+            howmuch = 0
+          else:
+            m = re.search("mr:([\d\.]+)em", therend)
+            if m:
+              # indent right
+              howmuch = int(m.group(1))
+
+          if m:
+            # rend="right" or rend="mr:0"
             rmar = 72 - len(self.qstack[-1]) - howmuch
             fstr = "{:>" + str(rmar) + "}"
             self.wb[i] = fstr.format(thetext.strip())
