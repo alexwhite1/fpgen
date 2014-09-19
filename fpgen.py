@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.15"
+VERSION="4.16"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -34,6 +34,7 @@ VERSION="4.15"
 # 4.13     <hang> tag (alex)
 # 4.14     allow <pn=''> anywhere on line
 # 4.15     used &ensp; instead of &nbsp; as leader for indented poetry lines
+# 4.16     drop cap property to use an image
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -1317,6 +1318,10 @@ class HTML(Book):
         paragraphTag = noIndentPara
         self.wb[i] = re.sub("<nobreak>", "", self.wb[i])
 
+      # If the line has a drop cap, don't indent
+      if re.search("☊", self.wb[i]) and indent:
+        paragraphTag = noIndentPara
+
       if re.match("<hang>", self.wb[i]):
         paragraphTag = hangPara
         self.wb[i] = re.sub("<hang>", "", self.wb[i])
@@ -1489,6 +1494,31 @@ class HTML(Book):
       self.wb[i] = re.sub('⨭', '<', self.wb[i]) # protected <
       self.wb[i] = re.sub('⨮', '>', self.wb[i]) # protected >
 
+      # Handle drop-caps, which have images.
+      # Each image must be mapped in a property to its image file;
+      # e.g. <property name='drop-T' content='images/T.jpg'>
+      m = re.search('☊(.*)☋', self.wb[i])
+      if m:
+        letter = m.group(1)
+        # Check for an open double-quote before the letter
+        hasquote = re.match('“.*', letter)
+        if hasquote:
+          letter = letter[1:]
+        # See if the property is there, if it isn't the old code which just
+        # makes a large letter will be used
+        if "drop-"+letter in self.uprop.prop:
+          # Yes, property is there.  Image will be used.
+          # If leading quote, generate special code to put it in the margin
+          if hasquote:
+            self.wb[i] = \
+              '<div style="position:absolute;margin-left:-.5em; font-size:150%;">“</div>' + \
+              self.wb[i]
+          imgFile = self.uprop.prop["drop-" + letter]
+          self.wb[i] = re.sub("☊.*☋", \
+          "<img src='" + imgFile + "' style='float:left;' alt='" + letter + "'/>", \
+          self.wb[i])
+
+      # Drop-cap code for no image
       self.wb[i] = re.sub("☊", "<span style='float:left; clear: left; margin:0 0.1em 0 0; padding:0; line-height: 1.0em; font-size: 200%;'>", self.wb[i])
       self.wb[i] = re.sub("☋", "</span>", self.wb[i])
 
