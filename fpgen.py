@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.17A"
+VERSION="4.17C"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -37,6 +37,8 @@ VERSION="4.17A"
 # 4.16     drop cap property to use an image
 # 4.17     pagenum->pageno, so not part of copy/paste
 # 4.17A    <l rend='right'> now works like <l rend='mr:0'>
+# 4.17B    level 4 headers
+# 4.17C    Error msg for word >75 chars; error msg for text output table w/o width
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -2315,16 +2317,21 @@ class Text(Book):
     else:
       self.dprint(1, "running on Mac/Linux machine")
       lineEnd = "\r\n"
+    lineWidth = 75
     f1 = open(fn, "w", encoding='utf-8')
     for index,t in enumerate(self.wb):
-      if len(t) < 75:
+      if len(t) < lineWidth:
         f1.write( "{:s}{}".format(t,lineEnd) ) # no wrapping required
       else:
         sliceat = 0
         try:
-          sliceat = t.rindex(" ", 0, 75)
+          sliceat = t.rindex(" ", 0, lineWidth)
         except:
-          self.fatal("text: cannot wrap in saveFile")
+          self.cprint("Cannot wrap text: Line longer than " + str(lineWidth) + \
+              " characters without a space.\n" + \
+              t + "\nLine will be emitted without wrapping.")
+          f1.write(t+"\n")
+          continue
         m = re.match("( +)", t)
         if m:
           userindent = len(m.group(1))
@@ -2335,12 +2342,12 @@ class Text(Book):
         t = t[sliceat:].strip()
         nwrapped += 1
         while len(t) > 0:
-          if len(t) < 72:
+          if len(t) < lineWidth-3:
             f1.write( " " * userindent + "  {:s}{}".format(t,lineEnd) )
             t = ""
           else:
             try:
-              sliceat = t.rindex(" ", 0, 75)
+              sliceat = t.rindex(" ", 0, lineWidth)
             except:
               self.fatal("text: cannot wrap in saveFile")
             nextline = t[0:sliceat].strip()
@@ -3242,6 +3249,7 @@ class Text(Book):
 
     # pattern must be specified
     m = re.search(r"pattern='(.*?)'", t[0]) # first line
+    tableLine = t[0]
     if m:
       pattern = m.group(1)
       pattern = re.sub("  ", " ", pattern) # ensure single space
@@ -3302,6 +3310,9 @@ class Text(Book):
       while needline:
         s = ""
         for col, item in enumerate(rowtext):
+          if widths[col] <= 0:
+            self.fatal("Unable to compute text table widths for " + tableLine + \
+              ".  Specify them manually.")
           if aligns[col] == 'l':
             fstr = '{:<'+str(widths[col])+'}'
           if aligns[col] == 'c':
