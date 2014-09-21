@@ -1708,8 +1708,8 @@ class HTML(Book):
              self.wb[i] = "<h3{}{} id='{}'>{}{}</h3>".format(style, useclass, htarget, span, htitle)
             else:
              self.wb[i] = "<h3{}{}>{}{}</h3>".format(style, useclass, span, htitle)
-            self.css.addcss("[254] h3 { text-align:center; font-weight:normal;")
-            self.css.addcss("[255]      font-size:1.0em; margin:1em auto 0.5em auto}")
+            self.css.addcss("[258] h3 { text-align:center; font-weight:normal;")
+            self.css.addcss("[259]      font-size:1.0em; margin:1em auto 0.5em auto}")
 
           if hlevel == 4:
             if not empty.match(htarget):
