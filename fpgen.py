@@ -1668,6 +1668,14 @@ class HTML(Book):
             self.css.addcss("[258] h3 { text-align:center; font-weight:normal;")
             self.css.addcss("[259]      font-size:1.0em; margin:1em auto 0.5em auto}")
 
+          if hlevel == 4:
+            if not empty.match(htarget):
+              self.wb[i] = "<h4{}{} id='{}'>{}</h4>".format(style, useclass, htarget, htitle)
+            else:
+              self.wb[i] = "<h4{}{}>{}</h4>".format(style, useclass, htitle)
+            self.css.addcss("[260] h4 { text-align:center; font-weight:normal;")
+            self.css.addcss("[261]      font-size:1.0em; margin:1em auto 0.5em auto}")
+
         if showpage:
 
           if self.gentype != 'h': # other than browser HTML, just the link
@@ -1700,6 +1708,14 @@ class HTML(Book):
              self.wb[i] = "<h3{}{}>{}{}</h3>".format(style, useclass, span, htitle)
             self.css.addcss("[254] h3 { text-align:center; font-weight:normal;")
             self.css.addcss("[255]      font-size:1.0em; margin:1em auto 0.5em auto}")
+
+          if hlevel == 4:
+            if not empty.match(htarget):
+              self.wb[i] = "<h4{}{} id='{}'>{}{}</h4>".format(style, useclass, htarget, span, htitle)
+            else:
+              self.wb[i] = "<h4{}{}>{}{}</h4>".format(style, useclass, span, htitle)
+            self.css.addcss("[260] h4 { text-align:center; font-weight:normal;")
+            self.css.addcss("[261]      font-size:1.0em; margin:1em auto 0.5em auto}")
 
   def doBlockq(self):
     self.dprint(1,"doBlockq")
@@ -2820,6 +2836,8 @@ class Text(Book):
           t = ["▹.rs 2"] # sections
         if level == 3:
           t = ["▹.rs 1"] # sub-sections
+        if level == 4:
+          t = ["▹.rs 0"] # sub-sub-sections
         # this may be an empty header element
         if empty.match(head):
           self.wb[i:i+1] = t
