@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.17C"
+VERSION="4.18"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -39,6 +39,7 @@ VERSION="4.17C"
 # 4.17A    <l rend='right'> now works like <l rend='mr:0'>
 # 4.17B    level 4 headers
 # 4.17C    Error msg for word >75 chars; error msg for text output table w/o width
+# 4.18     Use nbsp instead of ensp for ellipsis
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -1031,8 +1032,18 @@ class HTML(Book):
         self.wb[i] = re.sub(r"\\<",'≼', self.wb[i]) # escaped open tag marks
         self.wb[i] = re.sub(r"\\>",'≽', self.wb[i]) # escaped close tag marks
 
+        # Line ending in period must join with subsequent line starting with periods
+        # We do not have agreement on this yet!
+#        if self.wb[i].endswith('.') and  i + 1 < len(self.wb) :
+#          m = re.match("^\. [\. ]+\W*", self.wb[i+1])
+#          if m:
+#            leading = m.group(0)
+#            if leading != "":
+#              self.wb[i] = self.wb[i] + ' ' + leading.rstrip();
+#              self.wb[i+1] = self.wb[i+1][len(leading):]
+
         while re.search(r"\. \.", self.wb[i]):
-          self.wb[i] = re.sub(r"\. \.",'.◻.', self.wb[i]) # spaces in spaced-out ellipsis
+          self.wb[i] = re.sub(r"\. \.",'.⋀.', self.wb[i]) # spaces in spaced-out ellipsis
         self.wb[i] = re.sub(r"\\'",'⧗', self.wb[i]) # escaped single quote
         self.wb[i] = re.sub(r'\\"','⧢', self.wb[i]) # escaped double quote
         self.wb[i] = re.sub(r"&",'⧲', self.wb[i]) # ampersand
@@ -1486,7 +1497,7 @@ class HTML(Book):
       self.wb[i] = re.sub('⧲', '&amp;', self.wb[i]) # ampersand
 
       self.wb[i] = re.sub('◻', '&ensp;', self.wb[i]) # wide space
-      # self.wb[i] = re.sub('◻', '&nbsp;', self.wb[i]) # wide space
+      self.wb[i] = re.sub('⋀', '&nbsp;', self.wb[i]) # non-breaking space
 
       self.wb[i] = re.sub('▹', '', self.wb[i]) # unprotect literal lines
       self.wb[i] = re.sub('⧀', '<', self.wb[i]) # protected tag braces
