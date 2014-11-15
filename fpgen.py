@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.18"
+VERSION="4.19"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -40,6 +40,7 @@ VERSION="4.18"
 # 4.17B    level 4 headers
 # 4.17C    Error msg for word >75 chars; error msg for text output table w/o width
 # 4.18     Use nbsp instead of ensp for ellipsis
+# 4.19     Uppercase <sc> output for text; add sc=titlecase option
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -2315,6 +2316,17 @@ class Text(Book):
 
     self.qstack = [] # quote level stack
 
+  def userHeader(self):
+    self.dprint(1,"userHeader")
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<option name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
+      if m:
+        uopt.addopt(m.group(1), m.group(2))
+        del self.wb[i]
+        continue
+      i += 1
+
   # save file to specified dstfile
   # overload to do special wrapping for text output only
   def saveFile(self, fn):
@@ -2400,6 +2412,7 @@ class Text(Book):
         replacewith = "" # decorative. ignore
     else:
         replacewith = "_" # emphasis. treat as <em>
+    scTitle = (uopt.getopt("sc") == "titlecase")
     i = 0
     while i < len(self.wb):
 
@@ -2410,7 +2423,13 @@ class Text(Book):
         self.wb[i] = re.sub("<\/?b>", "=", self.wb[i]) # bold
 
         # self.wb[i] = re.sub("<\/?sc>", "=", self.wb[i]) # small-caps
-        self.wb[i] = re.sub("<\/?sc>", "", self.wb[i]) # small-caps
+        if (scTitle):
+          # Title-case: Just delete the tags
+          self.wb[i] = re.sub("<\/?sc>", "", self.wb[i])
+        else:
+          # Normal: Uppercase between the tags
+          self.wb[i] = re.sub("<sc>(.*?)<\/sc>",
+              lambda pat: pat.group(1).upper(), self.wb[i]);
 
         self.wb[i] = re.sub("<\/?u>", "=", self.wb[i]) # underline
         while re.search(r"\. \.", self.wb[i]):
@@ -3428,6 +3447,7 @@ class Text(Book):
       i += 1
 
   def process(self):
+    self.userHeader()
     self.processInline()
     self.processLiterals()
     self.processPageNum()
