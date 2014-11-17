@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.19"
+VERSION="4.19a"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -41,6 +41,7 @@ VERSION="4.19"
 # 4.17C    Error msg for word >75 chars; error msg for text output table w/o width
 # 4.18     Use nbsp instead of ensp for ellipsis
 # 4.19     Uppercase <sc> output for text; add sc=titlecase option
+# 4.19a    Various text output table width bug fixes
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -3366,7 +3367,7 @@ class Text(Book):
           # what to display
           s2 = rowtext[col].strip()
           try:
-            if len(s2) < widths[col]:
+            if len(s2) <= widths[col]:
               s3 = s2.strip()
               s4 = ""
             else:
