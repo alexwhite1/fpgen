@@ -2348,7 +2348,7 @@ class Text(Book):
       else:
         sliceat = 0
         try:
-          sliceat = t.rindex(" ", 0, lineWidth)
+          sliceat = t.rindex(" ", 0, lineWidth) # should be 74?
         except:
           self.cprint("Cannot wrap text: Line longer than " + str(lineWidth) + \
               " characters without a space.\n" + \
@@ -3289,14 +3289,14 @@ class Text(Book):
         for item in pa:
           aligns.append(item[0]) # alignment
           widths.append(int(item[1:])) # specified col width
-          totalwidth += int(item[1:])
+          totalwidth += int(item[1:])+1
       else:
         for item in pa:
           aligns.append(item[0]) # alignment
     del t[0] # <table line
     del t[-1] # </table line
 
-    # calcualte max width if none was specified
+    # calculate max width if none was specified
     if totalwidth == 0:
       widths = [0 for x in range(len(aligns))]
       # need to calculate max width on each column
@@ -3305,23 +3305,37 @@ class Text(Book):
         for x, item in enumerate(u):
           if len(item) > widths[x]:
             widths[x]= len(item)
+      # and compute totalwidth against those maxes
       for item in widths:
-        totalwidth += item
+        totalwidth += item+1
+      self.dprint(1, "Computed table widths: " + str(widths) +
+        ", total: " + str(totalwidth));
 
-    # for text, may have to force narrower to keep totalwidth < 72
-    while totalwidth > 70:
+    maxTableWidth = 75  # this is the size that saveFile decides to wrap at
+
+    # for text, may have to force narrower to keep totalwidth < maxTableWidth
+    while totalwidth > maxTableWidth:
       widest = 0
       for x, item in enumerate(widths):
         if item > widest:
           widest = item
           widex = x
-      widths[x] -= 1
+
+      # Shrink widest column by one
+      widths[widex] -= 1
+
+      # Recompute total width
       totalwidth = 0
       for x,item in enumerate(widths):
-        totalwidth += widths[x]
+        totalwidth += widths[x]+1
+      self.cprint("Table too wide: column " + str(widex) +
+        "[" + str(widest) + "->" + str(widths[widex]) +
+        "], total width now " + str(totalwidth));
 
     # calculate tindent from max table width
-    tindent = (72 - totalwidth) // 2
+    tindent = (maxTableWidth - totalwidth) // 2
+    self.dprint(1, "Table totalwidth: " + str(totalwidth) +
+      ", indenting: " + str(tindent) + "; final widths: " + str(widths));
 
     u = [".rs 1"]
     # iterate over all table lines in source
@@ -3363,7 +3377,9 @@ class Text(Book):
             s3 = s2.strip()
             s4 = ""
           rowtext[col] = s4 # empty or something for another line
-          s += fstr.format(s3) + " "
+          s += fstr.format(s3)
+          if col < len(widths):
+            s += " "    # delimiter between cols; none on last or we'll wrap
         u.append("▹" + " " * tindent + s)
         # see if there is more to do
         needline = False
