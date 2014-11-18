@@ -8,8 +8,9 @@ import re, sys, string, os, shutil
 import textwrap
 import codecs
 import platform
+import unittest
 
-VERSION="4.19b"
+VERSION="4.20"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -42,7 +43,7 @@ VERSION="4.19b"
 # 4.18     Use nbsp instead of ensp for ellipsis
 # 4.19     Uppercase <sc> output for text; add sc=titlecase option
 # 4.19a    Various text output table width bug fixes
-# 4.19b    Text table: strip cell before finding max width
+# 4.20     Add <table> line drawing in text and html both
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -95,6 +96,10 @@ class userOptions(object):
 pn_cover = ""
 
 empty = re.compile("^$")
+
+def fatal(message):
+  sys.stderr.write("fatal: " + message + "\n")
+  exit(1)
 
 class Book(object):
   wb = []
@@ -189,14 +194,14 @@ class Book(object):
 
     i = 0
     while i < len(self.wb):
-      if re.match("\/\/", self.wb[i]): # line starts with "//"
+      if self.wb[i].startswith("//"): # line starts with "//"
         del self.wb[i]
         continue
       if re.match("<!--.*?-->", self.wb[i]):
         del self.wb[i]
         continue
       # multi-line
-      if re.match("<!--", self.wb[i]):
+      if self.wb[i].startswith("<!--"):
         while not re.search("-->", self.wb[i]):
           del self.wb[i]
           continue
@@ -210,7 +215,7 @@ class Book(object):
         self.wb[i] = self.wb[i].rstrip()
         continue
       # multi-line (must be last)
-      if re.match(r"\/\*", self.wb[i]):
+      if self.wb[i].startswith("/*"):
         while not re.search("\*\/", self.wb[i]):
           del self.wb[i]
           continue
@@ -258,8 +263,9 @@ class Book(object):
     # process conditional source directives
     self.dprint(1,"conditionals")
     i = 0
+    regex = re.compile("<if type=['\"](.*?)['\"]")
     while i < len(self.wb):
-      m = re.match("<if type=['\"](.*?)['\"]", self.wb[i])
+      m = regex.match(self.wb[i])
       if m:
         j = i
         conditional_type = m.group(1)
@@ -281,8 +287,9 @@ class Book(object):
     # 19-Nov-2013
     i = 0
     self.supphd = []
+    regex = re.compile("<lit section=['\"]head['\"]>")
     while i < len(self.wb):
-      if re.match("<lit section=['\"]head['\"]>", self.wb[i]):
+      if regex.match(self.wb[i]):
         del(self.wb[i])
         while not re.match(r"<\/lit>", self.wb[i]):
           self.supphd.append(self.wb[i])
@@ -295,11 +302,11 @@ class Book(object):
     i = 0
     inliteral = False
     while i < len(self.wb):
-      if re.match("<lit", self.wb[i]):
+      if self.wb[i].startswith("<lit"):
         inliteral = True
         i += 1
         continue
-      if re.match("<\/lit>", self.wb[i]):
+      if self.wb[i].startswith("</lit>"):
         inliteral = False
         i += 1
         continue
@@ -311,7 +318,7 @@ class Book(object):
     # combine multi-line <caption>...</caption> lines into one.
     i = 0
     while i < len(self.wb):
-      if re.match("<caption>", self.wb[i]) and not re.search("<\/caption>", self.wb[i]):
+      if self.wb[i].startswith("<caption>") and not re.search("<\/caption>", self.wb[i]):
         while not re.search("<\/caption>", self.wb[i]):
           self.wb[i] = self.wb[i] + " " + self.wb[i+1]
           del self.wb[i+1]
@@ -321,7 +328,7 @@ class Book(object):
     self.dprint(1,"headings+id")
     i = 0
     while i < len(self.wb):
-      if re.match("<heading", self.wb[i]):
+      if self.wb[i].startswith("<heading"):
         if not re.search("id=", self.wb[i]):
           genid = "t{}".format(i)
           self.wb[i] = re.sub("<heading", "<heading id='{}'".format(genid), self.wb[i])
@@ -331,7 +338,7 @@ class Book(object):
     self.dprint(1,"headings+spacing")
     i = 0
     while i < len(self.wb):
-      if re.match("<heading", self.wb[i]):
+      if self.wb[i].startswith("<heading"):
         if not empty.match(self.wb[i-1]):
           t = self.wb[i]
           self.wb[i:i+1] = ["", t]
@@ -342,7 +349,7 @@ class Book(object):
     self.dprint(1,"line group+spacing")
     i = 0
     while i < len(self.wb):
-      if re.match("<lg", self.wb[i]):
+      if self.wb[i].startswith("<lg"):
         if not empty.match(self.wb[i-1]):
           t = self.wb[i]
           self.wb[i:i+1] = ["", t]
@@ -352,7 +359,7 @@ class Book(object):
     # ensure line group has a blank line after
     i = 0
     while i < len(self.wb):
-      if re.match("<\/lg", self.wb[i]):
+      if self.wb[i].startswith("</lg"):
         if not empty.match(self.wb[i+1]):
           t = self.wb[i]
           self.wb[i:i+1] = [t,""]
@@ -361,8 +368,9 @@ class Book(object):
 
     # ensure standalone illustration line has blank lines before, after
     i = 0
+    regex = re.compile("<illustration.*?\/>")
     while i < len(self.wb):
-      if re.match("<illustration.*?\/>", self.wb[i]):
+      if regex.match(self.wb[i]):
         t = self.wb[i]
         u = []
         if not empty.match(self.wb[i-1]):
@@ -377,7 +385,7 @@ class Book(object):
     # ensure illustration line has blank lines before
     i = 0
     while i < len(self.wb):
-      if re.match("<illustration", self.wb[i]):
+      if self.wb[i].startswith("<illustration"):
         t = self.wb[i]
         u = []
         if not empty.match(self.wb[i-1]):
@@ -390,7 +398,7 @@ class Book(object):
     # illustration close
     i = 0
     while i < len(self.wb):
-      if re.match("<\/illustration>", self.wb[i]):
+      if self.wb[i].startswith("</illustration>"):
         t = self.wb[i]
         u = []
         u.append(t)
@@ -434,12 +442,14 @@ class Book(object):
 
     # isolate <pn to separate lines
     i = 0
+    regex1 = re.compile("^<pn=[\"'].*?[\"']>$")
+    regex2 = re.compile("^(.*?)(<pn=[\"'].*?[\"']>)(.*?)$")
     while i < len(self.wb):
       # standalone pn
-      if re.match("^<pn=[\"'].*?[\"']>$", self.wb[i]):
+      if regex1.match(self.wb[i]):
         i += 1
         continue
-      m = re.match("^(.*?)(<pn=[\"'].*?[\"']>)(.*?)$", self.wb[i])
+      m = regex1.match(self.wb[i])
       if m:
         t = []
         if not empty.match(m.group(1)):
@@ -457,8 +467,9 @@ class Book(object):
 
     # define macros and save
     i = 0
+    regex = re.compile("<macro (.*?)=\"(.*?)\"\/?>")
     while i < len(self.wb):
-      m = re.match("<macro (.*?)=\"(.*?)\"\/?>",self.wb[i])
+      m = regex.match(self.wb[i])
       if m:
         macroName = m.group(1)
         macroDef = m.group(2)
@@ -469,8 +480,9 @@ class Book(object):
 
     # apply macros to text
     i = 0
+    regex = re.compile("%([^;].*?)%")
     while i < len(self.wb):
-      m = re.search("%([^;].*?)%", self.wb[i])
+      m = regex.search(self.wb[i])
       while m: # found a macro
         if m.group(1) in macro: # is this in our list of macros already defined?
           self.wb[i] = re.sub("%{}%".format(m.group(1)), macro[m.group(1)], self.wb[i], 1)
@@ -483,9 +495,9 @@ class Book(object):
     i = 0
     inLineGroup = False
     while i < len(self.wb):
-      if re.match("<lg", self.wb[i]):
+      if self.wb[i].startswith("<lg"):
           inLineGroup = True
-      if re.match("<\/lg", self.wb[i]):
+      if self.wb[i].startswith("</lg"):
           inLineGroup = False
       if inLineGroup:
           i += 1
@@ -504,8 +516,9 @@ class Book(object):
 
     # display user-supplied warnings (<warn>...</warn>)
     i = 0
+    regex = re.compile("<warning>(.*?)<\/warning>")
     while i < len(self.wb):
-      m = re.match("<warning>(.*?)<\/warning>", self.wb[i])
+      m = regex.match(self.wb[i])
       if m:
         self.cprint("warning: {}".format(m.group(1)))
         del self.wb[i]
@@ -514,10 +527,14 @@ class Book(object):
     # format footnotes to standard form 08-Sep-2013
     i = 0
     fnc = 1 # footnote counter to autonumber if user has used '#'
+    reOneLine = re.compile("(<footnote id=[\"'].*?[\"']>)(.+?)(<\/footnote>)")
+    reStart = re.compile("(<footnote id=[\"'].*?[\"']>)(.+?)$")
+    reStartWOText = re.compile("<footnote id=[\"'].*?[\"']>$")
+    reEnd = re.compile("^(.+?)(<\/footnote>)")
     while i < len(self.wb):
 
       # all on one line
-      m = re.match("(<footnote id=[\"'].*?[\"']>)(.+?)(<\/footnote>)", self.wb[i])
+      m = reOneLine.match(self.wb[i])
       if m:
         mg1 = m.group(1).strip()
         mg2 = m.group(2).strip()
@@ -530,7 +547,7 @@ class Book(object):
         i += 2
 
       # starts but doesn't end on this line
-      m = re.match("(<footnote id=[\"'].*?[\"']>)(.+?)$", self.wb[i])
+      m = reStart.match(self.wb[i])
       if m:
         mg1 = m.group(1).strip()
         mg2 = m.group(2).strip()
@@ -542,7 +559,7 @@ class Book(object):
         i += 1
 
       # starts without text on this line
-      m = re.match("<footnote id=[\"'].*?[\"']>$", self.wb[i])
+      m = reStartWOText.match(self.wb[i])
       if m:
         m = re.search("id=[\"']#[\"']", self.wb[i])
         if m:
@@ -551,7 +568,7 @@ class Book(object):
         i += 1
 
       # ends but didn't start on this line
-      m = re.match("^(.+?)(<\/footnote>)", self.wb[i])
+      m = reEnd.match(self.wb[i])
       if m:
         self.wb[i:i+1] = [m.group(1).strip(),m.group(2).strip()]
         i += 1
@@ -602,6 +619,165 @@ class Book(object):
 
   def __str__(self):
     return "fpgen"
+
+def parseTablePattern(line):
+  # pull the pattern
+  m = re.search("pattern=[\"'](.*?)[\"']", line)
+  if not m:
+    fatal("No pattern= option to table: " + line)
+  tpat = m.group(1)
+
+  cols = []
+
+  list = tpat.split()
+
+  for oneCol in list:
+    col = Col()
+    cols.append(col)
+    off = 0
+    n = len(oneCol)
+
+    # Each column is |*[lrc]#*|*
+
+    # Parse leading |
+    while oneCol[off] == '|':
+      col.lineBefore += 1
+      off += 1
+      if off == n:
+        fatal("Incorrect table specification " + oneCol + " inside " + line)
+
+    # Parse column position
+    if oneCol[off] == 'c':
+      col.align = "center"
+    elif oneCol[off] == 'l':
+      col.align = "left"
+    elif oneCol[off] == 'r':
+      col.align = "right"
+    off += 1
+
+    # Does the column have a user-specified width?
+    col.userWidth = False
+    col.width = 0
+    if off < n:
+      # Yes, parse the user-specified width
+      digOff = off
+      while oneCol[off].isdigit():
+        off += 1
+        if off == n:
+          break
+      if digOff != off:
+        col.userWidth = True
+        col.width = int(oneCol[digOff:off])
+
+      if off < n:
+        # Parse trailing |
+        while oneCol[off] == '|':
+          col.lineAfter += 1
+          off += 1
+          if off == n:
+            break
+
+        if off != n:
+          fatal("Incorrect table specification " + oneCol + " inside " + line)
+
+    #self.dprint(1, "col: " + str(col))
+
+  if len(cols) == 0:
+    fatal("No table columns found in pattern " + line)
+
+  cols[len(cols)-1].isLast = True
+  for n, col in enumerate(cols):
+    if col.isLast:
+      col.lineBetween = col.lineAfter
+    else:
+      col.lineBetween = col.lineAfter + cols[n+1].lineBefore
+
+  return cols
+
+class Col:
+  def __init__(self):
+    self.userWidth = 0
+    self.width = 0
+    self.align = ""
+    self.lineBefore = 0
+    self.lineAfter = 0
+    self.lineBetween = 0
+    self.isLast = False
+
+  def __eq__(self, other):
+    return self.__dict__ == other.__dict__
+
+  def __str__(self):
+    return str(self.__dict__)
+#    return str(self.userWidth) + ":" + \
+#      str(self.width) + ":" + \
+#      self.align + ":" + \
+#      str(self.lineBefore) + ":" + \
+#      str(self.lineAfter)
+
+class TestParseTableColumn(unittest.TestCase):
+  expect = Col()
+  expect.align = 'right';
+  expect.isLast = True;
+
+  def test_empty(self):
+    with self.assertRaises(SystemExit) as cm:
+      parseTablePattern("pattern=''")
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_nopattern(self):
+    with self.assertRaises(SystemExit) as cm:
+      parseTablePattern("atern='r c l'")
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_simple(self):
+    assert parseTablePattern("pattern='r'") == [ TestParseTableColumn.expect ]
+
+  def test_simple1(self):
+    assert parseTablePattern("pattern='   r   '") == [ TestParseTableColumn.expect ]
+
+  def test_simple2(self):
+    with self.assertRaises(SystemExit) as cm:
+      parseTablePattern("pattern='   rr   '")
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_simple3(self):
+    result = parseTablePattern("pattern='   r   l33 c5 '")
+    assert len(result) == 3
+    assert result[0].align == "right"
+    assert result[1].align == "left"
+    assert result[2].align == "center"
+    assert result[0].width == 0
+    assert result[1].width == 33
+    assert result[2].width == 5
+    assert result[0].userWidth == False
+    assert result[1].userWidth == True
+    assert result[2].userWidth == True
+    assert result[0].isLast == False
+    assert result[1].isLast == False
+    assert result[2].isLast == True
+
+  def test_bar1(self):
+    with self.assertRaises(SystemExit) as cm:
+      result = parseTablePattern("pattern='|'")
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_bar2(self):
+    result = parseTablePattern("pattern='|r| c55||| |||l ||r99||'")
+    assert len(result) == 4
+    assert result[0].lineBefore == 1
+    assert result[0].lineAfter == 1
+    assert result[1].lineBefore == 0
+    assert result[1].lineAfter == 3
+    assert result[2].lineBefore == 3
+    assert result[2].lineAfter == 0
+    assert result[3].lineBefore == 2
+    assert result[3].lineAfter == 2
+
+  def test_bar3(self):
+    with self.assertRaises(SystemExit) as cm:
+      result = parseTablePattern("pattern='|r|c'")
+    self.assertEqual(cm.exception.code, 1)
 
 # ===== class Lint ============================================================
 
@@ -1027,7 +1203,7 @@ class HTML(Book):
     i = 0
     while i < len(self.wb):
 
-      if not re.match("▹", self.wb[i]):
+      if not self.wb[i].startswith("▹"):
         # protect special characters
         self.wb[i] = re.sub(r"\\ ",'◻', self.wb[i]) # escaped (hard) spaces
         self.wb[i] = re.sub(r"\\%",'⊐', self.wb[i]) # escaped percent signs (macros)
@@ -1624,8 +1800,9 @@ class HTML(Book):
 
   def doHeadings(self):
     self.dprint(1,"doHeadings")
+    regex = re.compile("<heading(.*?)>(.*?)<\/heading>")
     for i,line in enumerate(self.wb):
-      m = re.match("<heading(.*?)>(.*?)<\/heading>",line)
+      m = regex.match(line)
       if m:
         harg = m.group(1)
         htitle = m.group(2)
@@ -1735,9 +1912,10 @@ class HTML(Book):
 
   def doBlockq(self):
     self.dprint(1,"doBlockq")
+    regex = re.compile("<quote(.*?)>")
     for i,line in enumerate(self.wb):
       owned = False
-      m = re.match("<quote(.*?)>",line)
+      m = regex.match(line)
       if m:
         rendatt = m.group(1)
 
@@ -1776,9 +1954,10 @@ class HTML(Book):
     self.dprint(1,"doBreaks")
     cssc = 100
 
+    regex = re.compile("<tb(.*?)\/?>")
     for i,line in enumerate(self.wb):
 
-      m = re.search("<tb(.*?)\/?>",line)
+      m = regex.search(line)
       if m:
         # set defaults
         tb_thick = "1px"
@@ -1868,21 +2047,31 @@ class HTML(Book):
 
   def doTables(self):
     self.dprint(1,"doTables")
+    tableCount = 0
     i = 0
+    regex = re.compile("<table(.*?)>")
     while i < len(self.wb):
-      m = re.match("<table(.*?)>",self.wb[i])
+      m = regex.match(self.wb[i])
       if m:
 
+        tableCount += 1
+        tableID = "tab" + str(tableCount)
         vpad = "2" # defaults
         hpad = "5"
+
         # can include rend and pattern
         tattr = m.group(1)
         self.css.addcss("[560] table.center { margin:0.5em auto; border-collapse: collapse; padding:3px; }")
 
         # pull the pattern
-        m = re.search("pattern=[\"'](.*?)[\"']", tattr)
-        if m:
-          tpat = m.group(1)
+        columns = parseTablePattern(tattr)
+
+        # Were there any user-specified widths?
+        userWidth = False
+        for col in columns:
+          if col.userWidth:
+            userWidth = True
+            break
 
         # pull the rend attributes
         trend = ""
@@ -1898,50 +2087,76 @@ class HTML(Book):
             hpad = int(m.group(1))
           useborder = re.search("border", trend) # table uses borders
 
-        # fill uw list with widths of columns as integers
-        userWidth = False
-        uw = []
-        if re.search("\d", tpat):
-          # user has specified width
-          userWidth = True
-          m = re.search("(\d+)", tpat)
-          while m:
-            uw.append(int(m.group(1)))
-            tpat = re.sub("\d+", "", tpat, 1)
-            m = re.search("(\d+)", tpat)
+        # Generate nth-of-type css for columns that need lines between them
+        colIndex = 1
+        for col in columns:
+          if col.lineBefore != 0:
+            property = "border-left"
+            value = str(col.lineBefore) + "px"
+            self.css.addcss("[562] #" + tableID + " td:nth-of-type(" +
+              str(colIndex) + ") { " + property + ": " + value + " solid black; }");
+          if col.lineAfter != 0:
+            property = "border-right"
+            value = str(col.lineAfter) + "px"
+            self.css.addcss("[563] #" + tableID + " td:nth-of-type(" +
+              str(colIndex) + ") { " + property + ": " + value + " solid black; }");
+          colIndex += 1
 
         # build the table header
-        u = tpat.split(" ")   # u is list of the pattern specifiers
         t = []
         j = i + 1
 
+        s = "<table id='" + tableID +"' summary='' class='center"
+
         if useborder:
-          t.append("<table summary=\"\" class='center border'>")
+          s += " border"
           self.css.addcss("[561] table.border td { border: 1px solid black; }")
-        else:
-          t.append("<table summary=\"\" class='center'>")
+        s += "'>"
+        t.append(s)
         if userWidth:
           t.append("<colgroup>")
-          for n in uw:
-            t.append("<col span='1' style='width: {}em;'/>".format(n//2))
+          for col in columns:
+            t.append("<col span='1' style='width: {}em;'/>".format(col.width//2))
           t.append("</colgroup>")
 
         # emit each row of table
+        row = 1
         while not re.match("<\/table>", self.wb[j]):
           if empty.match(self.wb[j]):
-            self.wb[j] = "<tr><td colspan='{}'>&nbsp;</td></tr>".format(len(uw))
+            self.wb[j] = "<tr><td colspan='{}'>&nbsp;</td></tr>".format(len(columns))
+          elif self.wb[j] == "_":
+            # Process horizontal line
+            # The first row is on the top; the n-th row is on the bottom of the
+            # previous row
+            location = "bottom"
+            nTH = row-1
+            if row == 1:
+              location = "top"
+              nTH = 1
+            self.css.addcss("[564] #" + tableID + " tr:nth-of-type(" + str(nTH) +
+              ") td { border-" + location + ": 1px solid black; }")
+            j += 1
+            # Do not increment row
+            continue
           else:
+            # Process real data line
+            # Need to generate all the columns, even if no column data in this row,
+            # in case there are any verticals
+            colData = self.wb[j].split("|")
+            line = "<tr>"
             self.wb[j] = re.sub("\|","</td><td>", self.wb[j])
             self.wb[j] = "<tr><td>" + self.wb[j].rstrip() + "</td></tr>"
-            for k,a in enumerate(u):
-                if a == 'l':
-                  self.wb[j] = re.sub("<td>","<td style='padding: {}px {}px; text-align:left; vertical-align:top'>".format(vpad,hpad), self.wb[j], 1)
-                if a == 'c':
-                  self.wb[j] = re.sub("<td>","<td style='padding: {}px {}px; text-align:center; vertical-align:top'>".format(vpad,hpad), self.wb[j], 1)
-                if a == 'r':
-                  self.wb[j] = re.sub("<td>","<td style='padding: {}px {}px; text-align:right; vertical-align:top'>".format(vpad,hpad), self.wb[j], 1)
+            for n,col in enumerate(columns):
+              if n >= len(colData):
+                data = ""
+              else:
+                data = colData[n]
+              line += "<td style='padding: {}px {}px; text-align:{}; vertical-align:top'>".format(vpad, hpad, col.align) + data + "</td>"
+            line += "</tr>"
+            self.wb[j] = line
           t.append(self.wb[j])
           j += 1
+          row += 1
         self.wb[i:j] = t
         i = j
       i += 1
@@ -2102,8 +2317,9 @@ class HTML(Book):
   # other rend options apply to the contents of the block
   def doLineGroups(self):
     self.dprint(1,"doLineGroups")
+    regex = re.compile("<lg(.*?)>")
     for i,line in enumerate(self.wb):
-      m = re.match("<lg(.*?)>", line)
+      m = regex.match(line)
       if m:
         lgopts = m.group(1).strip()
 
@@ -2307,6 +2523,7 @@ class HTML(Book):
     self.loadFile(self.srcfile)
     self.process()
     self.saveFile(self.dstfile)
+# END OF CLASS HTML
 
 # ===== class Text ============================================================
 
@@ -2699,7 +2916,7 @@ class Text(Book):
       # allow user shortcut <l/> -> </l></l>
       self.wb[i] = re.sub("<l\/>","<l></l>", self.wb[i])
 
-      if re.match("<hr rend='footnotemark'>", self.wb[i]):
+      if self.wb[i].startswith("<hr rend='footnotemark'>"):
         s = re.sub("<hr rend='footnotemark'>", "▹-----", self.wb[i])
         self.wb[i:i+1] = [".rs 1", s, ".rs 1"]
 
@@ -3262,83 +3479,87 @@ class Text(Book):
       self.wb[mark1:mark2] = u
       i = mark1 + len(u)
 
+  def tableWidth(columns):
+    tw = 0
+    for col in columns:
+      if col.width != 0:
+        tw += col.width + 1
+    # TODO: subtract one for last column not having a delimiter?
+    return tw
+
+  def toWidthString(columns):
+    s = "["
+    for col in columns:
+      if s != "[": s += ", "
+      s += str(col.width)
+    s += "]"
+    return s
+
+  FIRST_LINECHARS = "─┬┰"
+  MIDDLE_LINECHARS = "─┼╂"
+  LAST_LINECHARS = "─┴┸"
+
   # make printable table from source code block
   def makeTable(self, t):
-    aligns = [] # 'l', 'r', or 'c'
-    widths = [] # column widths
     totalwidth = 0
 
     for k, line in enumerate(t): # 11-Sep-2013
       t[k] = self.detag(line)
+    tableLine = t[0]
+
+    del t[0] # <table line
+    del t[-1] # </table line
 
     # the only rend text cares about is "pad"
     vpad = False
-    m = re.search(r"rend='(.*?)'", t[0])
+    m = re.search(r"rend='(.*?)'", tableLine)
     if m:
       rend = m.group(1)
       if re.search("pad", rend):
         vpad = True
 
     # pattern must be specified
-    m = re.search(r"pattern='(.*?)'", t[0]) # first line
-    tableLine = t[0]
-    if m:
-      pattern = m.group(1)
-      pattern = re.sub("  ", " ", pattern) # ensure single space
-      pa = pattern.split(" ")
-      # user must specify all column widths or none of them
-      if re.search(r"\d", pattern):
-        for item in pa:
-          aligns.append(item[0]) # alignment
-          widths.append(int(item[1:])) # specified col width
-          totalwidth += int(item[1:])+1
-      else:
-        for item in pa:
-          aligns.append(item[0]) # alignment
-    del t[0] # <table line
-    del t[-1] # </table line
+    columns = parseTablePattern(tableLine)
+
+    totalwidth = Text.tableWidth(columns)
 
     # calculate max width if none was specified
     if totalwidth == 0:
-      widths = [0 for x in range(len(aligns))]
       # need to calculate max width on each column
       for line in t:
         u = line.split("|")
         for x, item in enumerate(u):
           item = item.strip()
-          if len(item) > widths[x]:
-            widths[x]= len(item)
+          if len(item) > columns[x].width:
+            columns[x].width = len(item)
       # and compute totalwidth against those maxes
-      for item in widths:
-        totalwidth += item+1
-      self.dprint(1, "Computed table widths: " + str(widths) +
-        ", total: " + str(totalwidth));
+      totalwidth = Text.tableWidth(columns)
+      self.dprint(1, "Computed table widths: " + Text.toWidthString(columns) +
+        ", total: " + str(totalwidth))
 
     maxTableWidth = 75  # this is the size that saveFile decides to wrap at
 
     # for text, may have to force narrower to keep totalwidth < maxTableWidth
     while totalwidth > maxTableWidth:
       widest = 0
-      for x, item in enumerate(widths):
-        if item > widest:
-          widest = item
+      for x, item in enumerate(columns):
+        if item.width > widest:
+          widest = item.width
           widex = x
 
       # Shrink widest column by one
-      widths[widex] -= 1
+      columns[widex].width -= 1
 
       # Recompute total width
-      totalwidth = 0
-      for x,item in enumerate(widths):
-        totalwidth += widths[x]+1
-      self.cprint("Table too wide: column " + str(widex) +
-        "[" + str(widest) + "->" + str(widths[widex]) +
+      totalwidth = Text.tableWidth(columns)
+      self.cprint("warning: Table too wide: column " + str(widex) +
+        "[" + str(widest) + "->" + str(columns[widex].width) +
         "], total width now " + str(totalwidth));
 
     # calculate tindent from max table width
     tindent = (maxTableWidth - totalwidth) // 2
     self.dprint(1, "Table totalwidth: " + str(totalwidth) +
-      ", indenting: " + str(tindent) + "; final widths: " + str(widths));
+      ", indenting: " + str(tindent) + "; final widths: " + Text.toWidthString(columns))
 
     u = [".rs 1"]
     # iterate over all table lines in source
@@ -3347,6 +3568,29 @@ class Text(Book):
       if empty.match(line):
         u.append("▹")
         continue
+
+      # Draw box characters with appropriate connectors for a line
+      if line == '_' :
+        s = ""
+        for col in columns:
+          s += col.width * "─"
+          if k == 0:
+            chars = self.FIRST_LINECHARS
+          elif k+1 == len(t):
+            chars = self.LAST_LINECHARS
+          else:
+            chars = self.MIDDLE_LINECHARS
+
+          if not col.isLast:
+            if col.lineBetween == 0:
+              s += chars[0]
+            elif col.lineBetween == 1:
+              s += chars[1]
+            else:
+              s += chars[2]
+        u.append("▹" + s)
+        continue
+
       rowtext = line.split("|") # split each row into columns
       # if any cell in la has content, emit a line and remove it from that cell
       needline = False
@@ -3356,33 +3600,49 @@ class Text(Book):
       # repeat the emit-line block as long as there is still data
       while needline:
         s = ""
-        for col, item in enumerate(rowtext):
-          if widths[col] <= 0:
+        for n, column in enumerate(columns):
+          if n < len(rowtext):
+            cell = rowtext[n]
+          else:
+            cell = ""
+          w = column.width
+          if w <= 0 and len(cell) > 0:
             self.fatal("Unable to compute text table widths for " + tableLine + \
               ".  Specify them manually.")
-          if aligns[col] == 'l':
-            fstr = '{:<'+str(widths[col])+'}'
-          if aligns[col] == 'c':
-            fstr = '{:^'+str(widths[col])+'}'
-          if aligns[col] == 'r':
-            fstr = '{:>'+str(widths[col])+'}'
+          if column.align == 'left':
+            fstr = '{:<'+str(w)+'}'
+          if column.align == 'center':
+            fstr = '{:^'+str(w)+'}'
+          if column.align == 'right':
+            fstr = '{:>'+str(w)+'}'
           # what to display
-          s2 = rowtext[col].strip()
+          s2 = cell.strip()
           try:
-            if len(s2) <= widths[col]:
+            if len(s2) <= w:
               s3 = s2.strip()
               s4 = ""
             else:
-              chopat = s2.rindex(" ", 0, widths[col])
-              s3 = rowtext[col][0:chopat+1].strip()
-              s4 = rowtext[col][chopat+1:].strip()
+              chopat = s2.rindex(" ", 0, w)
+              s3 = cell[0:chopat+1].strip()
+              s4 = cell[chopat+1:].strip()
           except:
             s3 = s2.strip()
             s4 = ""
-          rowtext[col] = s4 # empty or something for another line
+          if n < len(rowtext):
+            rowtext[n] = s4 # empty or something for another line
           s += fstr.format(s3)
-          if col < len(widths):
-            s += " "    # delimiter between cols; none on last or we'll wrap
+
+          # Compute delimiter: sum of this column's after and next column's before
+          delimiter = " "
+          n = column.lineBetween
+          if n > 0:
+            if n > 1:
+              delimiter = "┃"
+            else:
+              delimiter = "│"
+
+          if not column.isLast:
+            s += delimiter    # delimiter between cols; none on last or we'll wrap
         u.append("▹" + " " * tindent + s)
         # see if there is more to do
         needline = False
@@ -3433,6 +3693,9 @@ class Text(Book):
   def finalRend(self):
     self.dprint(1,"finalRend")
     i = 0
+    #delChars = "▹☊☋"
+    #srcChars = "□⊐⊏≼≽⨭⨮"
+    #subChars = " %#<><>"
     while i < len(self.wb):
 
       self.wb[i] = re.sub("\[\[\/?i\]\]", "_", self.wb[i]) # italics
@@ -3441,6 +3704,12 @@ class Text(Book):
       self.wb[i] = re.sub("\[\[\/?u\]\]", "=", self.wb[i]) # underline mark as bold
       self.wb[i] = re.sub("\[\[\/?sc\]\]", "=", self.wb[i]) # small caps marked as bold
 
+      #n = len(self.wb[i])
+      #for j in range(0, n):
+      #  c = self.wb[i][j]
+      #  index = srcChars.find(c)
+      #  if index != -1:
+      #    self.wb[i][j] = subChars[index]
       self.wb[i] = re.sub("▹", "", self.wb[i])
       self.wb[i] = re.sub("□", " ", self.wb[i])
       self.wb[i] = re.sub('⊐', '%', self.wb[i]) # escaped percent signs (macros)
@@ -3485,6 +3754,43 @@ class Text(Book):
     self.loadFile(self.srcfile)
     self.process()
     self.saveFile(self.dstfile)
+# END OF CLASS Text
+
+class TestMakeTable(unittest.TestCase):
+  t = Text('ifile', 'ofile', 0, 'fmt')
+
+  def test_simple(self):
+    with self.assertRaises(SystemExit) as cm:
+      u = self.t.makeTable([ "<table>", "</table>" ])
+    self.assertEqual(cm.exception.code, 1)
+
+  def common_assertions(self, u):
+    assert len(u) == 3
+    assert u[0] == '.rs 1' and u[2] == '.rs 1'
+    self.t.cprint("Line: " + u[1])
+    # 11 + 11 = 22, 75-22=53//2 = 26.
+    # Should be 26 + 1 + 10 + 1 + 10 
+    assert len(u[1]) == 48 and u[1][0] == '▹'
+
+  def test_t1(self):
+    u = self.t.makeTable([ "<table pattern='r10 r10'>", "1|2", "</table>" ])
+    self.common_assertions(u)
+    assert u[1].endswith("1          2")
+
+  def test_t2(self):
+    u = self.t.makeTable([ "<table pattern='l10 r10'>", "1|2", "</table>" ])
+    self.common_assertions(u)
+    assert u[1].endswith("1                   2")
+
+  def test_t3(self):
+    u = self.t.makeTable([ "<table pattern='l10| r10'>", "1|2", "</table>" ])
+    self.common_assertions(u)
+    assert u[1].endswith("1         │         2")
+
+  def test_t4(self):
+    u = self.t.makeTable([ "<table pattern='l10|| r10'>", "1|2", "</table>" ])
+    self.common_assertions(u)
+    assert u[1].endswith("1         ┃         2")
 
 # ===== main ==================================================================
 
@@ -3504,9 +3810,21 @@ parser.add_option("-d", "--debug",
 parser.add_option("", "--save",
     action="store_true", dest="saveint", default=False,
     help="save intermediate file")
+parser.add_option("--unittest",
+    action="store_true", dest="unittest", default=False, help="run unittests")
 (options, args) = parser.parse_args()
 
 print("fpgen {}".format(VERSION))
+
+if options.unittest:
+  sys.argv = sys.argv[:1]
+  l = unittest.TestLoader();
+  tests = []
+  for cl in [ TestParseTableColumn, TestMakeTable ]:
+    tests.append(l.loadTestsFromTestCase(cl))
+  tests = l.suiteClass(tests)
+  unittest.TextTestRunner(verbosity=2).run(tests)
+  exit(0)
 
 tmp = options.formats
 tmp = re.sub('a|h|t|k|e|p', '', tmp)
