@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.20"
+VERSION="4.20a"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -44,6 +44,7 @@ VERSION="4.20"
 # 4.19     Uppercase <sc> output for text; add sc=titlecase option
 # 4.19a    Various text output table width bug fixes
 # 4.20     Add <table> line drawing in text and html both
+# 4.20a    Add <table> double-lines & column <span>ing
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -119,6 +120,11 @@ class Book(object):
   def cprint(self, s):
     s = re.sub("◻"," ", s)
     t = "".join([x if ord(x) < 128 else '?' for x in s])
+    print(t)
+
+  def uprint(self, s):
+    s = re.sub("◻"," ", s)
+    t = "".join([x if ord(x) < 128 else ("\\u"+hex(ord(x))) for x in s])
     print(t)
 
   # display (fatal) error and exit
@@ -680,7 +686,7 @@ def parseTablePattern(line):
         c = oneCol[off]
         if c == '#' or c == '|':
           col.lineAfterStyle = c
-          while oneCol[off] == '|':
+          while oneCol[off] == c:
             col.lineAfter += 1
             off += 1
             if off == n:
@@ -781,17 +787,33 @@ class TestParseTableColumn(unittest.TestCase):
     assert len(result) == 4
     assert result[0].lineBefore == 1
     assert result[0].lineAfter == 1
+    assert result[0].lineBeforeStyle == '|'
+    assert result[0].lineAfterStyle == '|'
     assert result[1].lineBefore == 0
     assert result[1].lineAfter == 3
+    assert result[1].lineBeforeStyle == '|'
+    assert result[1].lineAfterStyle == '|'
     assert result[2].lineBefore == 3
     assert result[2].lineAfter == 0
+    assert result[2].lineBeforeStyle == '|'
+    assert result[2].lineAfterStyle == '|'
     assert result[3].lineBefore == 2
     assert result[3].lineAfter == 2
+    assert result[3].lineBeforeStyle == '|'
+    assert result[3].lineAfterStyle == '|'
 
   def test_bar3(self):
     with self.assertRaises(SystemExit) as cm:
       result = parseTablePattern("pattern='|r|c'")
     self.assertEqual(cm.exception.code, 1)
+
+  def test_hash(self):
+    result = parseTablePattern("pattern='r# #l'")
+    assert len(result) == 2
+    assert result[0].lineAfter == 4
+    assert result[0].lineAfterStyle == '#'
+    assert result[1].lineBefore == 4
+    assert result[1].lineBeforeStyle == '#'
 
 # ===== class Lint ============================================================
 
@@ -3649,9 +3671,17 @@ class Text(Book):
 
           if lineno == 0 and nextSpan:
             chars = self.ISOLATED_LINECHARS
-          elif lineno == 0 or lastSpan:    # First line
+          elif lineno == 0:    # First line
             chars = self.FIRST_LINECHARS
-          elif lineno+1 == nlines:      # Last Line
+          elif lineno+1 == nlines and not lastSpan:      # Last Line
+            chars = self.LAST_LINECHARS
+          elif lineno+1 == nlines and lastSpan:
+            chars = self.ISOLATED_LINECHARS
+          elif lastSpan and nextSpan:
+            chars = self.ISOLATED_LINECHARS
+          elif lastSpan:
+            chars = self.FIRST_LINECHARS
+          elif nextSpan:
             chars = self.LAST_LINECHARS
           else:
             chars = self.MIDDLE_LINECHARS
@@ -3882,33 +3912,166 @@ class TestMakeTable(unittest.TestCase):
       u = self.t.makeTable([ "<table>", "</table>" ])
     self.assertEqual(cm.exception.code, 1)
 
-  def common_assertions(self, u):
-    assert len(u) == 3
-    assert u[0] == '.rs 1' and u[2] == '.rs 1'
-    self.t.cprint("Line: " + u[1])
+  def common_assertions(self, u, n, textN):
+    assert len(u) == n
+    assert u[0] == '.rs 1' and u[n-1] == '.rs 1'
+    for l in u:
+      self.t.uprint("Line: " + l)
     # 11 + 11 = 22, 75-22=53//2 = 26.
     # Should be 26 + 1 + 10 + 1 + 10 
-    assert len(u[1]) == 48 and u[1][0] == '▹'
+    assert len(u[textN]) == 48 and u[textN][0] == '▹'
 
   def test_t1(self):
     u = self.t.makeTable([ "<table pattern='r10 r10'>", "1|2", "</table>" ])
-    self.common_assertions(u)
+    self.common_assertions(u, 3, 1)
     assert u[1].endswith("1          2")
 
   def test_t2(self):
     u = self.t.makeTable([ "<table pattern='l10 r10'>", "1|2", "</table>" ])
-    self.common_assertions(u)
+    self.common_assertions(u, 3, 1)
     assert u[1].endswith("1                   2")
 
   def test_t3(self):
     u = self.t.makeTable([ "<table pattern='l10| r10'>", "1|2", "</table>" ])
-    self.common_assertions(u)
+    self.common_assertions(u, 3, 1)
     assert u[1].endswith("1         │         2")
+
+  def test_t3hash(self):
+    u = self.t.makeTable([ "<table pattern='l10# r10'>", "1|2", "</table>" ])
+    self.common_assertions(u, 3, 1)
+    assert u[1].endswith("1         ┃         2")
 
   def test_t4(self):
     u = self.t.makeTable([ "<table pattern='l10|| r10'>", "1|2", "</table>" ])
-    self.common_assertions(u)
+    self.common_assertions(u, 3, 1)
     assert u[1].endswith("1         ┃         2")
+
+  def test_t5(self):
+    u = self.t.makeTable([ "<table pattern='l10| r10'>", "_", "1|2", "_", "</table>" ])
+    self.common_assertions(u, 5, 2)
+    assert u[1].endswith("──────────┬──────────")
+    assert u[2].endswith("1         │         2")
+    assert u[3].endswith("──────────┴──────────")
+
+  def test_t6(self):
+    u = self.t.makeTable([ "<table pattern='l10| r10'>", "=", "1|2", "=", "</table>" ])
+    self.common_assertions(u, 5, 2)
+    assert u[1].endswith("━━━━━━━━━━┯━━━━━━━━━━")
+    assert u[2].endswith("1         │         2")
+    assert u[3].endswith("━━━━━━━━━━┷━━━━━━━━━━")
+
+  def test_t7(self):
+    u = self.t.makeTable([ "<table pattern='l10# r10'>", "=", "1|2", "=", "</table>" ])
+    self.common_assertions(u, 5, 2)
+    assert u[1].endswith("━━━━━━━━━━┳━━━━━━━━━━")
+    assert u[2].endswith("1         ┃         2")
+    assert u[3].endswith("━━━━━━━━━━┻━━━━━━━━━━")
+
+  def test_span1(self):
+    u = self.t.makeTable([ "<table pattern='l10# r10'>", "=", "1|<span>", "=", "</table>" ])
+    self.common_assertions(u, 5, 2)
+    assert u[1].endswith("━━━━━━━━━━━━━━━━━━━━━")
+    self.t.cprint("L2: -->" + u[2] + "<--")
+    assert u[2].endswith("1                    ")
+    assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━")
+
+  def test_span2(self):
+    u = self.t.makeTable([ "<table pattern='l10| r10'>", "_", "1|<span>", "=", "</table>" ])
+    self.common_assertions(u, 5, 2)
+    assert u[1].endswith("─────────────────────")
+    self.t.cprint("L2: -->" + u[2] + "<--")
+    assert u[2].endswith("1                    ")
+    assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━")
+
+  def test_span3(self):
+    u = self.t.makeTable([ "<table pattern='l10# r10 |l1'>", "=", "1|<span>|A", "=", "2|<span>|B", "=", "</table>" ])
+    assert len(u) == 7
+    assert u[1].endswith("━━━━━━━━━━━━━━━━━━━━━┯━")
+    assert u[2].endswith("1                    │A")
+    assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━┿━")
+    assert u[4].endswith("2                    │B")
+    assert u[5].endswith("━━━━━━━━━━━━━━━━━━━━━┷━")
+
+  def test_span4(self):
+    u = self.t.makeTable([
+      "<table pattern='l10# r10 ||l1'>",
+        "_",
+        "1|<span>|A",
+        "_",
+        "2|<span>|B",
+        "_",
+      "</table>"
+    ])
+    assert len(u) == 7
+    assert u[1].endswith("─────────────────────┰─")
+    assert u[2].endswith("1                    ┃A")
+    assert u[3].endswith("─────────────────────╂─")
+    assert u[4].endswith("2                    ┃B")
+    assert u[5].endswith("─────────────────────┸─")
+
+  def test_span5(self):
+    u = self.t.makeTable([
+      "<table pattern='l10# r10 ||l1'>",
+        "_",
+        "1|<span>|A",
+        "_",
+        "2|3|B",
+        "_",
+      "</table>"
+    ])
+    assert len(u) == 7
+    assert u[1].endswith("─────────────────────┰─")
+    assert u[2].endswith("1                    ┃A")
+    assert u[3].endswith("──────────┰──────────╂─")
+    assert u[4].endswith("2         ┃         3┃B")
+    assert u[5].endswith("──────────┸──────────┸─")
+
+  def test_2span1(self):
+    u = self.t.makeTable([
+      "<table pattern='r5# r5| r5| |l1'>",
+        "_",
+        "1|<span>|<span>|A",
+        "_",
+      "</table>" ])
+    assert len(u) == 5
+    assert u[1].endswith("────────────────┰─")
+    assert u[2].endswith("               1┃A")
+    assert u[3].endswith("────────────────┸─")
+
+  def test_2span5(self):
+    u = self.t.makeTable([
+      "<table pattern='l5# r5| r5| l1'>",
+        "_",
+        "1|<span>|<span>|A",
+        "_",
+        "2|<span>|3|B",
+        "_",
+      "</table>"
+    ])
+    #for l in u:
+    #  self.t.uprint("Line: " + l)
+    assert len(u) == 7
+    assert u[1].endswith("─────────────────┬─")
+    assert u[2].endswith("1                │A")
+    assert u[3].endswith("───────────┬─────┼─")
+    assert u[4].endswith("2          │    3│B")
+    assert u[5].endswith("───────────┴─────┴─")
+
+  def test_wrap1(self):
+    u = self.t.makeTable([
+      "<table pattern='r8 r1'>",
+        "word longer test w1|B",
+      "</table>"
+    ])
+    for l in u:
+      self.t.uprint("Line: " + l)
+    assert len(u) == 5
+    assert u[1].endswith("    word B")
+    assert u[2].endswith("  longer  ")
+    assert u[3].endswith(" test w1  ")
+
+  # TODO: Tests for computing widths
+  # TODO: Tests for computing some widths
 
 # ===== main ==================================================================
 
