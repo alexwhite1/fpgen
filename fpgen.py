@@ -640,11 +640,17 @@ def parseTablePattern(line):
     # Each column is |*[lrc]#*|*
 
     # Parse leading |
-    while oneCol[off] == '|':
-      col.lineBefore += 1
-      off += 1
-      if off == n:
-        fatal("Incorrect table specification " + oneCol + " inside " + line)
+    c = oneCol[off]
+    if c == '#' or c == '|':
+      col.lineBeforeStyle = c
+      while oneCol[off] == c:
+        col.lineBefore += 1
+        off += 1
+        if off == n:
+          fatal("Incorrect table specification " + oneCol + " inside " + line)
+      # Double line needs to be wider or you can't see it!
+      if col.lineBeforeStyle == '#':
+        col.lineBefore *= 4
 
     # Parse column position
     if oneCol[off] == 'c':
@@ -671,11 +677,17 @@ def parseTablePattern(line):
 
       if off < n:
         # Parse trailing |
-        while oneCol[off] == '|':
-          col.lineAfter += 1
-          off += 1
-          if off == n:
-            break
+        c = oneCol[off]
+        if c == '#' or c == '|':
+          col.lineAfterStyle = c
+          while oneCol[off] == '|':
+            col.lineAfter += 1
+            off += 1
+            if off == n:
+              break
+          # Double line needs to be wider or you can't see it!
+          if col.lineAfterStyle == '#':
+            col.lineAfter *= 4
 
         if off != n:
           fatal("Incorrect table specification " + oneCol + " inside " + line)
@@ -702,6 +714,8 @@ class Col:
     self.lineBefore = 0
     self.lineAfter = 0
     self.lineBetween = 0
+    self.lineBeforeStyle = '|'
+    self.lineAfterStyle = '|'
     self.isLast = False
 
   def __eq__(self, other):
@@ -2090,16 +2104,19 @@ class HTML(Book):
         # Generate nth-of-type css for columns that need lines between them
         colIndex = 1
         for col in columns:
+          colID = "c" + str(colIndex)
           if col.lineBefore != 0:
             property = "border-left"
+            linetype = "solid" if col.lineBeforeStyle == '|' else "double"
             value = str(col.lineBefore) + "px"
-            self.css.addcss("[562] #" + tableID + " td:nth-of-type(" +
-              str(colIndex) + ") { " + property + ": " + value + " solid black; }");
+            self.css.addcss("[562] ." + tableID + colID +
+              " { " + property + ": " + value + " " + linetype + " black; }");
           if col.lineAfter != 0:
             property = "border-right"
+            linetype = "solid" if col.lineBeforeStyle == '|' else "double"
             value = str(col.lineAfter) + "px"
-            self.css.addcss("[563] #" + tableID + " td:nth-of-type(" +
-              str(colIndex) + ") { " + property + ": " + value + " solid black; }");
+            self.css.addcss("[563] ." + tableID + colID + 
+              " { " + property + ": " + value + " " + linetype + " black; }");
           colIndex += 1
 
         # build the table header
@@ -2121,10 +2138,11 @@ class HTML(Book):
 
         # emit each row of table
         row = 1
+        ncols = len(columns)
         while not re.match("<\/table>", self.wb[j]):
           if empty.match(self.wb[j]):
-            self.wb[j] = "<tr><td colspan='{}'>&nbsp;</td></tr>".format(len(columns))
-          elif self.wb[j] == "_":
+            self.wb[j] = "<tr><td colspan='{}'>&nbsp;</td></tr>".format(ncols)
+          elif self.wb[j] == "_" or self.wb[j] == "=":
             # Process horizontal line
             # The first row is on the top; the n-th row is on the bottom of the
             # previous row
@@ -2133,8 +2151,14 @@ class HTML(Book):
             if row == 1:
               location = "top"
               nTH = 1
+            if self.wb[j] == "_":
+              width = "1px"
+              style = "solid"
+            else:
+              width = "4px"
+              style = "double"
             self.css.addcss("[564] #" + tableID + " tr:nth-of-type(" + str(nTH) +
-              ") td { border-" + location + ": 1px solid black; }")
+              ") td { border-" + location + ": " + width + " " + style + " black; }")
             j += 1
             # Do not increment row
             continue
@@ -2143,15 +2167,39 @@ class HTML(Book):
             # Need to generate all the columns, even if no column data in this row,
             # in case there are any verticals
             colData = self.wb[j].split("|")
+            nColData = len(colData)
             line = "<tr>"
             self.wb[j] = re.sub("\|","</td><td>", self.wb[j])
             self.wb[j] = "<tr><td>" + self.wb[j].rstrip() + "</td></tr>"
             for n,col in enumerate(columns):
-              if n >= len(colData):
+              if n >= nColData:
                 data = ""
               else:
-                data = colData[n]
-              line += "<td style='padding: {}px {}px; text-align:{}; vertical-align:top'>".format(vpad, hpad, col.align) + data + "</td>"
+                data = colData[n].strip()
+
+              # If this cell was spanned by the previous, ignore it.
+              if data == "<span>":
+                continue;
+
+              # Look ahead into the following cells, to see if this is supposed to span
+              nspan = 1
+              for sp in range(n+1, ncols):
+                if sp >= nColData:
+                  break
+                if colData[sp] == "<span>":
+                  nspan += 1
+                else:
+                  break;
+              if nspan > 1:
+                colspan = " colspan='" + str(nspan) + "'"
+              else:
+                colspan = ""
+
+              colID = "c" + str(n+1)
+              line += "<td class='" + tableID + colID + "' style='padding: " + \
+                str(vpad) + "px " + str(hpad) + "px; " + \
+                "text-align:" + col.align + "; vertical-align:top'" + \
+                colspan + ">" + data + "</td>"
             line += "</tr>"
             self.wb[j] = line
           t.append(self.wb[j])
@@ -3495,9 +3543,10 @@ class Text(Book):
     s += "]"
     return s
 
-  FIRST_LINECHARS = "─┬┰"
-  MIDDLE_LINECHARS = "─┼╂"
-  LAST_LINECHARS = "─┴┸"
+  FIRST_LINECHARS = "─┬┰━┯┳"
+  MIDDLE_LINECHARS = "─┼╂━┿╋"
+  LAST_LINECHARS = "─┴┸━┷┻"
+  ISOLATED_LINECHARS = "───━━━"
 
   # make printable table from source code block
   def makeTable(self, t):
@@ -3520,22 +3569,25 @@ class Text(Book):
 
     # pattern must be specified
     columns = parseTablePattern(tableLine)
+    ncols = len(columns)
 
     totalwidth = Text.tableWidth(columns)
 
-    # calculate max width if none was specified
-    if totalwidth == 0:
-      # need to calculate max width on each column
-      for line in t:
-        u = line.split("|")
-        for x, item in enumerate(u):
-          item = item.strip()
-          if len(item) > columns[x].width:
-            columns[x].width = len(item)
-      # and compute totalwidth against those maxes
-      totalwidth = Text.tableWidth(columns)
-      self.dprint(1, "Computed table widths: " + Text.toWidthString(columns) +
-        ", total: " + str(totalwidth))
+    # any cells missing a width we need to calculate
+    for col in columns:
+      if col.width == 0:
+        # need to calculate max width on each column
+        for line in t:
+          u = line.split("|")
+          for x, item in enumerate(u):
+            item = item.strip()
+            if len(item) > columns[x].width:
+              columns[x].width = len(item)
+        # and compute totalwidth against those maxes
+        totalwidth = Text.tableWidth(columns)
+        self.dprint(1, "Computed table widths: " + Text.toWidthString(columns) +
+          ", total: " + str(totalwidth))
+        break
 
     maxTableWidth = 75  # this is the size that saveFile decides to wrap at
 
@@ -3562,50 +3614,102 @@ class Text(Book):
       ", indenting: " + str(tindent) + "; final widths: " + Text.toWidthString(columns))
 
     u = [".rs 1"]
-    # iterate over all table lines in source
-    # honor blank lines
-    for k, line in enumerate(t):
-      if empty.match(line):
+
+    # Split all the lines into cells
+    lines = []
+    for line in t:
+      rowtext = line.split("|")
+      lines.append(rowtext)
+    nlines = len(lines)
+
+    for lineno, rowtext in enumerate(lines):
+      nColData = len(rowtext)   # Number of columns of data on this line
+      if len(rowtext) == 0:
         u.append("▹")
         continue
 
       # Draw box characters with appropriate connectors for a line
-      if line == '_' :
-        s = ""
-        for col in columns:
-          s += col.width * "─"
-          if k == 0:
+      if nColData == 1 and (rowtext[0] == "_" or rowtext[0] == "="):
+        line = "▹"
+        for colno, col in enumerate(columns):
+
+          # Did the last line do a span over the next column?
+          lastSpan = False
+          if lineno > 0:
+            lastLine = lines[lineno-1]
+            if colno+1 < len(lastLine):
+              lastSpan = (lastLine[colno+1] == "<span>")
+
+          # Will the next line span over the next column?
+          nextSpan = False
+          if lineno+1 < nlines:
+            nextLine = lines[lineno+1]
+            if colno+1 < len(nextLine):
+              nextSpan = (nextLine[colno+1] == "<span>")
+
+          if lineno == 0 and nextSpan:
+            chars = self.ISOLATED_LINECHARS
+          elif lineno == 0 or lastSpan:    # First line
             chars = self.FIRST_LINECHARS
-          elif k+1 == len(t):
+          elif lineno+1 == nlines:      # Last Line
             chars = self.LAST_LINECHARS
           else:
             chars = self.MIDDLE_LINECHARS
 
+          off = 0 if rowtext[0] == '_' else 3
+          line += col.width * chars[off + 0]
+
           if not col.isLast:
             if col.lineBetween == 0:
-              s += chars[0]
+              line += chars[off + 0]
             elif col.lineBetween == 1:
-              s += chars[1]
+              line += chars[off + 1]
             else:
-              s += chars[2]
-        u.append("▹" + s)
+              line += chars[off + 2]
+
+        # Add the box line to the output & finished with this row
+        u.append(line)
         continue
 
-      rowtext = line.split("|") # split each row into columns
-      # if any cell in la has content, emit a line and remove it from that cell
+      # Cells may be wrapped onto multiple lines.
+      # As we emit each cell, we reduce its content by the line just emitted
+      # When all cells have become empty, we're done
       needline = False
-      for col in range(len(rowtext)):
+      for col in range(0, nColData):
         if len(rowtext[col]) > 0:
           needline = True
+
       # repeat the emit-line block as long as there is still data
       while needline:
-        s = ""
+        line = ""
         for n, column in enumerate(columns):
-          if n < len(rowtext):
+          if n < nColData:
             cell = rowtext[n]
           else:
             cell = ""
+
+          # If this cell was spanned by the previous, ignore it.
+          if cell == "<span>":
+            continue;
+
+          # Look ahead into the following cells, to see if this is supposed to span
+          nspan = 1
+          for sp in range(n+1, ncols):
+            if sp >= nColData:
+              break
+            if rowtext[sp] == "<span>":
+              nspan += 1
+            else:
+              break;
+          lastSpanningColumn = columns[n+nspan-1]
+
           w = column.width
+          while nspan > 1:
+            w += 1      # for the delimiter
+            w += columns[n+nspan-1].width
+            nspan -= 1
+          #self.cprint("col: " + str(n) + ", w: " + str(w) + ", content: " + cell)
+
           if w <= 0 and len(cell) > 0:
             self.fatal("Unable to compute text table widths for " + tableLine + \
               ".  Specify them manually.")
@@ -3615,43 +3719,57 @@ class Text(Book):
             fstr = '{:^'+str(w)+'}'
           if column.align == 'right':
             fstr = '{:>'+str(w)+'}'
+
           # what to display
           s2 = cell.strip()
           try:
             if len(s2) <= w:
+              # It all fits, done
               s3 = s2.strip()
               s4 = ""
             else:
+              # Doesn't fit; find the last space in the
+              # allocated width, and break into this line, and
+              # subsequent lines
               chopat = s2.rindex(" ", 0, w)
               s3 = s2[0:chopat+1].strip()
               s4 = s2[chopat+1:].strip()
           except:
             s3 = s2.strip()
             s4 = ""
-          if n < len(rowtext):
+
+          if n < nColData:
+            # Replace cell with whatever is left, if we wrapped the cell
             rowtext[n] = s4 # empty or something for another line
-          s += fstr.format(s3)
+
+          # And format the part we decided to use onto the end of the current line
+          line += fstr.format(s3)
 
           # Compute delimiter: sum of this column's after and next column's before
           delimiter = " "
-          n = column.lineBetween
+          n = lastSpanningColumn.lineBetween
           if n > 0:
             if n > 1:
               delimiter = "┃"
             else:
               delimiter = "│"
 
-          if not column.isLast:
-            s += delimiter    # delimiter between cols; none on last or we'll wrap
-        u.append("▹" + " " * tindent + s)
-        # see if there is more to do
+          if not lastSpanningColumn.isLast:
+            line += delimiter    # delimiter between cols; none on last or we'll wrap
+
+        # Finally! Emit the line, indented appropriately
+        u.append("▹" + " " * tindent + line)
+
+        # see if any cell wrapped and has more data left
         needline = False
         for col in range(len(rowtext)):
-          if len(rowtext[col]) > 0:
+          if len(rowtext[col]) > 0 and rowtext[col] != "<span>":
             needline = True
+
       if vpad:
         u.append("▹" + ".rs 1")
     u.append(".rs 1")
+
     return u
 
   # merge all contiguous requested spaces
