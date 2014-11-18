@@ -3623,8 +3623,8 @@ class Text(Book):
               s4 = ""
             else:
               chopat = s2.rindex(" ", 0, w)
-              s3 = cell[0:chopat+1].strip()
-              s4 = cell[chopat+1:].strip()
+              s3 = s2[0:chopat+1].strip()
+              s4 = s2[chopat+1:].strip()
           except:
             s3 = s2.strip()
             s4 = ""
