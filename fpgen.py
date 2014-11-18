@@ -9,7 +9,7 @@ import textwrap
 import codecs
 import platform
 
-VERSION="4.19a"
+VERSION="4.19b"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -42,6 +42,7 @@ VERSION="4.19a"
 # 4.18     Use nbsp instead of ensp for ellipsis
 # 4.19     Uppercase <sc> output for text; add sc=titlecase option
 # 4.19a    Various text output table width bug fixes
+# 4.19b    Text table: strip cell before finding max width
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -3304,6 +3305,7 @@ class Text(Book):
       for line in t:
         u = line.split("|")
         for x, item in enumerate(u):
+          item = item.strip()
           if len(item) > widths[x]:
             widths[x]= len(item)
       # and compute totalwidth against those maxes
