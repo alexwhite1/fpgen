@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.20a"
+VERSION="4.20b"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -45,6 +45,7 @@ VERSION="4.20a"
 # 4.19a    Various text output table width bug fixes
 # 4.20     Add <table> line drawing in text and html both
 # 4.20a    Add <table> double-lines & column <span>ing
+# 4.20b    text table bug fix
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -3549,30 +3550,8 @@ class Text(Book):
       self.wb[mark1:mark2] = u
       i = mark1 + len(u)
 
-  def tableWidth(columns):
-    tw = 0
-    for col in columns:
-      if col.width != 0:
-        tw += col.width + 1
-    # TODO: subtract one for last column not having a delimiter?
-    return tw
-
-  def toWidthString(columns):
-    s = "["
-    for col in columns:
-      if s != "[": s += ", "
-      s += str(col.width)
-    s += "]"
-    return s
-
-  FIRST_LINECHARS = "─┬┰━┯┳"
-  MIDDLE_LINECHARS = "─┼╂━┿╋"
-  LAST_LINECHARS = "─┴┸━┷┻"
-  ISOLATED_LINECHARS = "───━━━"
-
   # make printable table from source code block
   def makeTable(self, t):
-    totalwidth = 0
 
     for k, line in enumerate(t): # 11-Sep-2013
       t[k] = self.detag(line)
@@ -3581,226 +3560,8 @@ class Text(Book):
     del t[0] # <table line
     del t[-1] # </table line
 
-    # the only rend text cares about is "pad"
-    vpad = False
-    m = re.search(r"rend='(.*?)'", tableLine)
-    if m:
-      rend = m.group(1)
-      if re.search("pad", rend):
-        vpad = True
-
-    # pattern must be specified
-    columns = parseTablePattern(tableLine)
-    ncols = len(columns)
-
-    totalwidth = Text.tableWidth(columns)
-
-    # any cells missing a width we need to calculate
-    for col in columns:
-      if col.width == 0:
-        # need to calculate max width on each column
-        for line in t:
-          u = line.split("|")
-          for x, item in enumerate(u):
-            item = item.strip()
-            if len(item) > columns[x].width:
-              columns[x].width = len(item)
-        # and compute totalwidth against those maxes
-        totalwidth = Text.tableWidth(columns)
-        self.dprint(1, "Computed table widths: " + Text.toWidthString(columns) +
-          ", total: " + str(totalwidth))
-        break
-
-    maxTableWidth = 75  # this is the size that saveFile decides to wrap at
-
-    # for text, may have to force narrower to keep totalwidth < maxTableWidth
-    while totalwidth > maxTableWidth:
-      widest = 0
-      for x, item in enumerate(columns):
-        if item.width > widest:
-          widest = item.width
-          widex = x
-
-      # Shrink widest column by one
-      columns[widex].width -= 1
-
-      # Recompute total width
-      totalwidth = Text.tableWidth(columns)
-      self.cprint("warning: Table too wide: column " + str(widex) +
-        "[" + str(widest) + "->" + str(columns[widex].width) +
-        "], total width now " + str(totalwidth));
-
-    # calculate tindent from max table width
-    tindent = (maxTableWidth - totalwidth) // 2
-    self.dprint(1, "Table totalwidth: " + str(totalwidth) +
-      ", indenting: " + str(tindent) + "; final widths: " + Text.toWidthString(columns))
-
-    u = [".rs 1"]
-
-    # Split all the lines into cells
-    lines = []
-    for line in t:
-      rowtext = line.split("|")
-      lines.append(rowtext)
-    nlines = len(lines)
-
-    for lineno, rowtext in enumerate(lines):
-      nColData = len(rowtext)   # Number of columns of data on this line
-      if len(rowtext) == 0:
-        u.append("▹")
-        continue
-
-      # Draw box characters with appropriate connectors for a line
-      if nColData == 1 and (rowtext[0] == "_" or rowtext[0] == "="):
-        line = "▹"
-        for colno, col in enumerate(columns):
-
-          # Did the last line do a span over the next column?
-          lastSpan = False
-          if lineno > 0:
-            lastLine = lines[lineno-1]
-            if colno+1 < len(lastLine):
-              lastSpan = (lastLine[colno+1] == "<span>")
-
-          # Will the next line span over the next column?
-          nextSpan = False
-          if lineno+1 < nlines:
-            nextLine = lines[lineno+1]
-            if colno+1 < len(nextLine):
-              nextSpan = (nextLine[colno+1] == "<span>")
-
-          if lineno == 0 and nextSpan:
-            chars = self.ISOLATED_LINECHARS
-          elif lineno == 0:    # First line
-            chars = self.FIRST_LINECHARS
-          elif lineno+1 == nlines and not lastSpan:      # Last Line
-            chars = self.LAST_LINECHARS
-          elif lineno+1 == nlines and lastSpan:
-            chars = self.ISOLATED_LINECHARS
-          elif lastSpan and nextSpan:
-            chars = self.ISOLATED_LINECHARS
-          elif lastSpan:
-            chars = self.FIRST_LINECHARS
-          elif nextSpan:
-            chars = self.LAST_LINECHARS
-          else:
-            chars = self.MIDDLE_LINECHARS
-
-          off = 0 if rowtext[0] == '_' else 3
-          line += col.width * chars[off + 0]
-
-          if not col.isLast:
-            if col.lineBetween == 0:
-              line += chars[off + 0]
-            elif col.lineBetween == 1:
-              line += chars[off + 1]
-            else:
-              line += chars[off + 2]
-
-        # Add the box line to the output & finished with this row
-        u.append(line)
-        continue
-
-      # Cells may be wrapped onto multiple lines.
-      # As we emit each cell, we reduce its content by the line just emitted
-      # When all cells have become empty, we're done
-      needline = False
-      for col in range(0, nColData):
-        if len(rowtext[col]) > 0:
-          needline = True
-
-      # repeat the emit-line block as long as there is still data
-      while needline:
-        line = ""
-        for n, column in enumerate(columns):
-          if n < nColData:
-            cell = rowtext[n]
-          else:
-            cell = ""
-
-          # If this cell was spanned by the previous, ignore it.
-          if cell == "<span>":
-            continue;
-
-          # Look ahead into the following cells, to see if this is supposed to span
-          nspan = 1
-          for sp in range(n+1, ncols):
-            if sp >= nColData:
-              break
-            if rowtext[sp] == "<span>":
-              nspan += 1
-            else:
-              break;
-          lastSpanningColumn = columns[n+nspan-1]
-
-          w = column.width
-          while nspan > 1:
-            w += 1      # for the delimiter
-            w += columns[n+nspan-1].width
-            nspan -= 1
-          #self.cprint("col: " + str(n) + ", w: " + str(w) + ", content: " + cell)
-
-          if w <= 0 and len(cell) > 0:
-            self.fatal("Unable to compute text table widths for " + tableLine + \
-              ".  Specify them manually.")
-          if column.align == 'left':
-            fstr = '{:<'+str(w)+'}'
-          if column.align == 'center':
-            fstr = '{:^'+str(w)+'}'
-          if column.align == 'right':
-            fstr = '{:>'+str(w)+'}'
-
-          # what to display
-          s2 = cell.strip()
-          try:
-            if len(s2) <= w:
-              # It all fits, done
-              s3 = s2.strip()
-              s4 = ""
-            else:
-              # Doesn't fit; find the last space in the
-              # allocated width, and break into this line, and
-              # subsequent lines
-              chopat = s2.rindex(" ", 0, w)
-              s3 = s2[0:chopat+1].strip()
-              s4 = s2[chopat+1:].strip()
-          except:
-            s3 = s2.strip()
-            s4 = ""
-
-          if n < nColData:
-            # Replace cell with whatever is left, if we wrapped the cell
-            rowtext[n] = s4 # empty or something for another line
-
-          # And format the part we decided to use onto the end of the current line
-          line += fstr.format(s3)
-
-          # Compute delimiter: sum of this column's after and next column's before
-          delimiter = " "
-          n = lastSpanningColumn.lineBetween
-          if n > 0:
-            if n > 1:
-              delimiter = "┃"
-            else:
-              delimiter = "│"
-
-          if not lastSpanningColumn.isLast:
-            line += delimiter    # delimiter between cols; none on last or we'll wrap
-
-        # Finally! Emit the line, indented appropriately
-        u.append("▹" + " " * tindent + line)
-
-        # see if any cell wrapped and has more data left
-        needline = False
-        for col in range(len(rowtext)):
-          if len(rowtext[col]) > 0 and rowtext[col] != "<span>":
-            needline = True
-
-      if vpad:
-        u.append("▹" + ".rs 1")
-    u.append(".rs 1")
-
-    return u
+    tf = TableFormatter(tableLine, t, self)
+    return tf.format()
 
   # merge all contiguous requested spaces
   def finalSpacing(self):
@@ -3903,6 +3664,269 @@ class Text(Book):
     self.process()
     self.saveFile(self.dstfile)
 # END OF CLASS Text
+
+class TableFormatter:
+
+  FIRST_LINECHARS = "─┬┰━┯┳"
+  MIDDLE_LINECHARS = "─┼╂━┿╋"
+  LAST_LINECHARS = "─┴┸━┷┻"
+  ISOLATED_LINECHARS = "───━━━"
+
+  def __init__(self, tableLine, lines, book):
+    self.tableLine = tableLine
+    self.lines = lines
+    self.book = book
+    self.parseFormat()
+    self.computeWidths()
+
+  def parseFormat(self):
+    # the only rend text cares about is "pad"
+    self.vpad = False
+    m = re.search(r"rend='(.*?)'", self.tableLine)
+    if m:
+      rend = m.group(1)
+      if re.search("pad", rend):
+        self.vpad = True
+
+    # pattern must be specified
+    self.columns = parseTablePattern(self.tableLine)
+    self.ncols = len(self.columns)
+
+  def computeWidths(self):
+    totalwidth = tableWidth(self.columns)
+
+    # any cells missing a width we need to calculate
+    for col in self.columns:
+      if col.width == 0:
+        # need to calculate max width on each column
+        for line in self.lines:
+          u = line.split("|")
+          for x, item in enumerate(u):
+            item = item.strip()
+            if len(item) > self.columns[x].width:
+              self.columns[x].width = len(item)
+        # and compute totalwidth against those maxes
+        totalwidth = tableWidth(self.columns)
+        self.book.dprint(1, "Computed table widths: " +
+          toWidthString(self.columns) +
+          ", total: " + str(totalwidth))
+        break
+
+    maxTableWidth = 75  # this is the size that saveFile decides to wrap at
+
+    # for text, may have to force narrower to keep totalwidth < maxTableWidth
+    while totalwidth > maxTableWidth:
+      widest = 0
+      for x, item in enumerate(self.columns):
+        if item.width > widest:
+          widest = item.width
+          widex = x
+
+      # Shrink widest column by one
+      self.columns[widex].width -= 1
+
+      # Recompute total width
+      totalwidth = tableWidth(self.columns)
+      self.book.cprint("warning: Table too wide: column " + str(widex) +
+        "[" + str(widest) + "->" + str(self.columns[widex].width) +
+        "], total width now " + str(totalwidth));
+
+    # calculate tindent from max table width
+    self.tindent = (maxTableWidth - totalwidth) // 2
+    self.book.dprint(1, "Table totalwidth: " + str(totalwidth) +
+      ", indenting: " + str(self.tindent) + "; final widths: " +
+      toWidthString(self.columns))
+
+  # Create a single horizontal line.
+  def drawLine(self, cell, lineno, lines):
+    nlines = len(lines)
+
+    line = "▹" + " " * self.tindent
+    for colno, col in enumerate(self.columns):
+
+      # Did the last line do a span over the next column?
+      lastSpan = False
+      if lineno > 0:
+        lastLine = lines[lineno-1]
+        if colno+1 < len(lastLine):
+          lastSpan = (lastLine[colno+1] == "<span>")
+
+      # Will the next line span over the next column?
+      nextSpan = False
+      if lineno+1 < nlines:
+        nextLine = lines[lineno+1]
+        if colno+1 < len(nextLine):
+          nextSpan = (nextLine[colno+1] == "<span>")
+
+      if lineno == 0 and nextSpan:
+        chars = self.ISOLATED_LINECHARS
+      elif lineno == 0:    # First line
+        chars = self.FIRST_LINECHARS
+      elif lineno+1 == nlines and not lastSpan:      # Last Line
+        chars = self.LAST_LINECHARS
+      elif lineno+1 == nlines and lastSpan:
+        chars = self.ISOLATED_LINECHARS
+      elif lastSpan and nextSpan:
+        chars = self.ISOLATED_LINECHARS
+      elif lastSpan:
+        chars = self.FIRST_LINECHARS
+      elif nextSpan:
+        chars = self.LAST_LINECHARS
+      else:
+        chars = self.MIDDLE_LINECHARS
+
+      off = 0 if cell[0] == '_' else 3
+      line += col.width * chars[off + 0]
+
+      if not col.isLast:
+        if col.lineBetween == 0:
+          line += chars[off + 0]
+        elif col.lineBetween == 1:
+          line += chars[off + 1]
+        else:
+          line += chars[off + 2]
+    return line
+
+  def format(self):
+
+    u = [".rs 1"]
+
+    # Split all the lines into cells
+    lines = []
+    for line in self.lines:
+      rowtext = line.split("|")
+      lines.append(rowtext)
+    nlines = len(lines)
+
+    for lineno, rowtext in enumerate(lines):
+      nColData = len(rowtext)   # Number of columns of data on this line
+      if len(rowtext) == 0:
+        u.append("▹")
+        continue
+
+      # Draw box characters with appropriate connectors for a line
+      if nColData == 1 and (rowtext[0] == "_" or rowtext[0] == "="):
+        line = self.drawLine(rowtext, lineno, lines)
+        # Add the box line to the output & finished with this row
+        u.append(line)
+        continue
+
+      # Cells may be wrapped onto multiple lines.
+      # As we emit each cell, we reduce its content by the line just emitted
+      # When all cells have become empty, we're done
+      needline = False
+      for col in range(0, nColData):
+        if len(rowtext[col]) > 0:
+          needline = True
+
+      # repeat the emit-line block as long as there is still data
+      while needline:
+        line = ""
+        for n, column in enumerate(self.columns):
+          if n < nColData:
+            cell = rowtext[n]
+          else:
+            cell = ""
+
+          # If this cell was spanned by the previous, ignore it.
+          if cell == "<span>":
+            continue;
+
+          # Look ahead into the following cells, to see if this is supposed to span
+          nspan = 1
+          for sp in range(n+1, self.ncols):
+            if sp >= nColData:
+              break
+            if rowtext[sp] == "<span>":
+              nspan += 1
+            else:
+              break;
+          lastSpanningColumn = self.columns[n+nspan-1]
+
+          w = column.width
+          while nspan > 1:
+            w += 1      # for the delimiter
+            w += self.columns[n+nspan-1].width
+            nspan -= 1
+          #self.cprint("col: " + str(n) + ", w: " + str(w) + ", content: " + cell)
+
+          if w <= 0 and len(cell) > 0:
+            fatal("Unable to compute text table widths for " + tableLine + \
+              ".  Specify them manually.")
+          if column.align == 'left':
+            fstr = '{:<'+str(w)+'}'
+          if column.align == 'center':
+            fstr = '{:^'+str(w)+'}'
+          if column.align == 'right':
+            fstr = '{:>'+str(w)+'}'
+
+          # what to display
+          s2 = cell.strip()
+          try:
+            if len(s2) <= w:
+              # It all fits, done
+              s3 = s2.strip()
+              s4 = ""
+            else:
+              # Doesn't fit; find the last space in the
+              # allocated width, and break into this line, and
+              # subsequent lines
+              chopat = s2.rindex(" ", 0, w)
+              s3 = s2[0:chopat+1].strip()
+              s4 = s2[chopat+1:].strip()
+          except:
+            s3 = s2.strip()
+            s4 = ""
+
+          if n < nColData:
+            # Replace cell with whatever is left, if we wrapped the cell
+            rowtext[n] = s4 # empty or something for another line
+
+          # And format the part we decided to use onto the end of the current line
+          line += fstr.format(s3)
+
+          # Compute delimiter: sum of this column's after and next column's before
+          delimiter = " "
+          n = lastSpanningColumn.lineBetween
+          if n > 0:
+            if n > 1:
+              delimiter = "┃"
+            else:
+              delimiter = "│"
+
+          if not lastSpanningColumn.isLast:
+            line += delimiter    # delimiter between cols; none on last or we'll wrap
+
+        # Finally! Emit the line, indented appropriately
+        u.append("▹" + " " * self.tindent + line)
+
+        # see if any cell wrapped and has more data left
+        needline = False
+        for col in range(len(rowtext)):
+          if len(rowtext[col]) > 0 and rowtext[col] != "<span>":
+            needline = True
+
+      if self.vpad:
+        u.append("▹" + ".rs 1")
+    u.append(".rs 1")
+
+    return u
+
+def toWidthString(columns):
+  s = "["
+  for col in columns:
+    if s != "[": s += ", "
+    s += str(col.width)
+  s += "]"
+  return s
+
+def tableWidth(columns):
+  tw = 0
+  for col in columns:
+    if col.width != 0:
+      tw += col.width + 1
+  # TODO: subtract one for last column not having a delimiter?
+  return tw
 
 class TestMakeTable(unittest.TestCase):
   t = Text('ifile', 'ofile', 0, 'fmt')
