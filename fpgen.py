@@ -240,9 +240,11 @@ class Book(object):
     # page number tags
     # force page numbers to separate line and to single-quote version
     i = 0
+    regex = re.compile(r"<pn=[\"'](.+?)[\"']>")
+    regex1 = re.compile("^(.*?)(\s?<pn='.*?'>\s?)(.*)$")
     while i < len(self.wb):
-      self.wb[i] = re.sub(r"<pn=[\"'](.+?)[\"']>",  r"<pn='\1'>", self.wb[i])
-      m = re.search("^(.*?)(\s?<pn='.*?'>\s?)(.*)$", self.wb[i])
+      self.wb[i] = regex.sub(r"<pn='\1'>", self.wb[i])
+      m = regex1.search(self.wb[i])
       if m:
         if m.group(1) != "" and m.group(3) != "":
           t = [m.group(1), m.group(2).strip(), m.group(3)]
@@ -2723,14 +2725,25 @@ class Text(Book):
     else:
         replacewith = "_" # emphasis. treat as <em>
     scTitle = (uopt.getopt("sc") == "titlecase")
+
+    regexOL = re.compile("<\/?ol>")
+    regexI = re.compile("<\/?i>")
+    regexEM = re.compile("<\/?em>")
+    regexB = re.compile("<\/?b>")
+    regexU = re.compile("<\/?u>")
+    regexDOT = re.compile(r"\. \.")
+    regexFS = re.compile("<\/?fs>")
+    regexFS1 = re.compile("<fs:.+?>")
+    regexG = re.compile(r"<g>(.*?)<\/g>")
+
     i = 0
     while i < len(self.wb):
 
-        self.wb[i] = re.sub("<\/?ol>", "‾", self.wb[i]) # overline 10-Apr-2014
+        self.wb[i] = regexOL.sub("‾", self.wb[i]) # overline 10-Apr-2014
 
-        self.wb[i] = re.sub("<\/?i>", replacewith, self.wb[i]) # italic
-        self.wb[i] = re.sub("<\/?em>", "_", self.wb[i]) # italic
-        self.wb[i] = re.sub("<\/?b>", "=", self.wb[i]) # bold
+        self.wb[i] = regexI.sub(replacewith, self.wb[i]) # italic
+        self.wb[i] = regexEM.sub("_", self.wb[i]) # italic
+        self.wb[i] = regexB.sub("=", self.wb[i]) # bold
 
         # self.wb[i] = re.sub("<\/?sc>", "=", self.wb[i]) # small-caps
         if (scTitle):
@@ -2741,24 +2754,24 @@ class Text(Book):
           self.wb[i] = re.sub("<sc>(.*?)<\/sc>",
               lambda pat: pat.group(1).upper(), self.wb[i]);
 
-        self.wb[i] = re.sub("<\/?u>", "=", self.wb[i]) # underline
-        while re.search(r"\. \.", self.wb[i]):
-            self.wb[i] = re.sub(r"\. \.", ".□.", self.wb[i], 1) # spaces in ellipsis
+        self.wb[i] = regexU.sub("=", self.wb[i]) # underline
+        while regexDOT.search(self.wb[i]):
+            self.wb[i] = regexDOT.sub(".□.", self.wb[i], 1) # spaces in ellipsis
         self.wb[i] = re.sub(r"…", "...", self.wb[i]) # unwrap ellipsis UTF-8 character for text
         self.wb[i] = re.sub(r"\\%",'⊐', self.wb[i]) # escaped percent signs (macros)
         self.wb[i] = re.sub(r"\\#",'⊏', self.wb[i]) # escaped octothorpes (page links)
         self.wb[i] = re.sub(r"\\<",'≼', self.wb[i]) # escaped open tag marks
         self.wb[i] = re.sub(r"\\>",'≽', self.wb[i]) # escaped close tag marks
 
-        m = re.search(r"<g>(.*?)<\/g>", self.wb[i]) # gesperrt
+        m = regexG.search(self.wb[i]) # gesperrt
         while m:
           replace = ""
           x = m.group(1)
           for j in range(len(x)-1):
             replace += x[j] + "□" # space after all but last character
           replace += x[-1] # last character
-          self.wb[i] = re.sub(r"<g>.*?<\/g>", replace, self.wb[i], 1)
-          m = re.search(r"<g>(.*?)<\/g>", self.wb[i])
+          self.wb[i] = regexG.sub(replace, self.wb[i], 1)
+          m = regexG.search(self.wb[i])
 
         # new inline tags 2014.01.27
         # inline font size changes ignored in text
@@ -2766,8 +2779,8 @@ class Text(Book):
         # <fs:xl> ... </fs>
         # <fs:s> ... </fs>
         # <fs:xs> ... </fs>
-        self.wb[i] = re.sub("<\/fs>", "", self.wb[i])
-        self.wb[i] = re.sub("<fs:.+?>", "", self.wb[i])
+        self.wb[i] = regexFS.sub("", self.wb[i])
+        self.wb[i] = regexFS1.sub("", self.wb[i])
 
         # remove table super/subscript balance tokens
         self.wb[i] = re.sub('\^\{\}', '', self.wb[i])
@@ -3621,46 +3634,69 @@ class Text(Book):
   # trim trailing spaces
   def finalRend(self):
     self.dprint(1,"finalRend")
+
+    regexI = re.compile("\[\[\/?i\]\]")
+    regexB = re.compile("\[\[\/?b\]\]")
+    regexU = re.compile("\[\[\/?u\]\]")
+    regexSC = re.compile("\[\[\/?sc\]\]")
+    regexRS = re.compile(".rs (\d+)")
+
     i = 0
-    #delChars = "▹☊☋"
-    #srcChars = "□⊐⊏≼≽⨭⨮"
-    #subChars = " %#<><>"
     while i < len(self.wb):
+      l = self.wb[i].rstrip()
 
-      self.wb[i] = re.sub("\[\[\/?i\]\]", "_", self.wb[i]) # italics
+      l = regexI.sub("_", l) # italics
+      l = regexB.sub("=", l) # bold
+      l = regexU.sub("=", l) # underline mark as bold
+      l = regexSC.sub("=", l) # small caps marked as bold
 
-      self.wb[i] = re.sub("\[\[\/?b\]\]", "=", self.wb[i]) # bold
-      self.wb[i] = re.sub("\[\[\/?u\]\]", "=", self.wb[i]) # underline mark as bold
-      self.wb[i] = re.sub("\[\[\/?sc\]\]", "=", self.wb[i]) # small caps marked as bold
+      if False:
+        line = []
+        for c in l:
+          if c == "▹" or c == "☊" or c == "☋": # ?? or start or end dropcap
+            continue
+          elif c == "□":
+            c = " "
+          elif c == "⊐": # escaped percent signs (macros)
+            c = "%"
+          elif c == "⊏": # escaped octothorpes (page links)
+            c = "#"
+          elif c == "≼": # <
+            c = "<"
+          elif c == "≼": # >
+            c = ">"
+          elif c == "⨭": # literal <
+            c = "<"
+          elif c == "⨮": # literal >
+            c = ">"
+          line.append(c)
 
-      #n = len(self.wb[i])
-      #for j in range(0, n):
-      #  c = self.wb[i][j]
-      #  index = srcChars.find(c)
-      #  if index != -1:
-      #    self.wb[i][j] = subChars[index]
-      self.wb[i] = re.sub("▹", "", self.wb[i])
-      self.wb[i] = re.sub("□", " ", self.wb[i])
-      self.wb[i] = re.sub('⊐', '%', self.wb[i]) # escaped percent signs (macros)
-      self.wb[i] = re.sub('⊏', '#', self.wb[i]) # escaped octothorpes (page links)
-      self.wb[i] = re.sub("≼", "<", self.wb[i]) # <
-      self.wb[i] = re.sub("≽", ">", self.wb[i]) # >
+        l = ''.join(line)
 
-      self.wb[i] = re.sub("⨭", "<", self.wb[i]) # literal <
-      self.wb[i] = re.sub("⨮", ">", self.wb[i]) # literal >
+      else:
+        l = re.sub("▹", "", l)
+        l = re.sub("□", " ", l)
+        l = re.sub('⊐', '%', l) # escaped percent signs (macros)
+        l = re.sub('⊏', '#', l) # escaped octothorpes (page links)
+        l = re.sub("≼", "<", l) # <
+        l = re.sub("≽", ">", l) # >
 
-      self.wb[i] = re.sub("☊", "", self.wb[i]) # start dropcap
-      self.wb[i] = re.sub("☋", "", self.wb[i]) # end dropcap
+        l = re.sub("⨭", "<", l) # literal <
+        l = re.sub("⨮", ">", l) # literal >
 
-      self.wb[i] = self.wb[i].rstrip()
-      m = re.match(".rs (\d+)", self.wb[i])
+        l = re.sub("☊", "", l) # start dropcap
+        l = re.sub("☋", "", l) # end dropcap
+
+      m = regexRS.match(l)
       if m:
-        nspaces = int(m.group(1))
+        nlines = int(m.group(1))
         t = []
-        while nspaces > 0:
+        while nlines > 0:
           t.append("")
-          nspaces -= 1
+          nlines -= 1
         self.wb[i:i+1] = t
+      else:
+        self.wb[i] = l
       i += 1
 
   def process(self):
