@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.20b"
+VERSION="4.20c"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -46,6 +46,7 @@ VERSION="4.20b"
 # 4.20     Add <table> line drawing in text and html both
 # 4.20a    Add <table> double-lines & column <span>ing
 # 4.20b    text table bug fix
+# 4.20c    empty line produce bars in text; spanned cols in html end in correct border
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -99,6 +100,24 @@ pn_cover = ""
 
 empty = re.compile("^$")
 
+debug = 0
+
+def dprint(level, msg):
+  if int(debug) >= level:
+    cprint("{}: {}".format(self.__class__.__name__, msg))
+
+# safe print of possible UTF-8 character strings on ISO-8859 terminal
+def cprint(s):
+  s = re.sub("◻"," ", s)
+  t = "".join([x if ord(x) < 128 else '?' for x in s])
+  print(t)
+
+# Emit the UTF-8 charas as \uXXXX hex strings
+def uprint(s):
+  s = re.sub("◻"," ", s)
+  t = "".join([x if ord(x) < 128 else ("\\u"+hex(ord(x))) for x in s])
+  print(t)
+
 def fatal(message):
   sys.stderr.write("fatal: " + message + "\n")
   exit(1)
@@ -117,17 +136,6 @@ class Book(object):
     self.poetryindent = 'left'
     self.italicdef = 'emphasis'
 
-  # safe print of possible UTF-8 character strings on ISO-8859 terminal
-  def cprint(self, s):
-    s = re.sub("◻"," ", s)
-    t = "".join([x if ord(x) < 128 else '?' for x in s])
-    print(t)
-
-  def uprint(self, s):
-    s = re.sub("◻"," ", s)
-    t = "".join([x if ord(x) < 128 else ("\\u"+hex(ord(x))) for x in s])
-    print(t)
-
   # display (fatal) error and exit
   def fatal(self, message):
     sys.stderr.write("fatal: " + message + "\n")
@@ -137,7 +145,7 @@ class Book(object):
   # >= means print msg
   def dprint(self, level, msg):
     if int(self.debug) >= level:
-      self.cprint("{}: {}".format(self.__class__.__name__, msg))
+      cprint("{}: {}".format(self.__class__.__name__, msg))
 
   numeral_map = tuple(zip(
       (1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1),
@@ -169,15 +177,15 @@ class Book(object):
         converted = line.decode('utf-8')
       except:
         if fileOk:
-            self.cprint("fatal: file is not UTF-8")
-            self.cprint("lines:")
+            cprint("fatal: file is not UTF-8")
+            cprint("lines:")
         fileOk = False
         s = str(line)
         s = re.sub("^b'","",s)
         s = re.sub("'$","",s)
         s = re.sub(r"\\r","",s)
         s = re.sub(r"\\n","",s)
-        self.cprint("  {}: ".format(i) + s)
+        cprint("  {}: ".format(i) + s)
     file.close()
     if not fileOk:
         exit(1)
@@ -527,7 +535,7 @@ class Book(object):
     while i < len(self.wb):
       m = regex.match(self.wb[i])
       if m:
-        self.cprint("warning: {}".format(m.group(1)))
+        cprint("warning: {}".format(m.group(1)))
         del self.wb[i]
       i += 1
 
@@ -912,8 +920,8 @@ class Lint(Book):
 
     logfile = "errorlog.txt"
     if len(reports) > 0:
-      self.cprint("\nThis file cannot be processed due to errors.")
-      self.cprint("report is in file: {}\n".format(logfile))
+      cprint("\nThis file cannot be processed due to errors.")
+      cprint("report is in file: {}\n".format(logfile))
       f1 = open(logfile, "w", encoding='utf-8')
       for line in reports:
         f1.write( "{:s}\n".format(line) )
@@ -973,7 +981,7 @@ class HTML(Book):
       self.prop[k] = v
 
     def show(self):
-      self.cprint(self.prop)
+      cprint(self.prop)
 
   # internal class to save user meta information
   class userMeta(object):
@@ -2163,9 +2171,7 @@ class HTML(Book):
         row = 1
         ncols = len(columns)
         while not re.match("<\/table>", self.wb[j]):
-          if empty.match(self.wb[j]):
-            self.wb[j] = "<tr><td colspan='{}'>&nbsp;</td></tr>".format(ncols)
-          elif self.wb[j] == "_" or self.wb[j] == "=":
+          if self.wb[j] == "_" or self.wb[j] == "=":
             # Process horizontal line
             # The first row is on the top; the n-th row is on the bottom of the
             # previous row
@@ -2196,7 +2202,7 @@ class HTML(Book):
             self.wb[j] = "<tr><td>" + self.wb[j].rstrip() + "</td></tr>"
             for n,col in enumerate(columns):
               if n >= nColData:
-                data = ""
+                data = "&nbsp;"
               else:
                 data = colData[n].strip()
 
@@ -2219,7 +2225,21 @@ class HTML(Book):
                 colspan = ""
 
               colID = "c" + str(n+1)
-              line += "<td class='" + tableID + colID + "' style='padding: " + \
+              if nspan > 1:
+                endID = "-col" + str(n+nspan)
+                endCol = columns[n+nspan-1]
+
+                property = "border-right"
+                linetype = "solid" if endCol.lineAfterStyle == '|' else "double"
+                value = str(endCol.lineAfter) + "px"
+                self.css.addcss("[563] ." + tableID + colID + endID +
+                  " { " + property + ": " + value + " " + linetype + " black; }");
+                endID = " " + tableID + colID + endID
+              else:
+                endID = ""
+
+              line += "<td class='" + tableID + colID + endID + "' " +\
+                "style='padding: " + \
                 str(vpad) + "px " + str(hpad) + "px; " + \
                 "text-align:" + col.align + "; vertical-align:top'" + \
                 colspan + ">" + data + "</td>"
@@ -2640,7 +2660,7 @@ class Text(Book):
         try:
           sliceat = t.rindex(" ", 0, lineWidth) # should be 74?
         except:
-          self.cprint("Cannot wrap text: Line longer than " + str(lineWidth) + \
+          cprint("Cannot wrap text: Line longer than " + str(lineWidth) + \
               " characters without a space.\n" + \
               t + "\nLine will be emitted without wrapping.")
           f1.write(t+"\n")
@@ -2669,7 +2689,7 @@ class Text(Book):
             nwrapped += 1
     f1.close()
     if nwrapped > 0:
-      self.cprint ("info: {} lines rewrapped in text file.".format(nwrapped))
+      cprint ("info: {} lines rewrapped in text file.".format(nwrapped))
 
   # 19-Sep-2013 this should be superfluous.
   # removes tags or converts to text representation
@@ -3099,9 +3119,14 @@ class Text(Book):
     self.dprint(1,"rewrap")
     self.qstack = [""] # no initial indent
     i = 0
+    regexTable = re.compile(r"<table(.*?)>")
+    regexLg = re.compile("<lg(.*?)>")
+    regexL = re.compile("<l(.*?)>(.*?)<\/l>")
+    regexFootnote = re.compile(r"<footnote id=['\"](.*?)['\"]>")
+    regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
     while i < len(self.wb):
       self.dprint(2,"[rewrap] {}: {}".format(i,self.wb[i]))
-      if re.match("<quote", self.wb[i]):
+      if self.wb[i].startswith("<quote"):
         # is there a prescribed width?
         m = re.match("<quote rend='w:(.*?)em'>", self.wb[i])
         if m:
@@ -3131,18 +3156,17 @@ class Text(Book):
 
       # ----- footnotes -------------------------------------------------------
 
-      m = re.match(r"<footnote id=['\"](.*?)['\"]>", self.wb[i])
+      m = regexFootnote.match(self.wb[i])
       if m:
         self.wb[i] = "▹" + "Footnote {}:".format(m.group(1))
         continue
 
-      m = re.match(r"<\/footnote", self.wb[i])
-      if m:
+      if self.wb[i].startswith("</footnote"):
         del self.wb[i]
         continue
 
       # ----- headings --------------------------------------------------------
-      m = re.match("<heading(.*?)>(.*?)</heading>", self.wb[i])
+      m = regexHeading.match(self.wb[i])
       if m:
         m1 = re.search("rend='(.*?)'", self.wb[i])
         if m1:
@@ -3192,8 +3216,7 @@ class Text(Book):
       # ----- thought breaks and hr/footnotemark ------------------------------
 
       # any thought break in text is just centered asterisks
-      m = re.search("<tb", self.wb[i])
-      if m:
+      if self.wb[i].startswith("<tb"):
         t = ["▹.rs 1"]
         t.append("▹                 *        *        *        *        *")
         t.append("▹.rs 1")
@@ -3204,8 +3227,7 @@ class Text(Book):
       # ----- testing ---------------------------------------------------------
 
       # 19-Sep-2013
-      m = re.match("<x", self.wb[i])
-      if m:
+      if self.wb[i].startswith("<x"):
         t = ["If you had stood there in the edge of the bleak",
         "spruce forest, with the wind moaning dismally",
         "through the twisting trees—midnight of deep",
@@ -3237,8 +3259,7 @@ class Text(Book):
         i += len(t) + 2
         continue
 
-      m = re.match("<hr", self.wb[i])
-      if m:
+      if self.wb[i].startswith("<hr"):
         m = re.search("rend='(.*?)'\/?>",self.wb[i])
         t = ["▹.rs 1"]
         if re.search("footnotemark", m.group(1)):
@@ -3252,14 +3273,13 @@ class Text(Book):
 
 
       # ----- page breaks --------------------------------------------------
-      m = re.match("<pb", self.wb[i])
-      if m:
+      if self.wb[i].startswith("<pb"):
         self.wb[i] = "▹.rs 4"
         i += 1
         continue
 
       # ----- process standalone line -----------------------------------------
-      m = re.match("<l(.*?)>(.*?)<\/l>",self.wb[i])
+      m = regexL.match(self.wb[i])
       if m:
         handled = False
 
@@ -3318,7 +3338,7 @@ class Text(Book):
 
       # ----- tables ----------------------------------------------------------
 
-      m = re.match(r"<table.*?pattern='(.*?)'>",self.wb[i])
+      m = regexTable.match(self.wb[i])
       if m:
         startloc = i
         j = i
@@ -3328,7 +3348,7 @@ class Text(Book):
         self.wb[startloc:endloc+1] = self.makeTable(self.wb[startloc:endloc+1])
 
       # ----- process line group ----------------------------------------------
-      m = re.match("<lg(.*?)>", self.wb[i])
+      m = regexLg.match(self.wb[i])
       if m:
         self.wb[i] = ".rs 1" # the <lg...
         i += 1 # first line of line group
@@ -3349,7 +3369,7 @@ class Text(Book):
                 theline = self.detag(m.group(1))
                 if len(theline) > 75:
                   s = re.sub("□", " ", theline)
-                  self.cprint("warning (long line):\n{}".format(s))
+                  cprint("warning (long line):\n{}".format(s))
                 self.wb[i] = "▹" + '{:^72}'.format(theline)
               else:
                 self.wb[i] = "▹"
@@ -3366,7 +3386,7 @@ class Text(Book):
                 theline = self.detag(m.group(1))
                 if len(theline) > 75:
                   s = re.sub("□", " ", theline)
-                  self.cprint("warning (long line):\n{}".format(s))
+                  cprint("warning (long line):\n{}".format(s))
                 self.wb[i] = "▹" + '{:>72}'.format(theline)
               else:
                 self.wb[i] = "▹"
@@ -3391,7 +3411,7 @@ class Text(Book):
             j += 1
           maxwidth -= 3
           if maxwidth > 70:
-            self.cprint("warning (long poetry line {} chars)".format(maxwidth))
+            cprint("warning (long poetry line {} chars)".format(maxwidth))
             self.dprint(1,"  " + maxline) # shown in debug in internal form
           while not re.match("<\/lg>",self.wb[i]):
             m = re.match("<l(.*?)>(.*?)</l>", self.wb[i])
@@ -3560,7 +3580,7 @@ class Text(Book):
     del t[0] # <table line
     del t[-1] # </table line
 
-    tf = TableFormatter(tableLine, t, self)
+    tf = TableFormatter(tableLine, t)
     return tf.format()
 
   # merge all contiguous requested spaces
@@ -3672,13 +3692,15 @@ class TableFormatter:
   LAST_LINECHARS = "─┴┸━┷┻"
   ISOLATED_LINECHARS = "───━━━"
 
-  def __init__(self, tableLine, lines, book):
+  def __init__(self, tableLine, lines):
     self.tableLine = tableLine
     self.lines = lines
-    self.book = book
+    self.nlines = len(lines)
     self.parseFormat()
     self.computeWidths()
+    self.u = []
 
+  # Parse the <table> tag to pull off the rend= and pattern= attributes
   def parseFormat(self):
     # the only rend text cares about is "pad"
     self.vpad = False
@@ -3692,6 +3714,7 @@ class TableFormatter:
     self.columns = parseTablePattern(self.tableLine)
     self.ncols = len(self.columns)
 
+  # Figure out how wide each column is going to be.
   def computeWidths(self):
     totalwidth = tableWidth(self.columns)
 
@@ -3707,7 +3730,7 @@ class TableFormatter:
               self.columns[x].width = len(item)
         # and compute totalwidth against those maxes
         totalwidth = tableWidth(self.columns)
-        self.book.dprint(1, "Computed table widths: " +
+        dprint(1, "Computed table widths: " +
           toWidthString(self.columns) +
           ", total: " + str(totalwidth))
         break
@@ -3727,20 +3750,18 @@ class TableFormatter:
 
       # Recompute total width
       totalwidth = tableWidth(self.columns)
-      self.book.cprint("warning: Table too wide: column " + str(widex) +
+      cprint("warning: Table too wide: column " + str(widex) +
         "[" + str(widest) + "->" + str(self.columns[widex].width) +
         "], total width now " + str(totalwidth));
 
     # calculate tindent from max table width
     self.tindent = (maxTableWidth - totalwidth) // 2
-    self.book.dprint(1, "Table totalwidth: " + str(totalwidth) +
+    dprint(1, "Table totalwidth: " + str(totalwidth) +
       ", indenting: " + str(self.tindent) + "; final widths: " +
       toWidthString(self.columns))
 
   # Create a single horizontal line.
   def drawLine(self, cell, lineno, lines):
-    nlines = len(lines)
-
     line = "▹" + " " * self.tindent
     for colno, col in enumerate(self.columns):
 
@@ -3753,7 +3774,7 @@ class TableFormatter:
 
       # Will the next line span over the next column?
       nextSpan = False
-      if lineno+1 < nlines:
+      if lineno+1 < self.nlines:
         nextLine = lines[lineno+1]
         if colno+1 < len(nextLine):
           nextSpan = (nextLine[colno+1] == "<span>")
@@ -3762,9 +3783,9 @@ class TableFormatter:
         chars = self.ISOLATED_LINECHARS
       elif lineno == 0:    # First line
         chars = self.FIRST_LINECHARS
-      elif lineno+1 == nlines and not lastSpan:      # Last Line
+      elif lineno+1 == self.nlines and not lastSpan:      # Last Line
         chars = self.LAST_LINECHARS
-      elif lineno+1 == nlines and lastSpan:
+      elif lineno+1 == self.nlines and lastSpan:
         chars = self.ISOLATED_LINECHARS
       elif lastSpan and nextSpan:
         chars = self.ISOLATED_LINECHARS
@@ -3787,130 +3808,141 @@ class TableFormatter:
           line += chars[off + 2]
     return line
 
+  def output(self, l):
+    self.u.append(l)
+
   def format(self):
 
-    u = [".rs 1"]
+    self.output(".rs 1")
 
     # Split all the lines into cells
-    lines = []
+    splitLines = []
     for line in self.lines:
       rowtext = line.split("|")
-      lines.append(rowtext)
-    nlines = len(lines)
+      if len(rowtext) == 1 and rowtext[0] == '':
+        rowtext = []
+      splitLines.append(rowtext)
 
-    for lineno, rowtext in enumerate(lines):
-      nColData = len(rowtext)   # Number of columns of data on this line
+    # Format each row
+    for lineno, rowtext in enumerate(splitLines):
+      self.formatOneRow(lineno, rowtext, splitLines)
+
+    self.output(".rs 1")
+
+    return self.u
+
+  def hasAnyData(self, rowtext):
+    for col in range(len(rowtext)):
+      if len(rowtext[col]) > 0 and rowtext[col] != "<span>":
+        return True
+    return False
+
+
+  def formatOneRow(self, lineno, rowtext, splitLines):
+
       if len(rowtext) == 0:
-        u.append("▹")
-        continue
+        # A completely blank line has no data, so hasAnyData will be false
+        # But we need column delimiters on empty lines
+        rowtext = [ " " ]
 
       # Draw box characters with appropriate connectors for a line
-      if nColData == 1 and (rowtext[0] == "_" or rowtext[0] == "="):
-        line = self.drawLine(rowtext, lineno, lines)
+      if len(rowtext) == 1 and (rowtext[0] == "_" or rowtext[0] == "="):
+        line = self.drawLine(rowtext, lineno, splitLines)
         # Add the box line to the output & finished with this row
-        u.append(line)
-        continue
+        self.output(line)
+        return
 
       # Cells may be wrapped onto multiple lines.
       # As we emit each cell, we reduce its content by the line just emitted
       # When all cells have become empty, we're done
-      needline = False
-      for col in range(0, nColData):
-        if len(rowtext[col]) > 0:
-          needline = True
-
-      # repeat the emit-line block as long as there is still data
-      while needline:
-        line = ""
-        for n, column in enumerate(self.columns):
-          if n < nColData:
-            cell = rowtext[n]
-          else:
-            cell = ""
-
-          # If this cell was spanned by the previous, ignore it.
-          if cell == "<span>":
-            continue;
-
-          # Look ahead into the following cells, to see if this is supposed to span
-          nspan = 1
-          for sp in range(n+1, self.ncols):
-            if sp >= nColData:
-              break
-            if rowtext[sp] == "<span>":
-              nspan += 1
-            else:
-              break;
-          lastSpanningColumn = self.columns[n+nspan-1]
-
-          w = column.width
-          while nspan > 1:
-            w += 1      # for the delimiter
-            w += self.columns[n+nspan-1].width
-            nspan -= 1
-          #self.cprint("col: " + str(n) + ", w: " + str(w) + ", content: " + cell)
-
-          if w <= 0 and len(cell) > 0:
-            fatal("Unable to compute text table widths for " + tableLine + \
-              ".  Specify them manually.")
-          if column.align == 'left':
-            fstr = '{:<'+str(w)+'}'
-          if column.align == 'center':
-            fstr = '{:^'+str(w)+'}'
-          if column.align == 'right':
-            fstr = '{:>'+str(w)+'}'
-
-          # what to display
-          s2 = cell.strip()
-          try:
-            if len(s2) <= w:
-              # It all fits, done
-              s3 = s2.strip()
-              s4 = ""
-            else:
-              # Doesn't fit; find the last space in the
-              # allocated width, and break into this line, and
-              # subsequent lines
-              chopat = s2.rindex(" ", 0, w)
-              s3 = s2[0:chopat+1].strip()
-              s4 = s2[chopat+1:].strip()
-          except:
-            s3 = s2.strip()
-            s4 = ""
-
-          if n < nColData:
-            # Replace cell with whatever is left, if we wrapped the cell
-            rowtext[n] = s4 # empty or something for another line
-
-          # And format the part we decided to use onto the end of the current line
-          line += fstr.format(s3)
-
-          # Compute delimiter: sum of this column's after and next column's before
-          delimiter = " "
-          n = lastSpanningColumn.lineBetween
-          if n > 0:
-            if n > 1:
-              delimiter = "┃"
-            else:
-              delimiter = "│"
-
-          if not lastSpanningColumn.isLast:
-            line += delimiter    # delimiter between cols; none on last or we'll wrap
-
-        # Finally! Emit the line, indented appropriately
-        u.append("▹" + " " * self.tindent + line)
-
-        # see if any cell wrapped and has more data left
-        needline = False
-        for col in range(len(rowtext)):
-          if len(rowtext[col]) > 0 and rowtext[col] != "<span>":
-            needline = True
+      while self.hasAnyData(rowtext):
+        self.formatOneOutputLine(rowtext)
 
       if self.vpad:
-        u.append("▹" + ".rs 1")
-    u.append(".rs 1")
+        self.output("▹" + ".rs 1")
 
-    return u
+  # Output one real line of output.  The cells in rowtext are adjusted
+  # for whatever was emitted
+  def formatOneOutputLine(self, rowtext):
+    line = ""
+    nColData = len(rowtext)
+    for n, column in enumerate(self.columns):
+      if n < nColData:
+        cell = rowtext[n]
+      else:
+        cell = ""
+
+      # If this cell was spanned by the previous, ignore it.
+      if cell == "<span>":
+        continue;
+
+      # Look ahead into the following cells, to see if this is supposed to span
+      nspan = 1
+      for sp in range(n+1, self.ncols):
+        if sp >= nColData:
+          break
+        if rowtext[sp] == "<span>":
+          nspan += 1
+        else:
+          break;
+      lastSpanningColumn = self.columns[n+nspan-1]
+
+      # Compute total column width, over all spanned columns
+      w = column.width
+      while nspan > 1:
+        w += 1      # for the delimiter
+        w += self.columns[n+nspan-1].width
+        nspan -= 1
+      if w <= 0 and len(cell) > 0:
+        fatal("Unable to compute text table widths for " + tableLine + \
+          ".  Specify them manually.")
+
+      # Figure out what will fit in the current width and remove from the cell
+      s2 = cell.strip()
+      try:
+        if len(s2) <= w:
+          # It all fits, done
+          fits = s2.strip()
+          remainder = ""
+        else:
+          # Doesn't fit; find the last space in the
+          # allocated width, and break into this line, and
+          # subsequent lines
+          chopat = s2.rindex(" ", 0, w)
+          fits = s2[0:chopat+1].strip()
+          remainder = s2[chopat+1:].strip()
+      except:
+        fits = s2.strip()
+        remainder = ""
+
+      if n < nColData:
+        # Replace cell with whatever is left, if we wrapped the cell
+        rowtext[n] = remainder # empty or something for another line
+
+      # And format the part we decided to use onto the end of the current line
+      if column.align == 'left':
+        fstr = '{:<'+str(w)+'}'
+      elif column.align == 'center':
+        fstr = '{:^'+str(w)+'}'
+      elif column.align == 'right':
+        fstr = '{:>'+str(w)+'}'
+      line += fstr.format(fits)
+
+      # Compute delimiter: sum of this column's after and next column's before
+      delimiter = " "
+      n = lastSpanningColumn.lineBetween
+      if n > 0:
+        if n > 1:
+          delimiter = "┃"
+        else:
+          delimiter = "│"
+
+      if not lastSpanningColumn.isLast:
+        line += delimiter    # delimiter between cols; none on last or we'll wrap
+
+    # Finally! Emit the line, indented appropriately
+    self.output("▹" + " " * self.tindent + line)
+
 
 def toWidthString(columns):
   s = "["
@@ -3939,8 +3971,8 @@ class TestMakeTable(unittest.TestCase):
   def common_assertions(self, u, n, textN):
     assert len(u) == n
     assert u[0] == '.rs 1' and u[n-1] == '.rs 1'
-    for l in u:
-      self.t.uprint("Line: " + l)
+    #for l in u:
+    #  t.uprint("Line: " + l)
     # 11 + 11 = 22, 75-22=53//2 = 26.
     # Should be 26 + 1 + 10 + 1 + 10 
     assert len(u[textN]) == 48 and u[textN][0] == '▹'
@@ -3995,7 +4027,6 @@ class TestMakeTable(unittest.TestCase):
     u = self.t.makeTable([ "<table pattern='l10# r10'>", "=", "1|<span>", "=", "</table>" ])
     self.common_assertions(u, 5, 2)
     assert u[1].endswith("━━━━━━━━━━━━━━━━━━━━━")
-    self.t.cprint("L2: -->" + u[2] + "<--")
     assert u[2].endswith("1                    ")
     assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━")
 
@@ -4003,7 +4034,6 @@ class TestMakeTable(unittest.TestCase):
     u = self.t.makeTable([ "<table pattern='l10| r10'>", "_", "1|<span>", "=", "</table>" ])
     self.common_assertions(u, 5, 2)
     assert u[1].endswith("─────────────────────")
-    self.t.cprint("L2: -->" + u[2] + "<--")
     assert u[2].endswith("1                    ")
     assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━")
 
@@ -4015,6 +4045,28 @@ class TestMakeTable(unittest.TestCase):
     assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━┿━")
     assert u[4].endswith("2                    │B")
     assert u[5].endswith("━━━━━━━━━━━━━━━━━━━━━┷━")
+
+  def test_indent_of_horiz_line(self):
+    u = self.t.makeTable([ "<table pattern='l1 r1'>", '_', 'A|B', '_', "</table>" ])
+    # 75-3=72//2 = 36.
+    # Should be 36 + 3
+    assert len(u) == 5
+    assert len(u[1]) == 39
+    assert u[1].endswith("                                   ───")
+    assert u[2].endswith("                                   A B")
+    assert u[3].endswith("                                   ───")
+
+  def test_blank_line(self):
+    u = self.t.makeTable([ "<table pattern='l1 |r1'>", '_', '', '_', "</table>" ])
+    # 75-3=72//2 = 36.
+    # Should be 36 + 3
+    for l in u:
+      uprint("Line: " + l)
+    assert len(u) == 5
+    assert len(u[1]) == 39
+    assert u[1].endswith("                                   ─┬─")
+    assert u[2].endswith("                                    │ ")
+    assert u[3].endswith("                                   ─┴─")
 
   def test_span4(self):
     u = self.t.makeTable([
@@ -4087,8 +4139,6 @@ class TestMakeTable(unittest.TestCase):
         "word longer test w1|B",
       "</table>"
     ])
-    for l in u:
-      self.t.uprint("Line: " + l)
     assert len(u) == 5
     assert u[1].endswith("    word B")
     assert u[2].endswith("  longer  ")
