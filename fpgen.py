@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.20c"
+VERSION="4.20d"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -47,6 +47,7 @@ VERSION="4.20c"
 # 4.20a    Add <table> double-lines & column <span>ing
 # 4.20b    text table bug fix
 # 4.20c    empty line produce bars in text; spanned cols in html end in correct border
+# 4.20d    table rule lines throw off count; add cell alignment
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -2185,7 +2186,7 @@ class HTML(Book):
             if rowNum == 1:
               location = "top"
               nTH = 1
-            if row.isSingle() == "_":
+            if row.isSingle():
               width = "1px"
               style = "solid"
             else:
