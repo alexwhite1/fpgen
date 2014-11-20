@@ -2170,19 +2170,22 @@ class HTML(Book):
           t.append("</colgroup>")
 
         # emit each row of table
-        row = 1
+        rowNum = 1
         ncols = len(columns)
         while not re.match("<\/table>", self.wb[j]):
-          if self.wb[j] == "_" or self.wb[j] == "=":
+
+          row = TableRow(self.wb[j])
+
+          if row.isSingle() or row.isDouble():
             # Process horizontal line
             # The first row is on the top; the n-th row is on the bottom of the
             # previous row
             location = "bottom"
-            nTH = row-1
-            if row == 1:
+            nTH = rowNum-1
+            if rowNum == 1:
               location = "top"
               nTH = 1
-            if self.wb[j] == "_":
+            if row.isSingle() == "_":
               width = "1px"
               style = "solid"
             else:
@@ -2191,67 +2194,66 @@ class HTML(Book):
             self.css.addcss("[564] #" + tableID + " tr:nth-of-type(" + str(nTH) +
               ") td { border-" + location + ": " + width + " " + style + " black; }")
             j += 1
-            # Do not increment row
+            # Do not increment rowNum
             continue
-          else:
-            # Process real data line
-            # Need to generate all the columns, even if no column data in this row,
-            # in case there are any verticals
-            colData = self.wb[j].split("|")
-            nColData = len(colData)
-            line = "<tr>"
-            self.wb[j] = re.sub("\|","</td><td>", self.wb[j])
-            self.wb[j] = "<tr><td>" + self.wb[j].rstrip() + "</td></tr>"
-            for n,col in enumerate(columns):
-              if n >= nColData:
-                data = "&nbsp;"
-              else:
-                data = colData[n].strip()
 
-              # If this cell was spanned by the previous, ignore it.
-              if data == "<span>":
-                continue;
+          # Process real data line
+          # Need to generate all the columns, even if no column data in this row,
+          # in case there are any verticals
+          cells = row.getCells()
+          nColData = len(cells)
+          line = "<tr>"
+          for n,col in enumerate(columns):
+            if n >= nColData:
+              cell = TableCell("&nbsp;")
+            else:
+              cell = cells[n]
+            data = cell.getData().strip()
 
-              # Look ahead into the following cells, to see if this is supposed to span
-              nspan = 1
-              for sp in range(n+1, ncols):
-                if sp >= nColData:
-                  break
-                if colData[sp] == "<span>":
-                  nspan += 1
-                else:
-                  break;
-              if nspan > 1:
-                colspan = " colspan='" + str(nspan) + "'"
-              else:
-                colspan = ""
+            # If this cell was spanned by the previous, ignore it.
+            if cell.isSpanned():
+              continue;
 
-              colID = "c" + str(n+1)
-              if nspan > 1:
-                endID = "-col" + str(n+nspan)
-                endCol = columns[n+nspan-1]
+            # Look ahead into the following cells, to see if this is supposed to span
+            nspan = cell.getSpan()
+            if nspan > 1:
+              colspan = " colspan='" + str(nspan) + "'"
+            else:
+              colspan = ""
 
-                property = "border-right"
-                linetype = "solid" if endCol.lineAfterStyle == '|' else "double"
-                value = str(endCol.lineAfter) + "px"
-                self.css.addcss("[563] ." + tableID + colID + endID +
-                  " { " + property + ": " + value + " " + linetype + " black; }");
-                endID = " " + tableID + colID + endID
-              else:
-                endID = ""
+            colID = "c" + str(n+1)
+            class1 = tableID + colID
+            class2 = ""
 
-              line += "<td class='" + tableID + colID + endID + "' " +\
-                "style='padding: " + \
-                str(vpad) + "px " + str(hpad) + "px; " + \
-                "text-align:" + col.align + "; vertical-align:top'" + \
-                colspan + ">" + data + "</td>"
-            line += "</tr>"
-            self.wb[j] = line
+            if nspan > 1:
+              endID = "-col" + str(n+nspan)
+              class2 = tableID + colID + endID
+              endCol = columns[n+nspan-1]
+
+              property = "border-right"
+              linetype = "solid" if endCol.lineAfterStyle == '|' else "double"
+              value = str(endCol.lineAfter) + "px"
+              self.css.addcss("[563] ." + class2 +
+                " { " + property + ": " + value + " " + linetype + " black; }");
+
+            if cell.isDefaultAlignment():
+              align = col.align
+            else:
+              align = cell.getAlignment()
+
+            line += "<td class='" + class1 + " " + class2 + "' " +\
+              "style='padding: " + \
+              str(vpad) + "px " + str(hpad) + "px; " + \
+              "text-align:" + align + "; vertical-align:top'" + \
+              colspan + ">" + data + "</td>"
+
+          line += "</tr>"
+          self.wb[j] = line
           t.append(self.wb[j])
           j += 1
-          row += 1
+          rowNum += 1
         self.wb[i:j] = t
-        i = j
+        i = i+len(t)
       i += 1
 
   def doIllustrations(self):
@@ -3736,7 +3738,9 @@ class TableFormatter:
     self.computeWidths()
     self.u = []
 
+  #
   # Parse the <table> tag to pull off the rend= and pattern= attributes
+  #
   def parseFormat(self):
     # the only rend text cares about is "pad"
     self.vpad = False
@@ -3750,7 +3754,9 @@ class TableFormatter:
     self.columns = parseTablePattern(self.tableLine)
     self.ncols = len(self.columns)
 
+  #
   # Figure out how wide each column is going to be.
+  #
   def computeWidths(self):
     totalwidth = tableWidth(self.columns)
 
@@ -3796,8 +3802,10 @@ class TableFormatter:
       ", indenting: " + str(self.tindent) + "; final widths: " +
       toWidthString(self.columns))
 
+  #
   # Create a single horizontal line.
-  def drawLine(self, cell, lineno, lines):
+  #
+  def drawLine(self, isSingle, lineno, lines):
     line = "▹" + " " * self.tindent
     for colno, col in enumerate(self.columns):
 
@@ -3805,15 +3813,15 @@ class TableFormatter:
       lastSpan = False
       if lineno > 0:
         lastLine = lines[lineno-1]
-        if colno+1 < len(lastLine):
-          lastSpan = (lastLine[colno+1] == "<span>")
+        if colno+1 < len(lastLine.getCells()):
+          lastSpan = (lastLine.getCells()[colno+1].isSpanned())
 
       # Will the next line span over the next column?
       nextSpan = False
       if lineno+1 < self.nlines:
         nextLine = lines[lineno+1]
-        if colno+1 < len(nextLine):
-          nextSpan = (nextLine[colno+1] == "<span>")
+        if colno+1 < len(nextLine.getCells()):
+          nextSpan = (nextLine.getCells()[colno+1].isSpanned())
 
       if lineno == 0 and nextSpan:
         chars = self.ISOLATED_LINECHARS
@@ -3832,7 +3840,7 @@ class TableFormatter:
       else:
         chars = self.MIDDLE_LINECHARS
 
-      off = 0 if cell[0] == '_' else 3
+      off = 0 if isSingle else 3
       line += col.width * chars[off + 0]
 
       if not col.isLast:
@@ -3844,61 +3852,63 @@ class TableFormatter:
           line += chars[off + 2]
     return line
 
+  #
+  # Add a line to this table's output
+  #
   def output(self, l):
-    self.u.append(l)
+    self.u.append(l.rstrip())
 
   def format(self):
 
     self.output(".rs 1")
 
-    # Split all the lines into cells
-    splitLines = []
-    for line in self.lines:
-      rowtext = line.split("|")
-      if len(rowtext) == 1 and rowtext[0] == '':
-        rowtext = []
-      splitLines.append(rowtext)
+    self.splitLines = splitTableLines(self.lines)
 
     # Format each row
-    for lineno, rowtext in enumerate(splitLines):
-      self.formatOneRow(lineno, rowtext, splitLines)
+    for lineno, tablerow in enumerate(self.splitLines):
+      self.formatOneRow(lineno, tablerow, self.splitLines)
 
     self.output(".rs 1")
 
     return self.u
 
-  def hasAnyData(self, rowtext):
-    for col in range(len(rowtext)):
-      if len(rowtext[col]) > 0 and rowtext[col] != "<span>":
-        return True
-    return False
+  #
+  # Format up one source row of input.  Could result in multiple lines of output
+  # tablerow is an array of TableRow objects
+  #
+  def formatOneRow(self, lineno, tablerow, splitLines):
 
-
-  def formatOneRow(self, lineno, rowtext, splitLines):
-
-      if len(rowtext) == 0:
-        # A completely blank line has no data, so hasAnyData will be false
-        # But we need column delimiters on empty lines
-        rowtext = [ " " ]
+      rowtext = tablerow.getCells()
 
       # Draw box characters with appropriate connectors for a line
-      if len(rowtext) == 1 and (rowtext[0] == "_" or rowtext[0] == "="):
-        line = self.drawLine(rowtext, lineno, splitLines)
+      if tablerow.isSingle() or tablerow.isDouble():
+        line = self.drawLine(tablerow.isSingle(), lineno, splitLines)
         # Add the box line to the output & finished with this row
         self.output(line)
         return
 
+      if len(rowtext) == 0:
+        # A completely blank line has no data, so hasAnyData will be false
+        # But we need column delimiters on empty lines
+        rowtext = [ TableCell(" ") ]
+
       # Cells may be wrapped onto multiple lines.
       # As we emit each cell, we reduce its content by the line just emitted
       # When all cells have become empty, we're done
-      while self.hasAnyData(rowtext):
+      # Always go through once, so blank lines are processed
+      hasData = True
+      while hasData:
         self.formatOneOutputLine(rowtext)
+        hasData = tablerow.hasAnyData()
 
       if self.vpad:
         self.output("▹" + ".rs 1")
 
+  #
   # Output one real line of output.  The cells in rowtext are adjusted
   # for whatever was emitted
+  # rowtext is an array of TableCell objects
+  #
   def formatOneOutputLine(self, rowtext):
     line = ""
     nColData = len(rowtext)
@@ -3906,21 +3916,14 @@ class TableFormatter:
       if n < nColData:
         cell = rowtext[n]
       else:
-        cell = ""
+        cell = TableCell("")
 
       # If this cell was spanned by the previous, ignore it.
-      if cell == "<span>":
+      if cell.isSpanned():
         continue;
 
       # Look ahead into the following cells, to see if this is supposed to span
-      nspan = 1
-      for sp in range(n+1, self.ncols):
-        if sp >= nColData:
-          break
-        if rowtext[sp] == "<span>":
-          nspan += 1
-        else:
-          break;
+      nspan = cell.getSpan()
       lastSpanningColumn = self.columns[n+nspan-1]
 
       # Compute total column width, over all spanned columns
@@ -3934,7 +3937,7 @@ class TableFormatter:
           ".  Specify them manually.")
 
       # Figure out what will fit in the current width and remove from the cell
-      s2 = cell.strip()
+      s2 = cell.getData().strip()
       try:
         if len(s2) <= w:
           # It all fits, done
@@ -3953,14 +3956,18 @@ class TableFormatter:
 
       if n < nColData:
         # Replace cell with whatever is left, if we wrapped the cell
-        rowtext[n] = remainder # empty or something for another line
+        cell.setData(remainder) # empty or something for another line
 
       # And format the part we decided to use onto the end of the current line
-      if column.align == 'left':
+      if not cell.isDefaultAlignment():
+        align = cell.getAlignment()
+      else:
+        align = column.align
+      if align == 'left':
         fstr = '{:<'+str(w)+'}'
-      elif column.align == 'center':
+      elif align == 'center':
         fstr = '{:^'+str(w)+'}'
-      elif column.align == 'right':
+      elif align == 'right':
         fstr = '{:>'+str(w)+'}'
       line += fstr.format(fits)
 
@@ -3995,6 +4002,118 @@ def tableWidth(columns):
       tw += col.width + 1
   # TODO: subtract one for last column not having a delimiter?
   return tw
+
+#
+# Create an array, where each entry is a TableRow object.
+# Within each TableRow object, is an array of TableCell objects
+#
+def splitTableLines(lines):
+  # Split all the lines into cells
+  splitLines = []
+  for line in lines:
+    splitLines.append(TableRow(line))
+  return splitLines
+
+class TableRow:
+  SINGLE = 0
+  DOUBLE = 1
+  TEXT = 2
+
+  # type: SINGLE, DOUBLE, or TEXT
+  # columns: array of TableCell
+
+  def __init__(self, line):
+    if line == '_':
+      self.type = self.SINGLE
+    elif line == '=':
+      self.type = self.DOUBLE
+    else:
+      self.type = self.TEXT
+    rowtext = line.split("|")
+
+    # Blank lines must still be processed.
+    if len(rowtext) == 1 and rowtext[0] == '':
+      rowtext = [ " " ]
+
+    self.columns = []
+    for col in rowtext:
+      self.columns.append(TableCell(col))
+
+    # For each column, look at following columns and figure out
+    # how many columns wide it is
+    nColData = len(self.columns)
+    for n, col in enumerate(self.columns):
+      nspan = 1
+      for m in range(n+1, nColData):
+        if self.columns[m].isSpanned():
+          nspan += 1
+        else:
+          break
+      col.spanning = nspan
+
+  def getCells(self):
+    return self.columns
+
+  def isText(self):
+    return self.type == self.TEXT
+
+  def isSingle(self):
+    return self.type == self.SINGLE
+
+  def isDouble(self):
+    return self.type == self.DOUBLE
+
+  def hasAnyData(self):
+    for col in self.columns:
+      if col.getData() != "":
+        return True
+    return False
+
+class TableCell:
+  SPAN = 0
+  TEXT = 1
+
+  # type: SPAN or TEXT
+  # data: the text, or ""
+  # spanning: number of cells across
+  # align: 0, 'l', 'r', 'c', for default, left, right or centre
+  def __init__(self, data):
+    if data == "<span>":
+      self.type = self.SPAN
+      self.data = ""
+    else:
+      self.type = self.TEXT
+      self.data = data
+    self.spanning = 1
+    if data.startswith("<align=c>"):
+      self.align = 'center'
+    elif data.startswith("<align=r>"):
+      self.align = 'right'
+    elif data.startswith("<align=l>"):
+      self.align = 'left'
+    else:
+      self.align = '0'
+    if not self.isDefaultAlignment():
+      self.data = self.data[9:]
+
+  def getAlignment(self):
+    return self.align
+
+  def isDefaultAlignment(self):
+    return self.align == '0'
+
+  def getData(self):
+    return self.data
+
+  def setData(self, data):
+    self.data = data
+
+  def isSpanned(self):
+    return self.type == self.SPAN
+
+  # Number of columns wide
+  def getSpan(self):
+    return self.spanning
 
 class TestMakeTable(unittest.TestCase):
   t = Text('ifile', 'ofile', 0, 'fmt')
@@ -4096,8 +4215,6 @@ class TestMakeTable(unittest.TestCase):
     u = self.t.makeTable([ "<table pattern='l1 |r1'>", '_', '', '_', "</table>" ])
     # 75-3=72//2 = 36.
     # Should be 36 + 3
-    for l in u:
-      uprint("Line: " + l)
     assert len(u) == 5
     assert len(u[1]) == 39
     assert u[1].endswith("                                   ─┬─")
@@ -4146,7 +4263,7 @@ class TestMakeTable(unittest.TestCase):
         "_",
       "</table>" ])
     assert len(u) == 5
-    assert u[1].endswith("────────────────┰─")
+    self.assertRegexpMatches(u[1], "────────────────┰─$")
     assert u[2].endswith("               1┃A")
     assert u[3].endswith("────────────────┸─")
 
@@ -4179,6 +4296,34 @@ class TestMakeTable(unittest.TestCase):
     assert u[1].endswith("    word B")
     assert u[2].endswith("  longer  ")
     assert u[3].endswith(" test w1  ")
+
+  def test_wrap_align(self):
+    u = self.t.makeTable([
+      "<table pattern='r8 r1'>",
+        "<align=l>word longer test w1|B",
+      "</table>"
+    ])
+    assert len(u) == 5
+    assert u[1].endswith("word     B")
+    assert u[2].endswith("longer    ")
+    assert u[3].endswith("test w1   ")
+
+  def test_wrap_align2(self):
+    u = self.t.makeTable([
+      "<table pattern='r8 r2'>",
+        "<align=l>word longer test w1|<align=l>B",
+        "word longer test w2|C",
+      "</table>"
+    ])
+    for l in u:
+      uprint("Line: " + l)
+    assert len(u) == 8
+    assert u[1].endswith("word     B ")
+    assert u[2].endswith("longer     ")
+    assert u[3].endswith("test w1    ")
+    assert u[4].endswith("    word  C")
+    assert u[5].endswith("  longer   ")
+    assert u[6].endswith(" test w2   ")
 
   # TODO: Tests for computing widths
   # TODO: Tests for computing some widths
