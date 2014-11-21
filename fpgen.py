@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.20e"
+VERSION="4.21"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -49,6 +49,7 @@ VERSION="4.20e"
 # 4.20c    empty line produce bars in text; spanned cols in html end in correct border
 # 4.20d    table rule lines throw off count; add cell alignment
 # 4.20e    Minor bug fix with trailing spaces in text output
+# 4.21     Leading \<sp> not in <lg> is nbsp; also unicode nbsp(0xA0)
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -1255,11 +1256,12 @@ class HTML(Book):
 
       if not self.wb[i].startswith("▹"):
         # protect special characters
-        self.wb[i] = re.sub(r"\\ ",'◻', self.wb[i]) # escaped (hard) spaces
-        self.wb[i] = re.sub(r"\\%",'⊐', self.wb[i]) # escaped percent signs (macros)
-        self.wb[i] = re.sub(r"\\#",'⊏', self.wb[i]) # escaped octothorpes (page links)
-        self.wb[i] = re.sub(r"\\<",'≼', self.wb[i]) # escaped open tag marks
-        self.wb[i] = re.sub(r"\\>",'≽', self.wb[i]) # escaped close tag marks
+        self.wb[i] = re.sub(r"\\ ", '⋀', self.wb[i]) # escaped (hard) spaces
+        self.wb[i] = re.sub(r" ",   '⋀', self.wb[i]) # unicode 0xA0, non-breaking space
+        self.wb[i] = re.sub(r"\\%", '⊐', self.wb[i]) # escaped percent signs (macros)
+        self.wb[i] = re.sub(r"\\#", '⊏', self.wb[i]) # escaped octothorpes (page links)
+        self.wb[i] = re.sub(r"\\<", '≼', self.wb[i]) # escaped open tag marks
+        self.wb[i] = re.sub(r"\\>", '≽', self.wb[i]) # escaped close tag marks
 
         # Line ending in period must join with subsequent line starting with periods
         # We do not have agreement on this yet!
@@ -3057,6 +3059,7 @@ class Text(Book):
       s = re.sub("<(\/?g)>", r"[[\1]]", s) # gesperrt
       s = re.sub("<(\/?u)>", r"[[\1]]", s) # underline
       s = re.sub(r"\\ ", "□", s) # hard spaces
+      s = re.sub(r" ",'□', s) # unicode 0xA0, non-breaking space
       while re.search(r"\. \.", s):
         s = re.sub(r"\. \.", ".□.", s) # spaces in ellipsis
       s = re.sub(r"…", "...", s) # unwrap ellipsis UTF-8 character for text
