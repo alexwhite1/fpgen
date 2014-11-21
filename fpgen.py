@@ -3937,7 +3937,7 @@ class TableFormatter:
         w += 1      # for the delimiter
         w += self.columns[n+nspan-1].width
         nspan -= 1
-      if w <= 0 and len(cell) > 0:
+      if w <= 0 and len(cell.getData()) > 0:
         fatal("Unable to compute text table widths for " + tableLine + \
           ".  Specify them manually.")
 
