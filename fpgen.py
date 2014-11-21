@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.20d"
+VERSION="4.20e"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -48,6 +48,7 @@ VERSION="4.20d"
 # 4.20b    text table bug fix
 # 4.20c    empty line produce bars in text; spanned cols in html end in correct border
 # 4.20d    table rule lines throw off count; add cell alignment
+# 4.20e    Minor bug fix with trailing spaces in text output
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -213,7 +214,7 @@ class Book(object):
       if self.wb[i].startswith("//"): # line starts with "//"
         del self.wb[i]
         continue
-      if re.match("<!--.*?-->", self.wb[i]):
+      if self.wb[i].startswith("<!--") and self.wb[i].find("-->") > 0:
         del self.wb[i]
         continue
       # multi-line
@@ -223,7 +224,8 @@ class Book(object):
           continue
         del self.wb[i]
       # ANSI standard
-      if re.match(r"^\/\*.*?\*\/$", self.wb[i]): # entire line is comment
+      if self.wb[i].startswith("/*") and self.wb[i].endswith("*/"):
+        # entire line is comment
         del self.wb[i]
         continue
       if re.search(r"\/\*.*?\*\/", self.wb[i]): # comment as part of line
@@ -2976,9 +2978,9 @@ class Text(Book):
     self.dprint(1,"stripHeader")
     i = 0
     while i < len(self.wb):
-      if (re.match("<option", self.wb[i])
-          or re.match("<property", self.wb[i])
-          or re.match("<meta", self.wb[i])
+      if (self.wb[i].startswith("<option")
+          or self.wb[i].startswith("<property")
+          or self.wb[i].startswith("<meta")
           or re.match("\.[a-z]", self.wb[i])):
         del self.wb[i]
         continue
@@ -3034,9 +3036,10 @@ class Text(Book):
     # leading spaces inside pre-marked standalong line
     # example:       <l>  This was indented.</l>
     # converts to:   <l>\ \ This was indented.</l>
+    regex = re.compile(r"<l>(\s+)(.*?)<\/l>")
     i = 0
     while i < len(self.wb):
-      m = re.match(r"<l>(\s+)(.*?)<\/l>", self.wb[i])
+      m = regex.match(self.wb[i])
       if m:
         self.wb[i] = "<l>" + "\\ "*len(m.group(1)) + m.group(2) + "</l>"
       i += 1
@@ -3646,7 +3649,7 @@ class Text(Book):
 
     i = 0
     while i < len(self.wb):
-      l = self.wb[i].rstrip()
+      l = self.wb[i]
 
       l = regexI.sub("_", l) # italics
       l = regexB.sub("=", l) # bold
@@ -3690,6 +3693,7 @@ class Text(Book):
         l = re.sub("☊", "", l) # start dropcap
         l = re.sub("☋", "", l) # end dropcap
 
+      l = l.rstrip()
       m = regexRS.match(l)
       if m:
         nlines = int(m.group(1))
