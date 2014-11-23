@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.21"
+VERSION="4.21a"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -50,6 +50,7 @@ VERSION="4.21"
 # 4.20d    table rule lines throw off count; add cell alignment
 # 4.20e    Minor bug fix with trailing spaces in text output
 # 4.21     Leading \<sp> not in <lg> is nbsp; also unicode nbsp(0xA0)
+# 4.21a    Bug with level 4 headers
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -3210,7 +3211,7 @@ class Text(Book):
         if level == 3:
           t = ["▹.rs 1"] # sub-sections
         if level == 4:
-          t = ["▹.rs 0"] # sub-sub-sections
+          t = [] # sub-sub-sections
         # this may be an empty header element
         if empty.match(head):
           self.wb[i:i+1] = t
