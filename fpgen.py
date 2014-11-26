@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.21a"
+VERSION="4.22"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -51,6 +51,7 @@ VERSION="4.21a"
 # 4.20e    Minor bug fix with trailing spaces in text output
 # 4.21     Leading \<sp> not in <lg> is nbsp; also unicode nbsp(0xA0)
 # 4.21a    Bug with level 4 headers
+# 4.22     Text footnote output change to [#] same line
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -3181,8 +3182,16 @@ class Text(Book):
 
       m = regexFootnote.match(self.wb[i])
       if m:
-        self.wb[i] = "▹" + "Footnote {}:".format(m.group(1))
-        continue
+        # strip blank lines leading the footnote
+        j = i+1;
+        while j < len(self.wb):
+            if self.wb[j] != '':
+                break
+            del self.wb[j]
+        # Put the first line on the same line as the footnote number [#]
+        self.wb[i] = "[{}] ".format(m.group(1)) + self.wb[j];
+        del self.wb[i+1:j+1]
+        # continue & wrap
 
       if self.wb[i].startswith("</footnote"):
         del self.wb[i]
