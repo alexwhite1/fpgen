@@ -2684,7 +2684,7 @@ class Text(Book):
           userindent = 0
         firstline = " " * userindent + t[0:sliceat].strip()
         f1.write( "{:s}{}".format(firstline,lineEnd) )
-        cprint("Wrapping: " + t)
+        # cprint("Wrapping: " + t)
         t = t[sliceat:].strip()
         nwrapped += 1
         while len(t) > 0:
@@ -3577,7 +3577,7 @@ class Text(Book):
       # if it's not been handled, it's wrappable.
       # if it's still a tag, then it's unhandled. fatal.
       if re.match("<", self.wb[i]):
-        self.fatal("unhandled tag: {}".format(self.wb[i]))
+        self.fatal("unhandled tag@{}: {}".format(i, self.wb[i]))
       t = []
       mark1 = i
       while ( i < len(self.wb)
@@ -4365,107 +4365,86 @@ class Drama:
   def doDrama(self):
     regex = re.compile("<drama(.*?)>")
 
-    dramaTags = self.getDramaTags()
-    speechTag = dramaTags['speech']
-    speechTagContinue = dramaTags['speech-cont']
-    lineTag = dramaTags['line']
-    stageTag = dramaTags['stage']
-    stageTagRight = dramaTags['stageRight']
-    endParaTag = dramaTags['endPara']
-    stageLinePrefix = dramaTags['stage-prefix']
-
-    space = ('◻' if self.html else ' ') # ensp; or ⋀ for nbsp?
-
     # Local variables
     inDrama = False
     inStageDirection = False
     verse = False
-    paragraphTag = speechTag
 
     n = len(self.wb)
-    for i,line in enumerate(self.wb):
+    lineNo = 0
+    while True:
+      if lineNo == n:
+        break
+      line = self.wb[lineNo]
+      lineNo += 1
       m = regex.match(line)
       if m:
+        if inDrama:
+          fatal("Found <drama>, but already in drama")
         rendatt = m.group(1)
         verse = rendatt.find("verse") != -1
         inDrama = True
-        self.wb[i] = FORMATTED_PREFIX
+        startLine = lineNo-1
+        line = ''
+        block = []
+        alignRight = False
         self.emitCss();
         continue
 
       if line.startswith("</drama>"):
+        if not inDrama:
+          fatal("Found </drama>, no start <drama>")
         inDrama = False
-        self.wb[i] = FORMATTED_PREFIX
+        line = ''
+        # Fall through, emit last block
+
+      elif not inDrama:
         continue
 
-      if not inDrama:
-        continue
-
-      lastEmpty = i==0 or len(self.wb[i-1]) == 1
+      # Note an empty last line has a formatted prefix
       thisEmpty = line == ''
-      nextEmpty = i==n-1 or self.wb[i+1] == ''
 
-      alignRight = False
+      if thisEmpty:
+        endLine = lineNo-1
+        if len(block) != 0:
+          if inStageDirection:
+            block = self.stageDirection(block, alignRight)
+          else:
+            block = self.speech(block, verse)
+        l = len(block)
+        if not inDrama:
+          # Remove the </drama> line; but we don't normally remove the empty
+          # line following the block
+          endLine += 1
+        adjust = (endLine - startLine) - l
+        self.wb[startLine:endLine] = block      # end-1 
+
+        # Adjust line for potential different sized block
+        lineNo -= adjust
+        startLine = lineNo
+
+        # Reset for next block
+        n = len(self.wb)
+        block = []
+        alignRight = False
+        inStageDirection = False
+        continue
+
       if line.startswith("<right>"):
         line = line[7:]
         alignRight = True
 
       # Is this line a stage direction?
       if re.match(r" *\[", line):
+        if len(block) != 0:
+          fatal("Found stage direction in a speech? " + line)
         line = re.sub("^  *", "", line)
         inStageDirection = True
-        if alignRight:
-          paragraphTag = stageTagRight
-        else:
-          paragraphTag = stageTag
 
-      # In speeches, preserve spaces
-      if not inStageDirection:
-        # Leading spaces; or spaces after the speaker's name colon
-        # are preserved
-        m = re.search("^(  *)|:(  *)", line)
-        if m:
-          gr = 1
-          spaces = m.group(1)
-          if spaces == None:
-            gr = 2
-            spaces = m.group(2)
-          spaces = space * len(spaces) 
-          line = line[:m.start(gr)] + spaces + line[m.end(gr):]
+      block.append(line)
 
-      # Not the first line in a speech; using verse rendering
-      if not lastEmpty and not thisEmpty and not inStageDirection and verse:
-        self.wb[i] = FORMATTED_PREFIX + lineTag + line + endParaTag
-        continue
-
-      # First line in a speech or direction
-      if lastEmpty and not thisEmpty:
-        if verse and line.find(':') == -1 and not inStageDirection:
-          line = lineTag + line
-        else:
-          if alignRight and not self.html:
-            line = space * (LINE_WIDTH - len(line)) + line
-          else:
-            if not inStageDirection and not self.isSpeechStart(line):
-              line = speechTagContinue + line
-            else:
-              line = paragraphTag + line
-
-      # Subsequent line in a stage direction
-      if inStageDirection and not alignRight:
-        line = stageLinePrefix + line
-
-      # End of paragraph
-      if not thisEmpty and nextEmpty:
-        line += endParaTag
-        inStageDirection = False
-
-      # Reset on empty line
-      if thisEmpty:
-        paragraphTag = speechTag
-
-      # This line has been formatted
-      self.wb[i] = FORMATTED_PREFIX + line
+    if inDrama:
+      fatal("Open <drama>, but no close </drama>")
 
 class DramaHTML(Drama):
 
@@ -4473,20 +4452,75 @@ class DramaHTML(Drama):
     Drama.__init__(self, wb)
     self.html = True
     self.css = css
+    self.space = '◻' # ensp; or ⋀ for nbsp?
 
   def isSpeechStart(self, line):
     return False if re.match("⩤sc⩥.*⩤/sc⩥", line) == None else True
 
-  def getDramaTags(self):
-    return {
-        'speech' : "<p class='speech'>",
-        'speech-cont' : "<p class='speech-cont'>",
-        'line' : "<p class='dramaline'>",
-        'stage' : "<p class='stage'>",
-        'stage-prefix' : "",
-        'stageRight' : "<p class='stageright'>",
-        'endPara' : "</p>",
-    }
+  def speech(self, block, verse):
+    for i,line in enumerate(block):
+      # Leading spaces; or spaces after the speaker's name colon
+      # are preserved
+      m = re.search("^(  *)|:(  *)", line)
+      if m:
+        gr = 1
+        spaces = m.group(1)
+        if spaces == None:
+          gr = 2
+          spaces = m.group(2)
+        spaces = self.space * len(spaces) 
+        line = line[:m.start(gr)] + spaces + line[m.end(gr):]
+
+      if i == 0:
+        if self.isSpeechStart(line):
+          cl = 'speech'
+        else:
+          # first line of a speech which doesn't look like a speech, is
+          # probably a speech interrupted by a direction
+          if verse:
+            cl = 'dramaline'
+          else:
+            cl = 'speech-cont'
+      else:
+        if verse:
+          cl = 'dramaline'
+        else:
+          cl = ''
+
+      if cl != '':
+        line = "<p class='" + cl + "'>" + line
+      block[i] = FORMATTED_PREFIX + line
+
+    # terminate the paragraph -- for verse, every line is a paragraph
+    # for non-verse, just one on the end
+    if verse:
+      for i,line in enumerate(block):
+        block[i] = block[i] + "</p>"
+    else:
+      n = len(block)
+      block[n-1] = block[n-1] + "</p>"
+
+    return block
+
+  def stageDirection(self, block, alignRight):
+    if alignRight:
+      for i,l in enumerate(block):
+        if i == 0:
+          block[i] = FORMATTED_PREFIX + "<p class='stageright'>" + l
+        else:
+          block[i] = FORMATTED_PREFIX + l
+    else:
+      for i,l in enumerate(block):
+        if i == 0:
+          block[i] = FORMATTED_PREFIX + "<p class='stage'>" + l
+        else:
+          block[i] = FORMATTED_PREFIX + l
+
+    # Terminate the paragraph
+    n = len(block)
+    block[n-1] = block[n-1] + "</p>"
+
+    return block
 
   def emitCss(self):
     if self.speechIndent:
@@ -4519,16 +4553,28 @@ class DramaText(Drama):
     # All upper-case?
     return True
 
-  def getDramaTags(self):
-    return {
-        'speech' : "  ",
-        'speech-cont' : "",
-        'line' : "",
-        'stage' : "   ",
-        'stage-prefix' : "   ",
-        'stageRight' : "",
-        'endPara' : "",
-    }
+  def speech(self, block, verse):
+    # TODO: If not verse, then fill
+    for i,l in enumerate(block):
+      if i == 0 and self.isSpeechStart(l):
+        block[0] = FORMATTED_PREFIX + "  " + l
+      else:
+        block[i] = FORMATTED_PREFIX + l
+    block.append(FORMATTED_PREFIX);
+    return block
+
+  def stageDirection(self, block, alignRight):
+    if alignRight:
+      for i,l in enumerate(block):
+        block[i] = FORMATTED_PREFIX + ' ' * (LINE_WIDTH - len(l)) + l
+    else:
+      for i,l in enumerate(block):
+        if i == 0:
+          block[i] = FORMATTED_PREFIX + "      " + l
+        else:
+          block[i] = FORMATTED_PREFIX + "   " + l
+    block.append(FORMATTED_PREFIX);
+    return block
 
   def emitCss(self):
     True
