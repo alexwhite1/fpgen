@@ -10,7 +10,7 @@ import codecs
 import platform
 import unittest
 
-VERSION="4.22"
+VERSION="4.23"
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
 # 20140216 lg.center to allow mt/b decimal value
@@ -52,6 +52,7 @@ VERSION="4.22"
 # 4.21     Leading \<sp> not in <lg> is nbsp; also unicode nbsp(0xA0)
 # 4.21a    Bug with level 4 headers
 # 4.22     Text footnote output change to [#] same line
+# 4.23     <drama> tag
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -106,6 +107,9 @@ pn_cover = ""
 empty = re.compile("^$")
 
 debug = 0
+
+FORMATTED_PREFIX = "▹"
+LINE_WIDTH = 72
 
 def dprint(level, msg):
   if int(debug) >= level:
@@ -642,6 +646,8 @@ class Book(object):
 
   def __str__(self):
     return "fpgen"
+
+# end of class Book
 
 def parseTablePattern(line):
   # pull the pattern
@@ -1539,12 +1545,6 @@ class HTML(Book):
     while i < len(self.wb)-1:
 
       if re.match("▹", self.wb[i]): # preformatted
-        i += 1
-        continue
-
-      if re.match("<d",self.wb[i]): # no paragraphs in drama 16-Sep-2013
-        while not re.match("<\/d",self.wb[i]):
-          i += 1
         i += 1
         continue
 
@@ -2609,6 +2609,7 @@ class HTML(Book):
     self.userToc()
     self.processLinks()
     self.processTargets()
+    DramaHTML(self.wb, self.css).doDrama();
     self.markPara()
     self.restoreMarkup()
     self.startHTML()
@@ -2683,6 +2684,7 @@ class Text(Book):
           userindent = 0
         firstline = " " * userindent + t[0:sliceat].strip()
         f1.write( "{:s}{}".format(firstline,lineEnd) )
+        cprint("Wrapping: " + t)
         t = t[sliceat:].strip()
         nwrapped += 1
         while len(t) > 0:
@@ -2693,6 +2695,7 @@ class Text(Book):
             try:
               sliceat = t.rindex(" ", 0, lineWidth)
             except:
+              cprint("Line->" + t + "<");
               self.fatal("text: cannot wrap in saveFile")
             nextline = t[0:sliceat].strip()
             f1.write( " " * userindent + "  {:s}{}".format(nextline,lineEnd) )
@@ -3730,6 +3733,7 @@ class Text(Book):
     self.protectInline() # should be superfluous as of 19-Sep-13
     self.illustrations()
     self.genToc()
+    DramaText(self.wb).doDrama()
     self.markLines()
     self.rewrap()
     self.finalSpacing()
@@ -4345,6 +4349,191 @@ class TestMakeTable(unittest.TestCase):
 
   # TODO: Tests for computing widths
   # TODO: Tests for computing some widths
+
+class Drama:
+
+  def __init__(self, wb):
+    self.wb = wb
+    style = uopt.getopt("drama-speech-style")
+    if style == "indent":
+      self.speechIndent = True
+    elif style == "hang" or style == '':
+      self.speechIndent = False
+    else:
+      fatal("Option drama-speech-style must be either indent or hang");
+
+  def doDrama(self):
+    regex = re.compile("<drama(.*?)>")
+
+    dramaTags = self.getDramaTags()
+    speechTag = dramaTags['speech']
+    speechTagContinue = dramaTags['speech-cont']
+    lineTag = dramaTags['line']
+    stageTag = dramaTags['stage']
+    stageTagRight = dramaTags['stageRight']
+    endParaTag = dramaTags['endPara']
+    stageLinePrefix = dramaTags['stage-prefix']
+
+    space = ('◻' if self.html else ' ') # ensp; or ⋀ for nbsp?
+
+    # Local variables
+    inDrama = False
+    inStageDirection = False
+    verse = False
+    paragraphTag = speechTag
+
+    n = len(self.wb)
+    for i,line in enumerate(self.wb):
+      m = regex.match(line)
+      if m:
+        rendatt = m.group(1)
+        verse = rendatt.find("verse") != -1
+        inDrama = True
+        self.wb[i] = FORMATTED_PREFIX
+        self.emitCss();
+        continue
+
+      if line.startswith("</drama>"):
+        inDrama = False
+        self.wb[i] = FORMATTED_PREFIX
+        continue
+
+      if not inDrama:
+        continue
+
+      lastEmpty = i==0 or len(self.wb[i-1]) == 1
+      thisEmpty = line == ''
+      nextEmpty = i==n-1 or self.wb[i+1] == ''
+
+      alignRight = False
+      if line.startswith("<right>"):
+        line = line[7:]
+        alignRight = True
+
+      # Is this line a stage direction?
+      if re.match(r" *\[", line):
+        line = re.sub("^  *", "", line)
+        inStageDirection = True
+        if alignRight:
+          paragraphTag = stageTagRight
+        else:
+          paragraphTag = stageTag
+
+      # In speeches, preserve spaces
+      if not inStageDirection:
+        # Leading spaces; or spaces after the speaker's name colon
+        # are preserved
+        m = re.search("^(  *)|:(  *)", line)
+        if m:
+          gr = 1
+          spaces = m.group(1)
+          if spaces == None:
+            gr = 2
+            spaces = m.group(2)
+          spaces = space * len(spaces) 
+          line = line[:m.start(gr)] + spaces + line[m.end(gr):]
+
+      # Not the first line in a speech; using verse rendering
+      if not lastEmpty and not thisEmpty and not inStageDirection and verse:
+        self.wb[i] = FORMATTED_PREFIX + lineTag + line + endParaTag
+        continue
+
+      # First line in a speech or direction
+      if lastEmpty and not thisEmpty:
+        if verse and line.find(':') == -1 and not inStageDirection:
+          line = lineTag + line
+        else:
+          if alignRight and not self.html:
+            line = space * (LINE_WIDTH - len(line)) + line
+          else:
+            if not inStageDirection and not self.isSpeechStart(line):
+              line = speechTagContinue + line
+            else:
+              line = paragraphTag + line
+
+      # Subsequent line in a stage direction
+      if inStageDirection and not alignRight:
+        line = stageLinePrefix + line
+
+      # End of paragraph
+      if not thisEmpty and nextEmpty:
+        line += endParaTag
+        inStageDirection = False
+
+      # Reset on empty line
+      if thisEmpty:
+        paragraphTag = speechTag
+
+      # This line has been formatted
+      self.wb[i] = FORMATTED_PREFIX + line
+
+class DramaHTML(Drama):
+
+  def __init__(self, wb, css):
+    Drama.__init__(self, wb)
+    self.html = True
+    self.css = css
+
+  def isSpeechStart(self, line):
+    return False if re.match("⩤sc⩥.*⩤/sc⩥", line) == None else True
+
+  def getDramaTags(self):
+    return {
+        'speech' : "<p class='speech'>",
+        'speech-cont' : "<p class='speech-cont'>",
+        'line' : "<p class='dramaline'>",
+        'stage' : "<p class='stage'>",
+        'stage-prefix' : "",
+        'stageRight' : "<p class='stageright'>",
+        'endPara' : "</p>",
+    }
+
+  def emitCss(self):
+    if self.speechIndent:
+      self.css.addcss("[899] .speech { margin-top: .2em; margin-bottom: 0; text-indent: 1.2em; text-align: left; }")
+      self.css.addcss("[899] .speech-cont { margin-top: .2em; margin-bottom: 0; text-indent: 0em; text-align: left; }")
+    else:
+      self.css.addcss("[899] .speech { margin-top: 0; margin-bottom: 0; text-indent: -1.2em; padding-left: 2.4em; text-align: left; }")
+      self.css.addcss("[899] .speech-cont { margin-top: 0; margin-bottom: 0; text-indent: 0em; padding-left: 2.4em; text-align: left; }")
+    self.css.addcss("[899] .dramaline { margin-top: 0; margin-bottom: 0; text-indent: 0em; }")
+    self.css.addcss("[899] .stage { margin-top: 0; margin-bottom: 0; text-indent: 1em; margin-left: 3em; }")
+    self.css.addcss("[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }")
+
+class DramaText(Drama):
+
+  def __init__(self, wb):
+    Drama.__init__(self, wb)
+    self.html = False
+
+  def isSpeechStart(self, line):
+    for i in range(len(line)):
+      c = line[i]
+      if c == ' ' or c == '.':
+        continue
+      elif c == '(':      # start of inline stage direction
+        return True
+      elif c == ':':      # end of character name
+        return True
+      elif not c.isupper():
+        return False
+    # All upper-case?
+    return True
+
+  def getDramaTags(self):
+    return {
+        'speech' : "  ",
+        'speech-cont' : "",
+        'line' : "",
+        'stage' : "   ",
+        'stage-prefix' : "   ",
+        'stageRight' : "",
+        'endPara' : "",
+    }
+
+  def emitCss(self):
+    True
+
+
 
 # ===== main ==================================================================
 
