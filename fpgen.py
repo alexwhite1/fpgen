@@ -4350,25 +4350,45 @@ class TestMakeTable(unittest.TestCase):
   # TODO: Tests for computing widths
   # TODO: Tests for computing some widths
 
+class Style:
+  indent = 1
+  hang = 2
+  block = 3
+  off = 4
+
+  words = {
+      indent:'indent', hang:'hang', block:'block', off:'off'
+  }
+
+  def parseOption(tag, valid, default):
+    tagValue = uopt.getopt(tag)
+    if tagValue == '':
+      return default
+    for value in valid:
+      if tagValue == Style.words[value]:
+        return value
+    fatal("Option " + tag + ": Illegal value: " + tagValue)
+
 class Drama:
 
   def __init__(self, wb):
     self.wb = wb
-    style = uopt.getopt("drama-speech-style")
-    if style == "indent":
-      self.speechIndent = True
-    elif style == "hang" or style == '':
-      self.speechIndent = False
-    else:
-      fatal("Option drama-speech-style must be either indent or hang");
+    self.speechIndent = Style.parseOption('drama-speech-style',
+      [Style.indent, Style.hang, Style.block],
+      Style.hang)
+    self.stageIndent = Style.parseOption('drama-stage-style',
+      [Style.indent, Style.hang, Style.off],
+      Style.indent)
 
   def doDrama(self):
     regex = re.compile("<drama(.*?)>")
+    regexSpeaker = re.compile("<sp>(.*)</sp>")
 
     # Local variables
     inDrama = False
     inStageDirection = False
     verse = False
+    speaker = None
 
     n = len(self.wb)
     lineNo = 0
@@ -4410,7 +4430,9 @@ class Drama:
           if inStageDirection:
             block = self.stageDirection(block, alignRight)
           else:
-            block = self.speech(block, verse)
+            block = self.speech(block, verse, speaker)
+            # Note speaker may have a blank line after it
+            speaker = None
         l = len(block)
         if not inDrama:
           # Remove the </drama> line; but we don't normally remove the empty
@@ -4434,14 +4456,30 @@ class Drama:
         line = line[7:]
         alignRight = True
 
+      # See if there is an explicitly tagged speaker
+      m = regexSpeaker.search(line)
+      if m:
+        speaker = m.group(1)
+        line = regexSpeaker.sub("", line)
+        if line != '':
+          fatal("<sp>...</sp> must be alone on the line: " + self.wb[lineNo-1])
+
       # Is this line a stage direction?
-      if re.match(r" *\[", line):
+      # Either explicit with tag; or implicity with common convention of [
+      if self.stageIndent != Style.off and \
+        (line.startswith("<stage>") or re.match(r" *\[", line)):
+        if inStageDirection:
+          fatal("Already in stage direction at " + line)
+        inStageDirection = True
+        if line.startswith("<stage>"):
+          line = line[7:]
+        else:
+          line = re.sub("^  *", "", line)
         if len(block) != 0:
           fatal("Found stage direction in a speech? " + line)
-        line = re.sub("^  *", "", line)
-        inStageDirection = True
 
-      block.append(line)
+      if line != '':
+        block.append(line)
 
     if inDrama:
       fatal("Open <drama>, but no close </drama>")
@@ -4450,14 +4488,14 @@ class DramaHTML(Drama):
 
   def __init__(self, wb, css):
     Drama.__init__(self, wb)
-    self.html = True
     self.css = css
     self.space = '◻' # ensp; or ⋀ for nbsp?
 
   def isSpeechStart(self, line):
     return False if re.match("⩤sc⩥.*⩤/sc⩥", line) == None else True
 
-  def speech(self, block, verse):
+  def speech(self, block, verse, speaker):
+    result = []
     for i,line in enumerate(block):
       # Leading spaces; or spaces after the speaker's name colon
       # are preserved
@@ -4472,7 +4510,9 @@ class DramaHTML(Drama):
         line = line[:m.start(gr)] + spaces + line[m.end(gr):]
 
       if i == 0:
-        if self.isSpeechStart(line):
+        if self.isSpeechStart(line) or speaker != None:
+          if speaker != None:
+            result.append("<div class='speaker'>" + speaker + "</div>")
           cl = 'speech'
         else:
           # first line of a speech which doesn't look like a speech, is
@@ -4489,18 +4529,18 @@ class DramaHTML(Drama):
 
       if cl != '':
         line = "<p class='" + cl + "'>" + line
-      block[i] = FORMATTED_PREFIX + line
+      result.append(FORMATTED_PREFIX + line)
 
     # terminate the paragraph -- for verse, every line is a paragraph
     # for non-verse, just one on the end
     if verse:
-      for i,line in enumerate(block):
-        block[i] = block[i] + "</p>"
+      for i,line in enumerate(result):
+        result[i] = result[i] + "</p>"
     else:
-      n = len(block)
-      block[n-1] = block[n-1] + "</p>"
+      n = len(result)
+      result[n-1] = result[n-1] + "</p>"
 
-    return block
+    return result
 
   def stageDirection(self, block, alignRight):
     if alignRight:
@@ -4522,46 +4562,85 @@ class DramaHTML(Drama):
 
     return block
 
+  speechCSS = "[899] .{0} {{ margin-top: .2em; margin-bottom: 0; text-indent: {1}; padding-left: {2}; text-align: left; }}"
+  stageCSS = "[899] .stage {{ margin-top: 0; margin-bottom: 0; text-indent: {0}; padding-left: {1}; margin-left: 3em; }}"
+  dramalineCSS = "[899] .dramaline { margin-top: 0; margin-bottom: 0; text-indent: 0em; }"
+  stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
+  speakerCSS = "[899] .speaker { margin-left: 0; margin-top: .8em; font-variant: small-caps; font-size: small; }"
+
   def emitCss(self):
-    if self.speechIndent:
-      self.css.addcss("[899] .speech { margin-top: .2em; margin-bottom: 0; text-indent: 1.2em; text-align: left; }")
-      self.css.addcss("[899] .speech-cont { margin-top: .2em; margin-bottom: 0; text-indent: 0em; text-align: left; }")
-    else:
-      self.css.addcss("[899] .speech { margin-top: 0; margin-bottom: 0; text-indent: -1.2em; padding-left: 2.4em; text-align: left; }")
-      self.css.addcss("[899] .speech-cont { margin-top: 0; margin-bottom: 0; text-indent: 0em; padding-left: 2.4em; text-align: left; }")
-    self.css.addcss("[899] .dramaline { margin-top: 0; margin-bottom: 0; text-indent: 0em; }")
-    self.css.addcss("[899] .stage { margin-top: 0; margin-bottom: 0; text-indent: 1em; margin-left: 3em; }")
-    self.css.addcss("[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }")
+    if self.speechIndent == Style.indent:
+      indent = "1.2em"
+      padding = "0em"
+    elif self.speechIndent == Style.hang:
+      indent = "-1.2em"
+      padding = "2.4em"
+    elif self.speechIndent == Style.block:
+      indent = "0em"
+      padding = "1.2em"
+    self.css.addcss(self.speechCSS.format("speech", indent, padding))
+    self.css.addcss(self.speechCSS.format("speech-cont", "0em", padding))
+
+    if self.stageIndent == Style.indent:
+      indent = "1em"
+      padding = "0em"
+    elif self.stageIndent == Style.hang:
+      indent = "-1em"
+      padding = "2em"
+    self.css.addcss(self.stageCSS.format(indent, padding))
+
+    self.css.addcss(self.dramalineCSS)
+    self.css.addcss(self.stagerightCSS)
+    self.css.addcss(self.speakerCSS)
 
 class DramaText(Drama):
 
   def __init__(self, wb):
     Drama.__init__(self, wb)
-    self.html = False
 
   def isSpeechStart(self, line):
+    nCap = 0
     for i in range(len(line)):
       c = line[i]
-      if c == ' ' or c == '.':
+      if c == ' ':
         continue
       elif c == '(':      # start of inline stage direction
         return True
       elif c == ':':      # end of character name
         return True
-      elif not c.isupper():
+      elif c == '.':      # end of character name as well
+        if nCap > 0:
+          return True
+        else:
+          continue        # Leading period?  Ignore
+      elif c.isupper():
+        nCap += 1
+      else:
         return False
     # All upper-case?
     return True
 
-  def speech(self, block, verse):
+  def speech(self, block, verse, speaker):
+    result = []
+    if speaker != None:
+      result.append(FORMATTED_PREFIX + speaker)
     # TODO: If not verse, then fill
+    if self.speechIndent == Style.indent:
+      speech0Prefix = "  "
+      speechPrefix = ""
+    elif self.speechIndent == Style.hang:
+      speech0Prefix = ""
+      speechPrefix = "  "
+    elif self.speechIndent == Style.block:
+      speech0Prefix = "  "
+      speechPrefix = "  "
     for i,l in enumerate(block):
-      if i == 0 and self.isSpeechStart(l):
-        block[0] = FORMATTED_PREFIX + "  " + l
+      if i == 0 and (self.isSpeechStart(l) or speaker != None):
+        result.append(FORMATTED_PREFIX + speech0Prefix + l)
       else:
-        block[i] = FORMATTED_PREFIX + l
-    block.append(FORMATTED_PREFIX);
-    return block
+        result.append(FORMATTED_PREFIX + speechPrefix + l)
+    result.append(FORMATTED_PREFIX)
+    return result
 
   def stageDirection(self, block, alignRight):
     if alignRight:
@@ -4573,7 +4652,7 @@ class DramaText(Drama):
           block[i] = FORMATTED_PREFIX + "      " + l
         else:
           block[i] = FORMATTED_PREFIX + "   " + l
-    block.append(FORMATTED_PREFIX);
+    block.append(FORMATTED_PREFIX)
     return block
 
   def emitCss(self):
