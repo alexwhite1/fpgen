@@ -4656,13 +4656,11 @@ class DramaText(Drama):
     return True
 
   def fill(self, block, indent, hang):
-    if self.speakerStyle == Style.hang:
-      margin = self.SPEAKER_HANG_WIDTH
-    else:
-      margin = 0
-
     # Fill the block in specified width
-    result = wrap2(" ".join(block), margin, 0, indent, hang)
+    # note: wrap2 adds in the hang on the first line; 
+    # and adds in the margin on all lines.
+    # ***Negative hangs do not work
+    result = wrap2(" ".join(block), 0, 0, indent, hang)
     return result
 
   def speech(self, block, verse, speaker):
@@ -4670,18 +4668,21 @@ class DramaText(Drama):
     if speaker != None and self.speakerStyle != Style.hang:
       result.append(FORMATTED_PREFIX + speaker.upper())
 
-    if not verse:
-      block = self.fill(block, 0, 0)
-
     if self.speechIndent == Style.indent:
       speech0Prefix = "  "
       speechPrefix = ""
+      indent = 0
+      tempindent = 2
     elif self.speechIndent == Style.hang:
       speech0Prefix = ""
       speechPrefix = "  "
+      indent = 2
+      tempindent = 0
     elif self.speechIndent == Style.block:
       speech0Prefix = "  "
       speechPrefix = "  "
+      indent = 2
+      tempindent = 0
 
     if self.speakerStyle == Style.hang:
       width = self.SPEAKER_HANG_WIDTH
@@ -4690,6 +4691,14 @@ class DramaText(Drama):
         speech0Prefix = speaker.upper() + (' ' * (width-len(speaker)))
       else:
         speech0Prefix = speechPrefix
+      indent = len(speechPrefix)
+
+    if not verse:
+      block = self.fill(block, indent, tempindent)
+      # Added by wrap
+      if self.speakerStyle != Style.hang and self.speechIndent != Style.block:
+        speech0Prefix = ""
+
     for i,l in enumerate(block):
       if i == 0 and (self.isSpeechStart(l) or speaker != None):
         result.append(FORMATTED_PREFIX + speech0Prefix + l)
