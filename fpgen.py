@@ -131,6 +131,44 @@ def fatal(message):
   sys.stderr.write("fatal: " + message + "\n")
   exit(1)
 
+# wrap string s, returns wrapped list
+# parameters
+#   lm left margin default=0
+#   rm right margin default=0
+#   li left indent default = 0
+#   ti temporary indent default=0
+# notes
+#   base line length is 72 - lm - rm - li
+#   first line indent is lm + li - ti
+#   subsequent lines indent is lm + li
+#   gesperrt comes in with ◮ in for spaces.
+
+def wrap2h(s, lm, rm, li, ti):  # 22-Feb-2014
+  lines = []
+  if ti != 0:
+    s = "◮"*ti + s
+  wrapper = textwrap.TextWrapper()
+  wrapper.width = LINE_WIDTH - lm - rm - li
+  wrapper.break_long_words = False
+  wrapper.break_on_hyphens = False
+  s = re.sub("—", "◠◠", s) # compensate long dash
+  lines = wrapper.wrap(s)
+  for i, line in enumerate(lines):
+      lines[i] = re.sub("◠◠", "—", lines[i]) # restore dash
+      lines[i] = re.sub("◮", " ", lines[i]) # restore spaces from gesperrt or ti
+      lines[i] = " " * lm + lines[i]
+  return lines
+
+def wrap2(s, lm=0, rm=0, li=0, ti=0):  # 22-Feb-2014
+  lines = []
+  while re.search("<br\/>", s):
+    m = re.search("(.*?)<br\/>(.*)", s)
+    if m:
+      lines += wrap2h(m.group(1).strip(), lm, rm, li, ti)
+      s = m.group(2)
+  lines += wrap2h(s.strip(), lm, rm, li, ti) # last or only piece to wrap
+  return lines
+
 class Book(object):
   wb = []
   supphd =[] # user's supplemental header lines
@@ -2684,7 +2722,7 @@ class Text(Book):
           userindent = 0
         firstline = " " * userindent + t[0:sliceat].strip()
         f1.write( "{:s}{}".format(firstline,lineEnd) )
-        # cprint("Wrapping: " + t)
+        cprint("Wrapping: " + t)
         t = t[sliceat:].strip()
         nwrapped += 1
         while len(t) > 0:
@@ -2800,44 +2838,6 @@ class Text(Book):
 
         i += 1
 
-
-  # wrap string s, returns wrapped list
-  # parameters
-  #   lm left margin default=0
-  #   rm right margin default=0
-  #   li left indent default = 0
-  #   ti temporary indent default=0
-  # notes
-  #   base line length is 72 - lm - rm - li
-  #   first line indent is lm + li - ti
-  #   subsequent lines indent is lm + li
-  #   gesperrt comes in with ◮ in for spaces.
-
-  def wrap2h(self, s, lm, rm, li, ti):  # 22-Feb-2014
-    lines = []
-    if ti != 0:
-      s = "◮"*ti + s
-    wrapper = textwrap.TextWrapper()
-    wrapper.width = 72 - lm - rm - li
-    wrapper.break_long_words = False
-    wrapper.break_on_hyphens = False
-    s = re.sub("—", "◠◠", s) # compensate long dash
-    lines = wrapper.wrap(s)
-    for i, line in enumerate(lines):
-        lines[i] = re.sub("◠◠", "—", lines[i]) # restore dash
-        lines[i] = re.sub("◮", " ", lines[i]) # restore spaces from gesperrt or ti
-        lines[i] = " " * lm + lines[i]
-    return lines
-
-  def wrap2(self, s, lm=0, rm=0, li=0, ti=0):  # 22-Feb-2014
-    lines = []
-    while re.search("<br\/>", s):
-      m = re.search("(.*?)<br\/>(.*)", s)
-      if m:
-        lines += self.wrap2h(m.group(1).strip(), lm, rm, li, ti)
-        s = m.group(2)
-    lines += self.wrap2h(s.strip(), lm, rm, li, ti) # last or only piece to wrap
-    return lines
 
   def wrap2_old(self, s, lm=0, rm=0, li=0, ti=0):
     line1 = []
@@ -3598,7 +3598,7 @@ class Text(Book):
       rm = len(leader)
       li = 0
       ti = 0
-      u = self.wrap2(s, lm, rm, li, ti)
+      u = wrap2(s, lm, rm, li, ti)
 
       u.insert(0, ".rs 1")
       u.append(".rs 1")
@@ -4355,9 +4355,12 @@ class Style:
   hang = 2
   block = 3
   off = 4
+  centre = 5
+  inline = 6
 
   words = {
-      indent:'indent', hang:'hang', block:'block', off:'off'
+      indent:'indent', hang:'hang', block:'block', off:'off',
+      centre:'center', inline:'inline',
   }
 
   def parseOption(tag, valid, default):
@@ -4377,12 +4380,15 @@ class Drama:
       [Style.indent, Style.hang, Style.block],
       Style.hang)
     self.stageIndent = Style.parseOption('drama-stage-style',
-      [Style.indent, Style.hang, Style.off],
+      [Style.indent, Style.hang, Style.block, Style.off],
       Style.indent)
+    self.speakerStyle = Style.parseOption('drama-speaker-style',
+      [Style.hang, Style.centre, Style.inline],
+      Style.inline)
 
   def doDrama(self):
     regex = re.compile("<drama(.*?)>")
-    regexSpeaker = re.compile("<sp>(.*)</sp>")
+    regexSpeaker = re.compile("<sp>(.*)</sp> *")
 
     # Local variables
     inDrama = False
@@ -4420,6 +4426,15 @@ class Drama:
 
       elif not inDrama:
         continue
+
+      if line == '<verse>':
+        verse = True
+        line = ''
+        self.wb[lineNo-1] = ''
+      elif line == '<prose>':
+        verse = False
+        line = ''
+        self.wb[lineNo-1] = ''
 
       # Note an empty last line has a formatted prefix
       thisEmpty = line == ''
@@ -4461,13 +4476,16 @@ class Drama:
       if m:
         speaker = m.group(1)
         line = regexSpeaker.sub("", line)
-        if line != '':
-          fatal("<sp>...</sp> must be alone on the line: " + self.wb[lineNo-1])
+#        if line != '':
+#          fatal("<sp>...</sp> must be alone on the line: " + self.wb[lineNo-1])
 
       # Is this line a stage direction?
       # Either explicit with tag; or implicity with common convention of [
       if self.stageIndent != Style.off and \
+        len(block) == 0 and \
         (line.startswith("<stage>") or re.match(r" *\[", line)):
+        if len(block) != 0:
+          fatal("Found stage direction in a speech? " + line)
         if inStageDirection:
           fatal("Already in stage direction at " + line)
         inStageDirection = True
@@ -4475,8 +4493,6 @@ class Drama:
           line = line[7:]
         else:
           line = re.sub("^  *", "", line)
-        if len(block) != 0:
-          fatal("Found stage direction in a speech? " + line)
 
       if line != '':
         block.append(line)
@@ -4563,10 +4579,12 @@ class DramaHTML(Drama):
     return block
 
   speechCSS = "[899] .{0} {{ margin-top: .2em; margin-bottom: 0; text-indent: {1}; padding-left: {2}; text-align: left; }}"
-  stageCSS = "[899] .stage {{ margin-top: 0; margin-bottom: 0; text-indent: {0}; padding-left: {1}; margin-left: 3em; }}"
-  dramalineCSS = "[899] .dramaline { margin-top: 0; margin-bottom: 0; text-indent: 0em; }"
+  stageCSS = "[899] .stage {{ margin-top: 0; margin-bottom: 0; text-indent: {0}; padding-left: {1}; margin-left: {2}; }}"
+  dramalineCSS = "[899] .dramaline {{ margin-top: 0; margin-bottom: 0; text-indent: 0em; padding-left: {} }}"
   stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
-  speakerCSS = "[899] .speaker { margin-left: 0; margin-top: .8em; font-variant: small-caps; font-size: small; }"
+  speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} }}"
+
+  speakerWidth = "5em"
 
   def emitCss(self):
     if self.speechIndent == Style.indent:
@@ -4578,6 +4596,17 @@ class DramaHTML(Drama):
     elif self.speechIndent == Style.block:
       indent = "0em"
       padding = "1.2em"
+
+    if self.speakerStyle == Style.hang:
+      hangLeft = "float:left; clear:both;"
+      padding = self.speakerWidth
+      top = ".2em"
+      stageMarginLeft = "0em"
+    else:
+      hangLeft = ''
+      top = ".8em"
+      stageMarginLeft = "3em"
+
     self.css.addcss(self.speechCSS.format("speech", indent, padding))
     self.css.addcss(self.speechCSS.format("speech-cont", "0em", padding))
 
@@ -4587,13 +4616,19 @@ class DramaHTML(Drama):
     elif self.stageIndent == Style.hang:
       indent = "-1em"
       padding = "2em"
-    self.css.addcss(self.stageCSS.format(indent, padding))
-
-    self.css.addcss(self.dramalineCSS)
+    elif self.stageIndent == Style.block:
+      indent = "0em"
+      padding = "2em"
+      if self.speakerStyle == Style.hang:
+        padding = self.speakerWidth
+    self.css.addcss(self.stageCSS.format(indent, padding, stageMarginLeft))
+    self.css.addcss(self.dramalineCSS.format(padding))
     self.css.addcss(self.stagerightCSS)
-    self.css.addcss(self.speakerCSS)
+    self.css.addcss(self.speakerCSS.format(top, hangLeft))
 
 class DramaText(Drama):
+
+  SPEAKER_HANG_WIDTH = 10
 
   def __init__(self, wb):
     Drama.__init__(self, wb)
@@ -4620,11 +4655,24 @@ class DramaText(Drama):
     # All upper-case?
     return True
 
+  def fill(self, block, indent, hang):
+    if self.speakerStyle == Style.hang:
+      margin = self.SPEAKER_HANG_WIDTH
+    else:
+      margin = 0
+
+    # Fill the block in specified width
+    result = wrap2(" ".join(block), margin, 0, indent, hang)
+    return result
+
   def speech(self, block, verse, speaker):
     result = []
-    if speaker != None:
-      result.append(FORMATTED_PREFIX + speaker)
-    # TODO: If not verse, then fill
+    if speaker != None and self.speakerStyle != Style.hang:
+      result.append(FORMATTED_PREFIX + speaker.upper())
+
+    if not verse:
+      block = self.fill(block, 0, 0)
+
     if self.speechIndent == Style.indent:
       speech0Prefix = "  "
       speechPrefix = ""
@@ -4634,6 +4682,14 @@ class DramaText(Drama):
     elif self.speechIndent == Style.block:
       speech0Prefix = "  "
       speechPrefix = "  "
+
+    if self.speakerStyle == Style.hang:
+      width = self.SPEAKER_HANG_WIDTH
+      speechPrefix = ' ' * width
+      if speaker != None:
+        speech0Prefix = speaker.upper() + (' ' * (width-len(speaker)))
+      else:
+        speech0Prefix = speechPrefix
     for i,l in enumerate(block):
       if i == 0 and (self.isSpeechStart(l) or speaker != None):
         result.append(FORMATTED_PREFIX + speech0Prefix + l)
@@ -4647,11 +4703,29 @@ class DramaText(Drama):
       for i,l in enumerate(block):
         block[i] = FORMATTED_PREFIX + ' ' * (LINE_WIDTH - len(l)) + l
     else:
+      if self.speakerStyle == Style.hang:
+        offset = self.SPEAKER_HANG_WIDTH
+      else:
+        offset = 3
+      indent = offset + 3
+      if self.stageIndent == Style.indent:
+        stage0Prefix = ' ' * indent
+        stagePrefix = ' ' * offset
+      elif self.stageIndent == Style.hang:
+        stage0Prefix = ' ' * offset
+        stagePrefix = ' ' * indent
+      elif self.stageIndent == Style.block:
+        stage0Prefix = ' ' * offset
+        stagePrefix = ' ' * offset
+      block = self.fill(block, len(stagePrefix), len(stage0Prefix)-len(stagePrefix))
+      # Note that fill adds in the temporary prefix on the first line,
+      # so we don't need to do it again.
+      stage0Prefix = stagePrefix
       for i,l in enumerate(block):
         if i == 0:
-          block[i] = FORMATTED_PREFIX + "      " + l
+          block[i] = FORMATTED_PREFIX + stage0Prefix + l
         else:
-          block[i] = FORMATTED_PREFIX + "   " + l
+          block[i] = FORMATTED_PREFIX + stagePrefix + l
     block.append(FORMATTED_PREFIX)
     return block
 
