@@ -4483,7 +4483,8 @@ class Drama:
       # Either explicit with tag; or implicity with common convention of [
       if self.stageIndent != Style.off and \
         len(block) == 0 and \
-        (line.startswith("<stage>") or re.match(r" *\[", line)):
+        (line.startswith("<stage>") or \
+          (re.match(r" *\[", line) and not re.search("\] *[^ ]", line))):
         if len(block) != 0:
           fatal("Found stage direction in a speech? " + line)
         if inStageDirection:
@@ -4534,7 +4535,7 @@ class DramaHTML(Drama):
           # first line of a speech which doesn't look like a speech, is
           # probably a speech interrupted by a direction
           if verse:
-            cl = 'dramaline'
+            cl = 'dramaline-cont'
           else:
             cl = 'speech-cont'
       else:
@@ -4580,7 +4581,7 @@ class DramaHTML(Drama):
 
   speechCSS = "[899] .{0} {{ margin-top: .2em; margin-bottom: 0; text-indent: {1}; padding-left: {2}; text-align: left; }}"
   stageCSS = "[899] .stage {{ margin-top: 0; margin-bottom: 0; text-indent: {0}; padding-left: {1}; margin-left: {2}; }}"
-  dramalineCSS = "[899] .dramaline {{ margin-top: 0; margin-bottom: 0; text-indent: 0em; padding-left: {} }}"
+  dramalineCSS = "[899] .{} {{ margin-top: {}; margin-bottom: 0; text-indent: 0em; padding-left: {} }}"
   stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
   speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} }}"
 
@@ -4609,6 +4610,8 @@ class DramaHTML(Drama):
 
     self.css.addcss(self.speechCSS.format("speech", indent, padding))
     self.css.addcss(self.speechCSS.format("speech-cont", "0em", padding))
+    self.css.addcss(self.dramalineCSS.format("dramaline", "0em", padding))
+    self.css.addcss(self.dramalineCSS.format("dramaline-cont", ".8em", padding))
 
     if self.stageIndent == Style.indent:
       indent = "1em"
@@ -4622,7 +4625,6 @@ class DramaHTML(Drama):
       if self.speakerStyle == Style.hang:
         padding = self.speakerWidth
     self.css.addcss(self.stageCSS.format(indent, padding, stageMarginLeft))
-    self.css.addcss(self.dramalineCSS.format(padding))
     self.css.addcss(self.stagerightCSS)
     self.css.addcss(self.speakerCSS.format(top, hangLeft))
 
