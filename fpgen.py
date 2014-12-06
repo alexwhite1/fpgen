@@ -3629,7 +3629,7 @@ class Text(Book):
         startloc = i
         spacecount = 1
         i += 1
-        while "▹" == self.wb[i]:
+        while i < len(self.wb) and "▹" == self.wb[i]:
           spacecount += 1
           i += 1
         self.wb[startloc:i] = [".rs {}".format(spacecount)]
