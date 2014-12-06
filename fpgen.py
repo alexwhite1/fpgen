@@ -113,7 +113,7 @@ LINE_WIDTH = 72
 
 def dprint(level, msg):
   if int(debug) >= level:
-    cprint("{}: {}".format(self.__class__.__name__, msg))
+    cprint("{}".format(msg))
 
 # safe print of possible UTF-8 character strings on ISO-8859 terminal
 def cprint(s):
@@ -135,22 +135,22 @@ def fatal(message):
 # parameters
 #   lm left margin default=0
 #   rm right margin default=0
-#   li left indent default = 0
-#   ti temporary indent default=0
+#   li all lines but line 0 indent default = 0
+#   l0 line 0 indent default=0
 # notes
 #   base line length is 72 - lm - rm - li
-#   first line indent is lm + li - ti
+#   first line indent is lm + ti
 #   subsequent lines indent is lm + li
 #   gesperrt comes in with ◮ in for spaces.
 
-def wrap2h(s, lm, rm, li, ti):  # 22-Feb-2014
+def wrap2h(s, lm, rm, li, l0):  # 22-Feb-2014
   lines = []
-  if ti != 0:
-    s = "◮"*ti + s
   wrapper = textwrap.TextWrapper()
-  wrapper.width = LINE_WIDTH - lm - rm - li
+  wrapper.width = LINE_WIDTH - lm - rm
   wrapper.break_long_words = False
   wrapper.break_on_hyphens = False
+  wrapper.initial_indent = l0 * ' '
+  wrapper.subsequent_indent = li * ' '
   s = re.sub("—", "◠◠", s) # compensate long dash
   lines = wrapper.wrap(s)
   for i, line in enumerate(lines):
@@ -2838,67 +2838,6 @@ class Text(Book):
 
         i += 1
 
-
-  def wrap2_old(self, s, lm=0, rm=0, li=0, ti=0):
-    line1 = []
-    lines = []
-    if ti != 0: # first line manual
-        length = 72 - lm - rm - li - ti # first line length
-        indent = lm + li + ti # first line indent
-        snip_at = s.rindex(" ", 0, length)
-        line1.append(" " * indent + s[:snip_at]) # first line
-        s = s[snip_at+1:] # use textwrap for remainder
-    wrapper = textwrap.TextWrapper()
-    wrapper.width = 72 - lm - rm - li
-    wrapper.break_long_words = False
-    wrapper.break_on_hyphens = False
-    indent = lm + li # subsequent indent ignores ti
-    s = re.sub("—", "◠◠", s) # compensate long dash
-    lines = wrapper.wrap(s)
-    for i, line in enumerate(lines):
-        lines[i] = re.sub("◠◠", "—", lines[i]) # restore dash
-        lines[i] = re.sub("◮", " ", lines[i]) # restore spaces from gesperrt
-        lines[i] = " " * indent + lines[i]
-    return line1 + lines
-
-  # 19-Sep-2013 self.wrap no longer used. superseded by wrap2
-  # wraps string. returns wrapped list.
-  def wrap(self, s, llen=72, leader=''):
-    wrapper = textwrap.TextWrapper()
-    wrapper.width = llen
-    wrapper.break_long_words = False
-    wrapper.break_on_hyphens = False
-
-    s = re.sub("\[\[\/?i\]\]", "_", s) # italics
-    s = re.sub("\[\[\/?b\]\]", "=", s) # bold
-    s = re.sub("\[\[\/?u\]\]", "=", s) # underline
-
-    m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s) # small-caps
-    while m:
-      replace = m.group(1).upper()
-      s = re.sub("\[\[sc\]\].*?\[\[\/sc\]\]", replace, s, 1)
-      m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s)
-
-    m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s) # gesperrt
-    while m:
-      replace = ""
-      x = m.group(1)
-      for i in range(len(x)-1):
-        replace += x[i] + "◮"
-      replace += x[-1]
-      s = re.sub("\[\[g\]\].*?\[\[/g\]\]", replace, s, 1)
-      m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s)
-    s = re.sub("—", "◠◠", s) # compensate long dash
-    lines = wrapper.wrap(s)
-    for i, line in enumerate(lines):
-      lines[i] = re.sub("◠◠", "—", lines[i])
-
-      # lines[i] = re.sub("◮", '\u2002', lines[i]) # a nut space
-      lines[i] = re.sub("◮", ' ', lines[i]) # a regular space
-
-      lines[i] = leader + lines[i]
-    return lines
-
   # literals are marked as preformatted
   # tag delimeters are protected
   def processLiterals(self):
@@ -4202,16 +4141,14 @@ class TestMakeTable(unittest.TestCase):
 
   def test_span1(self):
     u = self.t.makeTable([ "<table pattern='l10# r10'>", "=", "1|<span>", "=", "</table>" ])
-    self.common_assertions(u, 5, 2)
     assert u[1].endswith("━━━━━━━━━━━━━━━━━━━━━")
-    assert u[2].endswith("1                    ")
+    assert u[2].endswith("1")
     assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━")
 
   def test_span2(self):
     u = self.t.makeTable([ "<table pattern='l10| r10'>", "_", "1|<span>", "=", "</table>" ])
-    self.common_assertions(u, 5, 2)
     assert u[1].endswith("─────────────────────")
-    assert u[2].endswith("1                    ")
+    assert u[2].endswith("1")
     assert u[3].endswith("━━━━━━━━━━━━━━━━━━━━━")
 
   def test_span3(self):
@@ -4240,7 +4177,7 @@ class TestMakeTable(unittest.TestCase):
     assert len(u) == 5
     assert len(u[1]) == 39
     assert u[1].endswith("                                   ─┬─")
-    assert u[2].endswith("                                    │ ")
+    assert u[2].endswith("                                    │")
     assert u[3].endswith("                                   ─┴─")
 
   def test_span4(self):
@@ -4316,8 +4253,8 @@ class TestMakeTable(unittest.TestCase):
     ])
     assert len(u) == 5
     assert u[1].endswith("    word B")
-    assert u[2].endswith("  longer  ")
-    assert u[3].endswith(" test w1  ")
+    assert u[2].endswith("  longer")
+    assert u[3].endswith(" test w1")
 
   def test_wrap_align(self):
     u = self.t.makeTable([
@@ -4327,8 +4264,8 @@ class TestMakeTable(unittest.TestCase):
     ])
     assert len(u) == 5
     assert u[1].endswith("word     B")
-    assert u[2].endswith("longer    ")
-    assert u[3].endswith("test w1   ")
+    assert u[2].endswith("longer")
+    assert u[3].endswith("test w1")
 
   def test_wrap_align2(self):
     u = self.t.makeTable([
@@ -4337,15 +4274,15 @@ class TestMakeTable(unittest.TestCase):
         "word longer test w2|C",
       "</table>"
     ])
-    for l in u:
-      uprint("Line: " + l)
+#    for l in u:
+#      uprint("Line: " + l)
     assert len(u) == 8
-    assert u[1].endswith("word     B ")
-    assert u[2].endswith("longer     ")
-    assert u[3].endswith("test w1    ")
+    assert u[1].endswith("word     B")
+    assert u[2].endswith("longer")
+    assert u[3].endswith("test w1")
     assert u[4].endswith("    word  C")
-    assert u[5].endswith("  longer   ")
-    assert u[6].endswith(" test w2   ")
+    assert u[5].endswith("  longer")
+    assert u[6].endswith(" test w2")
 
   # TODO: Tests for computing widths
   # TODO: Tests for computing some widths
@@ -4445,7 +4382,8 @@ class Drama:
           if inStageDirection:
             block = self.stageDirection(block, alignRight)
           else:
-            block = self.speech(block, verse, speaker)
+            isContinue = not (self.isSpeechStart(block[0]) or speaker != None)
+            block = self.speech(block, verse, speaker, isContinue)
             # Note speaker may have a blank line after it
             speaker = None
         l = len(block)
@@ -4511,7 +4449,7 @@ class DramaHTML(Drama):
   def isSpeechStart(self, line):
     return False if re.match("⩤sc⩥.*⩤/sc⩥", line) == None else True
 
-  def speech(self, block, verse, speaker):
+  def speech(self, block, verse, speaker, isContinue):
     result = []
     for i,line in enumerate(block):
       # Leading spaces; or spaces after the speaker's name colon
@@ -4527,17 +4465,17 @@ class DramaHTML(Drama):
         line = line[:m.start(gr)] + spaces + line[m.end(gr):]
 
       if i == 0:
-        if self.isSpeechStart(line) or speaker != None:
-          if speaker != None:
-            result.append("<div class='speaker'>" + speaker + "</div>")
-          cl = 'speech'
-        else:
+        if isContinue:
           # first line of a speech which doesn't look like a speech, is
           # probably a speech interrupted by a direction
           if verse:
             cl = 'dramaline-cont'
           else:
             cl = 'speech-cont'
+        else:
+          if speaker != None:
+            result.append("<div class='speaker'>" + speaker + "</div>")
+          cl = 'speech'
       else:
         if verse:
           cl = 'dramaline'
@@ -4657,15 +4595,16 @@ class DramaText(Drama):
     # All upper-case?
     return True
 
-  def fill(self, block, indent, hang):
+  def fill(self, block, indent, line0indent, leftmargin):
     # Fill the block in specified width
-    # note: wrap2 adds in the hang on the first line; 
-    # and adds in the margin on all lines.
-    # ***Negative hangs do not work
-    result = wrap2(" ".join(block), 0, 0, indent, hang)
+    # note: wrap2 uses line0indent on the first line,
+    # and indent on all subsequent lines
+    result = wrap2(" ".join(block), leftmargin, 0, indent, line0indent)
+    for i,l in enumerate(result):
+      dprint(2, ">" + l + "<")
     return result
 
-  def speech(self, block, verse, speaker):
+  def speech(self, block, verse, speaker, isContinue):
     result = []
     if speaker != None and self.speakerStyle != Style.hang:
       result.append(FORMATTED_PREFIX + speaker.upper())
@@ -4674,38 +4613,54 @@ class DramaText(Drama):
       speech0Prefix = "  "
       speechPrefix = ""
       indent = 0
-      tempindent = 2
+      line0indent = 2
     elif self.speechIndent == Style.hang:
       speech0Prefix = ""
       speechPrefix = "  "
       indent = 2
-      tempindent = 0
+      line0indent = 0
     elif self.speechIndent == Style.block:
       speech0Prefix = "  "
       speechPrefix = "  "
       indent = 2
-      tempindent = 0
+      line0indent = 2
+
+    # Continuation block (i.e. no speaker); so line0 is same as the rest
+    if isContinue:
+      speech0Prefix = speechPrefix
+      line0indent = indent
 
     if self.speakerStyle == Style.hang:
-      width = self.SPEAKER_HANG_WIDTH
-      speechPrefix = ' ' * width
-      if speaker != None:
-        speech0Prefix = speaker.upper() + (' ' * (width-len(speaker)))
-      else:
-        speech0Prefix = speechPrefix
-      indent = len(speechPrefix)
+      leftmargin = self.SPEAKER_HANG_WIDTH
+
+      # Hanging speakers with block don't need extra indents!
+      if self.speechIndent == Style.block:
+        speech0Prefix = ''
+        speechPrefix = ''
+        indent = 0
+        line0indent = 0
+
+    else:
+      leftmargin = 0
 
     if not verse:
-      block = self.fill(block, indent, tempindent)
-      # Added by wrap
-      if self.speakerStyle != Style.hang and self.speechIndent != Style.block:
-        speech0Prefix = ""
+      block = self.fill(block, indent, line0indent, leftmargin)
+    else:
+      # Verse we have to do manually
+      # TODO: fill the internal stage directions!
+      lm = ' ' * leftmargin
+      for i,l in enumerate(block):
+        if i == 0:
+          block[i] = lm + speech0Prefix + block[i]
+        else:
+          block[i] = lm + speechPrefix + block[i]
+
+    # Hang style speaker: replace leading spaces on first line with speaker
+    if self.speakerStyle == Style.hang and speaker != None:
+      block[0] = speaker.upper() + block[0][len(speaker):]
 
     for i,l in enumerate(block):
-      if i == 0 and (self.isSpeechStart(l) or speaker != None):
-        result.append(FORMATTED_PREFIX + speech0Prefix + l)
-      else:
-        result.append(FORMATTED_PREFIX + speechPrefix + l)
+      result.append(FORMATTED_PREFIX + l)
     result.append(FORMATTED_PREFIX)
     return result
 
@@ -4720,28 +4675,266 @@ class DramaText(Drama):
         offset = 3
       indent = offset + 3
       if self.stageIndent == Style.indent:
-        stage0Prefix = ' ' * indent
-        stagePrefix = ' ' * offset
+        line0indent = indent
+        lineNindent = offset
       elif self.stageIndent == Style.hang:
         stage0Prefix = ' ' * offset
         stagePrefix = ' ' * indent
+        line0indent = offset
+        lineNindent = indent
       elif self.stageIndent == Style.block:
-        stage0Prefix = ' ' * offset
-        stagePrefix = ' ' * offset
-      block = self.fill(block, len(stagePrefix), len(stage0Prefix)-len(stagePrefix))
-      # Note that fill adds in the temporary prefix on the first line,
-      # so we don't need to do it again.
-      stage0Prefix = stagePrefix
+        line0indent = offset
+        lineNindent = offset
+      block = self.fill(block, lineNindent, line0indent, 0)
+
       for i,l in enumerate(block):
-        if i == 0:
-          block[i] = FORMATTED_PREFIX + stage0Prefix + l
-        else:
-          block[i] = FORMATTED_PREFIX + stagePrefix + l
+        block[i] = FORMATTED_PREFIX + l
     block.append(FORMATTED_PREFIX)
     return block
 
   def emitCss(self):
     True
+
+
+class TestDrama(unittest.TestCase):
+  def setUp(self):
+    self.d = DramaText([])
+    global LINE_WIDTH
+    LINE_WIDTH = 25
+    self.block = [
+      "This is the first line which is long",
+      "Short second line",
+      "This is the third line",
+    ]
+
+  def test_stage_block(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "   This is the first line",
+      FORMATTED_PREFIX + "   which is long Short",
+      FORMATTED_PREFIX + "   second line This is",
+      FORMATTED_PREFIX + "   the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.stageIndent = Style.block
+    result = self.d.stageDirection(self.block, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_stage_indent(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "      This is the first",
+      FORMATTED_PREFIX + "   line which is long",
+      FORMATTED_PREFIX + "   Short second line This",
+      FORMATTED_PREFIX + "   is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.stageIndent = Style.indent
+    result = self.d.stageDirection(self.block, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_stage_hang(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "   This is the first line",
+      FORMATTED_PREFIX + "      which is long Short",
+      FORMATTED_PREFIX + "      second line This is",
+      FORMATTED_PREFIX + "      the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.stageIndent = Style.hang
+    result = self.d.stageDirection(self.block, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_stage_right(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "              [Exit right",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.stageIndent = Style.hang     # ignored
+    result = self.d.stageDirection([ "[Exit right" ], True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line",
+      FORMATTED_PREFIX + "  which is long Short",
+      FORMATTED_PREFIX + "  second line This is the",
+      FORMATTED_PREFIX + "  third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(self.block, False, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_speaker_hang(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "SPEAKER   This is the",
+      FORMATTED_PREFIX + "          first line",
+      FORMATTED_PREFIX + "          which is long",
+      FORMATTED_PREFIX + "          Short second",
+      FORMATTED_PREFIX + "          line This is",
+      FORMATTED_PREFIX + "          the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    self.d.speakerStyle = Style.hang
+    result = self.d.speech(self.block, False, "speaker", False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_verse(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "  Short second line",
+      FORMATTED_PREFIX + "  This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(self.block, True, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_verse_cont(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "  Short second line",
+      FORMATTED_PREFIX + "  This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(self.block, True, None, True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_indent(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line",
+      FORMATTED_PREFIX + "which is long Short",
+      FORMATTED_PREFIX + "second line This is the",
+      FORMATTED_PREFIX + "third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    result = self.d.speech(self.block, False, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_indent_speaker_hang(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "SPEAKER     This is the",
+      FORMATTED_PREFIX + "          first line",
+      FORMATTED_PREFIX + "          which is long",
+      FORMATTED_PREFIX + "          Short second",
+      FORMATTED_PREFIX + "          line This is",
+      FORMATTED_PREFIX + "          the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    self.d.speakerStyle = Style.hang
+    result = self.d.speech(self.block, False, "speaker", False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_indent_verse(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "Short second line",
+      FORMATTED_PREFIX + "This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    result = self.d.speech(self.block, True, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_indent_verse_cont(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "This is the first line which is long",
+      FORMATTED_PREFIX + "Short second line",
+      FORMATTED_PREFIX + "This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    result = self.d.speech(self.block, True, None, True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_hang(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "This is the first line",
+      FORMATTED_PREFIX + "  which is long Short",
+      FORMATTED_PREFIX + "  second line This is the",
+      FORMATTED_PREFIX + "  third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.hang
+    result = self.d.speech(self.block, False, None, False)
+    self.assertSequenceEqual(expectedResult, result)
+
+  def test_speech_hang_speaker_hang(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "SPEAKER   This is the",
+      FORMATTED_PREFIX + "            first line",
+      FORMATTED_PREFIX + "            which is long",
+      FORMATTED_PREFIX + "            Short second",
+      FORMATTED_PREFIX + "            line This is",
+      FORMATTED_PREFIX + "            the third",
+      FORMATTED_PREFIX + "            line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.hang
+    self.d.speakerStyle = Style.hang
+    result = self.d.speech(self.block, False, "speaker", False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_hang_verse(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "This is the first line which is long",
+      FORMATTED_PREFIX + "  Short second line",
+      FORMATTED_PREFIX + "  This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.hang
+    result = self.d.speech(self.block, True, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_hang_verse_cont(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "  Short second line",
+      FORMATTED_PREFIX + "  This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.hang
+    result = self.d.speech(self.block, True, None, True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_cont(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line",
+      FORMATTED_PREFIX + "  which is long Short",
+      FORMATTED_PREFIX + "  second line This is the",
+      FORMATTED_PREFIX + "  third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(self.block, False, None, True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_indent_cont(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "This is the first line",
+      FORMATTED_PREFIX + "which is long Short",
+      FORMATTED_PREFIX + "second line This is the",
+      FORMATTED_PREFIX + "third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    result = self.d.speech(self.block, False, None, True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_hang_cont(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line",
+      FORMATTED_PREFIX + "  which is long Short",
+      FORMATTED_PREFIX + "  second line This is the",
+      FORMATTED_PREFIX + "  third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.hang
+    result = self.d.speech(self.block, False, None, True)
+    self.assertSequenceEqual(expectedResult, result)
 
 
 
@@ -4773,7 +4966,7 @@ if options.unittest:
   sys.argv = sys.argv[:1]
   l = unittest.TestLoader();
   tests = []
-  for cl in [ TestParseTableColumn, TestMakeTable ]:
+  for cl in [ TestParseTableColumn, TestMakeTable, TestDrama ]:
     tests.append(l.loadTestsFromTestCase(cl))
   tests = l.suiteClass(tests)
   unittest.TextTestRunner(verbosity=2).run(tests)
