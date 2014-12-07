@@ -169,6 +169,106 @@ def wrap2(s, lm=0, rm=0, li=0, ti=0):  # 22-Feb-2014
   lines += wrap2h(s.strip(), lm, rm, li, ti) # last or only piece to wrap
   return lines
 
+# Look for <tag> ... </tag> where the tags are on standalone lines.
+# As we find each such block, invoke the function against it
+def parseStandaloneTagBlock(lines, tag, function):
+  i = 0
+  startTag = "<" + tag
+  endTag = "</" + tag + ">"
+  regex = re.compile(startTag + "(.*?)>")
+  while i < len(lines):
+    m = regex.match(lines[i])
+    if not m:
+      i += 1
+      continue
+
+    openLine = lines[i]
+    openArgs = m.group(1)
+    block = []
+
+    j = i+1
+    while j < len(lines):
+      line = lines[j]
+      if line.startswith(endTag):
+        break
+      if line.startswith(startTag):
+        fatal("No closing tag found for " + tag + "; open line: " + openLine +
+          "; found another open tag: " + line)
+      block.append(line)
+      j += 1
+
+    if j == len(lines):
+      fatal("No closing tag found for " + tag + "; open line: " + openLine)
+    
+    replacement = function(openArgs, block)
+
+    lines[i:j+1] = replacement
+    i += len(replacement)
+
+  return lines
+
+class TestParsing(unittest.TestCase):
+  def setUp(self):
+    self.book = Book(None, None, None, None)
+
+  def verify(self, lines, expectedResult, expectedBlocks, replacementBlocks, open=""):
+    self.callbackN = -1
+    def f(l0, block):
+      self.callbackN += 1
+      self.assertEquals(l0, open)
+      self.assertSequenceEqual(block, expectedBlocks[self.callbackN])
+      return replacementBlocks[self.callbackN] if replacementBlocks != None else []
+
+    parseStandaloneTagBlock(lines, "tag", f)
+    self.assertSequenceEqual(lines, expectedResult)
+
+  def test_parse0(self):
+    lines = [ "<tag>", "</tag>", ]
+    expectedResult = [ ]
+    expectedBlock = [ [ ] ]
+    self.verify(lines, expectedResult, expectedBlock, None)
+
+  def test_parse_no_close(self):
+    lines = [ "<tag>", "l1", ]
+    with self.assertRaises(SystemExit) as cm:
+      parseStandaloneTagBlock(lines, "tag", None)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_parse_no_close2(self):
+    lines = [ "<tag>", "l1", "<tag>", "l3", "</tag>" ]
+    with self.assertRaises(SystemExit) as cm:
+      parseStandaloneTagBlock(lines, "tag", None)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_parse1(self):
+    lines = [ "l0", "<tag>", "l2", "l3", "</tag>", "l4", ]
+    expectedResult = [ "l0", "l4" ]
+    expectedBlock = [ [ "l2", "l3" ] ]
+    self.verify(lines, expectedResult, expectedBlock, None)
+
+  def test_parse1_with_args(self):
+    lines = [ "l0", "<tag rend='xxx'>", "l2", "l3", "</tag>", "l4", ]
+    expectedResult = [ "l0", "l4" ]
+    expectedBlock = [ [ "l2", "l3" ] ]
+    self.verify(lines, expectedResult, expectedBlock, None, open=" rend='xxx'")
+
+  def test_parse2(self):
+    lines = [
+      "l0", "<tag>", "l2", "l3", "</tag>", "l4", "<tag>", "l6", "</tag>", "l7"
+    ]
+    expectedResult = [ "l0", "l4", "l7" ]
+    expectedBlocks = [ [ "l2", "l3" ], [ "l6" ] ]
+    self.verify(lines, expectedResult, expectedBlocks, None)
+
+  def test_parse2_replace(self):
+    lines = [
+      "l0", "<tag>", "l2", "l3", "</tag>", "l4", "<tag>", "l6", "</tag>", "l7"
+    ]
+    expectedResult = [ "l0", "R1", "R2", "R3", "l4", "R4", "l7" ]
+    expectedBlocks = [ [ "l2", "l3" ], [ "l6" ] ]
+    replacementBlocks = [ [ "R1", "R2", "R3" ], [ "R4" ] ]
+    self.verify(lines, expectedResult, expectedBlocks, replacementBlocks)
+
 class Book(object):
   wb = []
   supphd =[] # user's supplemental header lines
@@ -4328,67 +4428,37 @@ class Drama:
     return []
 
   def doDrama(self):
-    regex = re.compile("<drama(.*?)>")
+    parseStandaloneTagBlock(self.wb, "drama", self.oneDramaBlock)
+
+  # A <drama>...</drama> block has been found.
+  # All the lines between are in the drama arg, a sequence of lines
+  def oneDramaBlock(self, openTag, drama):
+    # Local variables
+    inStageDirection = False
+    verse = openTag.find("verse") != -1
+    speaker = None
+    line = ''
+    block = []
+    alignRight = False
     regexSpeaker = re.compile("<sp>(.*)</sp> *")
 
-    # Local variables
-    inDrama = False
-    inStageDirection = False
-    verse = False
-    speaker = None
+    self.emitCss();
+    result = self.startSection()
 
-    n = len(self.wb)
-    lineNo = 0
-    while True:
-      if lineNo == n:
-        break
-      line = self.wb[lineNo]
-      lineNo += 1
-      m = regex.match(line)
-      if m:
-        if inDrama:
-          fatal("Found <drama>, but already in drama")
-        rendatt = m.group(1)
-        verse = rendatt.find("verse") != -1
-
-        startUp = self.startSection()
-        for l in startUp:
-          self.wb.insert(lineNo-1, l)
-          lineNo += 1
-        n = len(self.wb)
-
-        inDrama = True
-        startLine = lineNo-1
-        line = ''
-        block = []
-        alignRight = False
-        self.emitCss();
-        continue
-
-      if line.startswith("</drama>"):
-        if not inDrama:
-          fatal("Found </drama>, no start <drama>")
-        inDrama = False
-        line = ''
-        # Fall through, emit last block
-
-      elif not inDrama:
-        continue
+    drama.append('')    # Make sure we always end in blank line to flush
+    for lineNo, line in enumerate(drama):
 
       if line == '<verse>':
         verse = True
-        line = ''
-        self.wb[lineNo-1] = ''
+        continue
       elif line == '<prose>':
         verse = False
-        line = ''
-        self.wb[lineNo-1] = ''
+        continue
 
       # Note an empty last line has a formatted prefix
       thisEmpty = line == ''
 
       if thisEmpty:
-        endLine = lineNo-1
         if len(block) != 0:
           if inStageDirection:
             block = self.stageDirection(block, alignRight)
@@ -4397,20 +4467,9 @@ class Drama:
             block = self.speech(block, verse, speaker, isContinue)
             # Note speaker may have a blank line after it
             speaker = None
-        l = len(block)
-        if not inDrama:
-          # Remove the </drama> line; but we don't normally remove the empty
-          # line following the block
-          endLine += 1
-        adjust = (endLine - startLine) - l
-        self.wb[startLine:endLine] = block      # end-1 
-
-        # Adjust line for potential different sized block
-        lineNo -= adjust
-        startLine = lineNo
+        result.extend(block)
 
         # Reset for next block
-        n = len(self.wb)
         block = []
         alignRight = False
         inStageDirection = False
@@ -4447,8 +4506,7 @@ class Drama:
       if line != '':
         block.append(line)
 
-    if inDrama:
-      fatal("Open <drama>, but no close </drama>")
+    return result
 
   # Even in verse, stage directions are stage directions, and
   # can't have per-line paragraphs, since there are cross-line
@@ -4496,7 +4554,7 @@ class DramaHTML(Drama):
     return False if re.match("⩤sc⩥.*⩤/sc⩥", line) == None else True
 
   def startSection(self):
-    return [ FORMATTED_PREFIX + "<div class='dramastart'></div>" ]
+    return [ FORMATTED_PREFIX + "<div class='dramastart'></div>", '' ]
 
   def speech(self, block, verse, speaker, isContinue):
     result = []
@@ -4520,6 +4578,10 @@ class DramaHTML(Drama):
       result.extend(self.verseSpeech(block, speaker, isContinue))
     else:
       result.extend(self.filledSpeech(block, speaker, isContinue))
+
+    # Whitespace to make it look pretty
+    result.append('')
+
     return result
 
   def verseSpeech(self, block, speaker, isContinue):
@@ -4593,6 +4655,9 @@ class DramaHTML(Drama):
     # Terminate the paragraph
     n = len(block)
     block[n-1] = block[n-1] + "</p>"
+
+    # Whitespace to make it look pretty
+    block.append('')
 
     return block
 
@@ -5097,6 +5162,7 @@ class TestDrama(unittest.TestCase):
     result = self.d.speech(self.block, False, None, True)
     self.assertSequenceEqual(expectedResult, result)
 
+#### End of class TestDrama
 
 
 # ===== main ==================================================================
@@ -5127,7 +5193,7 @@ if options.unittest:
   sys.argv = sys.argv[:1]
   l = unittest.TestLoader();
   tests = []
-  for cl in [ TestParseTableColumn, TestMakeTable, TestDrama ]:
+  for cl in [ TestParseTableColumn, TestMakeTable, TestDrama, TestParsing ]:
     tests.append(l.loadTestsFromTestCase(cl))
   tests = l.suiteClass(tests)
   unittest.TextTestRunner(verbosity=2).run(tests)
