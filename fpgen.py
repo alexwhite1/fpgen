@@ -4323,6 +4323,10 @@ class Drama:
       [Style.hang, Style.centre, Style.inline],
       Style.inline)
 
+  # Allow for anything needed at the start of drama
+  def startSection(self):
+    return []
+
   def doDrama(self):
     regex = re.compile("<drama(.*?)>")
     regexSpeaker = re.compile("<sp>(.*)</sp> *")
@@ -4346,6 +4350,13 @@ class Drama:
           fatal("Found <drama>, but already in drama")
         rendatt = m.group(1)
         verse = rendatt.find("verse") != -1
+
+        startUp = self.startSection()
+        for l in startUp:
+          self.wb.insert(lineNo-1, l)
+          lineNo += 1
+        n = len(self.wb)
+
         inDrama = True
         startLine = lineNo-1
         line = ''
@@ -4449,6 +4460,9 @@ class DramaHTML(Drama):
   def isSpeechStart(self, line):
     return False if re.match("⩤sc⩥.*⩤/sc⩥", line) == None else True
 
+  def startSection(self):
+    return [ FORMATTED_PREFIX + "<div class='dramastart'></div>" ]
+
   def speech(self, block, verse, speaker, isContinue):
     result = []
     for i,line in enumerate(block):
@@ -4523,6 +4537,9 @@ class DramaHTML(Drama):
   stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
   speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} }}"
 
+  # This avoids a problem with margin-collapse when in speaker hang mode
+  startCSS = "[899] .dramastart { min-height: 1px; }"
+
   speakerWidth = "5em"
 
   def emitCss(self):
@@ -4565,6 +4582,7 @@ class DramaHTML(Drama):
     self.css.addcss(self.stageCSS.format(indent, padding, stageMarginLeft))
     self.css.addcss(self.stagerightCSS)
     self.css.addcss(self.speakerCSS.format(top, hangLeft))
+    self.css.addcss(self.startCSS)
 
 class DramaText(Drama):
 
