@@ -4450,6 +4450,41 @@ class Drama:
     if inDrama:
       fatal("Open <drama>, but no close </drama>")
 
+  # Even in verse, stage directions are stage directions, and
+  # can't have per-line paragraphs, since there are cross-line
+  # font changes
+  # Returns a sequence, where each entry is either a line of verse,
+  # or a sequence of one or more lines of stage direction
+  def decomposeVerse(self, block):
+    result = []
+    inStage = False
+    for i,line in enumerate(block):
+
+      # Line starts stage direction
+      if not inStage and line[0] == '[':
+        # If line ends the stage direction, only treat it as a stage
+        # direction if there is nothing after it
+        if line.find('] ') < 0:
+          inStage = True
+          stage = []
+
+      # Put the line in whichever batch
+      if inStage:
+        stage.append(line)
+      else:
+        result.append(line)
+
+      # Closing of the stage direction
+      if inStage and line.find(']') >= 0:
+        inStage = False
+        result.append(stage)
+
+    if inStage:
+      fatal("No end to stage direction embedded in verse: " + stage[0])
+    return result
+
+#### End of class Drama
+
 class DramaHTML(Drama):
 
   def __init__(self, wb, css):
@@ -4467,7 +4502,8 @@ class DramaHTML(Drama):
     result = []
     for i,line in enumerate(block):
       # Leading spaces; or spaces after the speaker's name colon
-      # are preserved
+      # are preserved -- turn them into magic unicode character
+      # which will later become &ensp;
       m = re.search("^(  *)|:(  *)", line)
       if m:
         gr = 1
@@ -4476,38 +4512,67 @@ class DramaHTML(Drama):
           gr = 2
           spaces = m.group(2)
         spaces = self.space * len(spaces) 
-        line = line[:m.start(gr)] + spaces + line[m.end(gr):]
+        block[i] = line[:m.start(gr)] + spaces + line[m.end(gr):]
+    if speaker != None:
+      result.append("<div class='speaker'>" + speaker + "</div>")
+
+    if verse:
+      result.extend(self.verseSpeech(block, speaker, isContinue))
+    else:
+      result.extend(self.filledSpeech(block, speaker, isContinue))
+    return result
+
+  def verseSpeech(self, block, speaker, isContinue):
+    result = []
+    block = self.decomposeVerse(block)
+    for i,line in enumerate(block):
+
+      # A sequence of lines which is a stage direction
+      if not isinstance(line, str):
+          stage = line
+          stage[0] = "<p class='stage-embed'>" + stage[0]
+          stage[-1] = stage[-1] + "</p>"
+          for j,line in enumerate(stage):
+              result.append(FORMATTED_PREFIX + line)
+          continue
 
       if i == 0:
         if isContinue:
           # first line of a speech which doesn't look like a speech, is
           # probably a speech interrupted by a direction
-          if verse:
-            cl = 'dramaline-cont'
-          else:
-            cl = 'speech-cont'
+          cl = 'dramaline-cont'
         else:
-          if speaker != None:
-            result.append("<div class='speaker'>" + speaker + "</div>")
           cl = 'speech'
       else:
-        if verse:
-          cl = 'dramaline'
+        cl = 'dramaline'
+
+      if cl != '':
+        line = "<p class='" + cl + "'>" + line
+        end = "</p>"
+      result.append(FORMATTED_PREFIX + line + end)
+
+    return result
+
+  def filledSpeech(self, block, speaker, isContinue):
+    result = []
+    for i,line in enumerate(block):
+      if i == 0:
+        if isContinue:
+          # first line of a speech which doesn't look like a speech, is
+          # probably a speech interrupted by a direction
+          cl = 'speech-cont'
         else:
-          cl = ''
+          cl = 'speech'
+      else:
+        cl = ''
 
       if cl != '':
         line = "<p class='" + cl + "'>" + line
       result.append(FORMATTED_PREFIX + line)
 
-    # terminate the paragraph -- for verse, every line is a paragraph
-    # for non-verse, just one on the end
-    if verse:
-      for i,line in enumerate(result):
-        result[i] = result[i] + "</p>"
-    else:
-      n = len(result)
-      result[n-1] = result[n-1] + "</p>"
+    # terminate the paragraph
+    n = len(result)
+    result[n-1] = result[n-1] + "</p>"
 
     return result
 
@@ -4533,6 +4598,7 @@ class DramaHTML(Drama):
 
   speechCSS = "[899] .{0} {{ margin-top: .2em; margin-bottom: 0; text-indent: {1}; padding-left: {2}; text-align: left; }}"
   stageCSS = "[899] .stage {{ margin-top: 0; margin-bottom: 0; text-indent: {0}; padding-left: {1}; margin-left: {2}; }}"
+  stageembedCSS = "[899] .stage-embed {{ margin-top: 0; margin-bottom: 0; text-indent: 0; padding-left: {}; }}"
   dramalineCSS = "[899] .{} {{ margin-top: {}; margin-bottom: 0; text-indent: 0em; padding-left: {} }}"
   stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
   speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} }}"
@@ -4567,6 +4633,7 @@ class DramaHTML(Drama):
     self.css.addcss(self.speechCSS.format("speech-cont", "0em", padding))
     self.css.addcss(self.dramalineCSS.format("dramaline", "0em", padding))
     self.css.addcss(self.dramalineCSS.format("dramaline-cont", ".8em", padding))
+    self.css.addcss(self.stageembedCSS.format(padding))
 
     if self.stageIndent == Style.indent:
       indent = "1em"
@@ -4583,6 +4650,8 @@ class DramaHTML(Drama):
     self.css.addcss(self.stagerightCSS)
     self.css.addcss(self.speakerCSS.format(top, hangLeft))
     self.css.addcss(self.startCSS)
+
+#### End of class DramaHTML
 
 class DramaText(Drama):
 
@@ -4665,13 +4734,22 @@ class DramaText(Drama):
       block = self.fill(block, indent, line0indent, leftmargin)
     else:
       # Verse we have to do manually
-      # TODO: fill the internal stage directions!
+      # Fill the internal stage directions!
+      block = self.decomposeVerse(block)
       lm = ' ' * leftmargin
+      temp = []
       for i,l in enumerate(block):
-        if i == 0:
-          block[i] = lm + speech0Prefix + block[i]
+        if isinstance(l, str):
+          if i == 0:
+            temp.append(lm + speech0Prefix + block[i])
+          else:
+            temp.append(lm + speechPrefix + block[i])
         else:
-          block[i] = lm + speechPrefix + block[i]
+          # An embedded stage direction to fill
+          stage = self.fill(l, indent, indent, leftmargin)
+          for j, l1 in enumerate(stage):
+            temp.append(l1)
+      block = temp
 
     # Hang style speaker: replace leading spaces on first line with speaker
     if self.speakerStyle == Style.hang and speaker != None:
@@ -4711,7 +4789,9 @@ class DramaText(Drama):
     return block
 
   def emitCss(self):
-    True
+    pass
+
+#### End of class DramaText
 
 
 class TestDrama(unittest.TestCase):
@@ -4807,6 +4887,69 @@ class TestDrama(unittest.TestCase):
     self.d.speechIndent = Style.block
     result = self.d.speech(self.block, True, None, False)
     self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_verse_embed_stage(self):
+    b = [
+      "This is the first line which is long",
+      "[Embed Stage Direction in verse]",
+      "This is the third line",
+    ]
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "  [Embed Stage Direction",
+      FORMATTED_PREFIX + "  in verse]",
+      FORMATTED_PREFIX + "  This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(b, True, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_verse_embed_stage_multi(self):
+    b = [
+      "This is the first line which is long",
+      "[Embed Stage Direction in verse",
+      "which continues onward]",
+      "This is the third line",
+    ]
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "  [Embed Stage Direction",
+      FORMATTED_PREFIX + "  in verse which",
+      FORMATTED_PREFIX + "  continues onward]",
+      FORMATTED_PREFIX + "  This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(b, True, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_verse_embed_stage_not_mixed(self):
+    b = [
+      "This is the first line which is long",
+      "[Embed Stage Direction] with more verse",
+      "This is the third line",
+    ]
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "  [Embed Stage Direction] with more verse",
+      FORMATTED_PREFIX + "  This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(b, True, None, False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_verse_embed_stage_not_closed(self):
+    b = [
+      "This is the first line which is long",
+      "[Embed Stage Direction not closed",
+      "This is the third line",
+    ]
+    self.d.speechIndent = Style.block
+    with self.assertRaises(SystemExit) as cm:
+      result = self.d.speech(b, True, None, False)
+    self.assertEqual(cm.exception.code, 1)
 
   def test_speech_block_verse_cont(self):
     expectedResult = [
