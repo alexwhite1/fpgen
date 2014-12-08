@@ -4416,6 +4416,9 @@ class Drama:
     self.speechIndent = Style.parseOption('drama-speech-style',
       [Style.indent, Style.hang, Style.block],
       Style.hang)
+    self.speechContinue = Style.parseOption('drama-speech-cont',
+      [Style.indent, Style.block],
+      Style.block)
     self.stageIndent = Style.parseOption('drama-stage-style',
       [Style.indent, Style.hang, Style.block, Style.off],
       Style.indent)
@@ -4666,7 +4669,7 @@ class DramaHTML(Drama):
   stageembedCSS = "[899] .stage-embed {{ margin-top: 0; margin-bottom: 0; text-indent: 0; padding-left: {}; }}"
   dramalineCSS = "[899] .{} {{ margin-top: {}; margin-bottom: 0; text-indent: 0em; padding-left: {} }}"
   stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
-  speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} }}"
+  speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} {} }}"
 
   # This avoids a problem with margin-collapse when in speaker hang mode
   startCSS = "[899] .dramastart { min-height: 1px; }"
@@ -4695,7 +4698,7 @@ class DramaHTML(Drama):
       stageMarginLeft = "3em"
 
     self.css.addcss(self.speechCSS.format("speech", indent, padding))
-    self.css.addcss(self.speechCSS.format("speech-cont", "0em", padding))
+    self.css.addcss(self.speechCSS.format("speech-cont", "0em" if self.speechContinue == Style.block else indent, padding))
     self.css.addcss(self.dramalineCSS.format("dramaline", "0em", padding))
     self.css.addcss(self.dramalineCSS.format("dramaline-cont", ".8em", padding))
     self.css.addcss(self.stageembedCSS.format(padding))
@@ -4713,8 +4716,13 @@ class DramaHTML(Drama):
         padding = self.speakerWidth
     self.css.addcss(self.stageCSS.format(indent, padding, stageMarginLeft))
     self.css.addcss(self.stagerightCSS)
-    self.css.addcss(self.speakerCSS.format(top, hangLeft))
     self.css.addcss(self.startCSS)
+
+    if self.speakerStyle == Style.centre:
+      speakerStyle = "text-align: center;"
+    else:
+      speakerStyle = ''
+    self.css.addcss(self.speakerCSS.format(top, hangLeft, speakerStyle))
 
 #### End of class DramaHTML
 
@@ -4759,7 +4767,11 @@ class DramaText(Drama):
   def speech(self, block, verse, speaker, isContinue):
     result = []
     if speaker != None and self.speakerStyle != Style.hang:
-      result.append(FORMATTED_PREFIX + speaker.upper())
+      sp = speaker.upper()
+      if self.speakerStyle == Style.centre:
+        result.append(FORMATTED_PREFIX + (((LINE_WIDTH-len(sp))//2) * ' ') + sp)
+      else:
+        result.append(FORMATTED_PREFIX + sp)
 
     if self.speechIndent == Style.indent:
       speech0Prefix = "  "
@@ -4777,8 +4789,10 @@ class DramaText(Drama):
       indent = 2
       line0indent = 2
 
-    # Continuation block (i.e. no speaker); so line0 is same as the rest
-    if isContinue:
+    # Continuation block (i.e. no speaker);
+    # Can be either block or indent; if block, simply make it the
+    # same as the other lines
+    if isContinue and self.speechContinue == Style.block:
       speech0Prefix = speechPrefix
       line0indent = indent
 
@@ -4942,6 +4956,20 @@ class TestDrama(unittest.TestCase):
     result = self.d.speech(self.block, False, "speaker", False)
     self.assertSequenceEqual(result, expectedResult)
 
+  def test_speech_block_speaker_centre(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "         SPEAKER",
+      FORMATTED_PREFIX + "  This is the first line",
+      FORMATTED_PREFIX + "  which is long Short",
+      FORMATTED_PREFIX + "  second line This is the",
+      FORMATTED_PREFIX + "  third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    self.d.speakerStyle = Style.centre
+    result = self.d.speech(self.block, False, "speaker", False)
+    self.assertSequenceEqual(result, expectedResult)
+
   def test_speech_block_verse(self):
     expectedResult = [
       FORMATTED_PREFIX + "  This is the first line which is long",
@@ -5054,6 +5082,20 @@ class TestDrama(unittest.TestCase):
     result = self.d.speech(self.block, False, "speaker", False)
     self.assertSequenceEqual(result, expectedResult)
 
+  def test_speech_indent_speaker_centre(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "         SPEAKER",
+      FORMATTED_PREFIX + "  This is the first line",
+      FORMATTED_PREFIX + "which is long Short",
+      FORMATTED_PREFIX + "second line This is the",
+      FORMATTED_PREFIX + "third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    self.d.speakerStyle = Style.centre
+    result = self.d.speech(self.block, False, "speaker", False)
+    self.assertSequenceEqual(result, expectedResult)
+
   def test_speech_indent_verse(self):
     expectedResult = [
       FORMATTED_PREFIX + "  This is the first line which is long",
@@ -5074,6 +5116,23 @@ class TestDrama(unittest.TestCase):
     ]
     self.d.speechIndent = Style.indent
     result = self.d.speech(self.block, True, None, True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_indent_verse_embed_stage(self):
+    b = [
+      "This is the first line which is long",
+      "[Embed Stage Direction in verse]",
+      "This is the third line",
+    ]
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line which is long",
+      FORMATTED_PREFIX + "[Embed Stage Direction in",
+      FORMATTED_PREFIX + "verse]",
+      FORMATTED_PREFIX + "This is the third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    result = self.d.speech(b, True, None, False)
     self.assertSequenceEqual(result, expectedResult)
 
   def test_speech_hang(self):
@@ -5147,6 +5206,19 @@ class TestDrama(unittest.TestCase):
       FORMATTED_PREFIX + ""
     ]
     self.d.speechIndent = Style.indent
+    result = self.d.speech(self.block, False, None, True)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_indent_cont_continue_indent(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "  This is the first line",
+      FORMATTED_PREFIX + "which is long Short",
+      FORMATTED_PREFIX + "second line This is the",
+      FORMATTED_PREFIX + "third line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.indent
+    self.d.speechContinue = Style.indent
     result = self.d.speech(self.block, False, None, True)
     self.assertSequenceEqual(result, expectedResult)
 
