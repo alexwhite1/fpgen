@@ -427,27 +427,20 @@ class Book(object):
 
     # process conditional source directives
     self.dprint(1,"conditionals")
-    i = 0
-    regex = re.compile("<if type=['\"](.*?)['\"]")
-    while i < len(self.wb):
-      m = regex.match(self.wb[i])
-      if m:
-        j = i
-        conditional_type = m.group(1)
-        if conditional_type == "!t": # 08-Sep-2013
-          conditional_type = 'hepk' # 26-Mar-2014
-        if self.gentype in conditional_type:
-          del self.wb[i] # <if
-          while not re.match("<\/if>", self.wb[i]):
-            i += 1
-          del self.wb[i] # </if
-        else:
-          del self.wb[i] # <if
-          while not re.match("<\/if>", self.wb[i]):
-            del self.wb[i] # lines for other formats
-          del self.wb[i] # </if
-        i = j-1
-      i += 1
+    def oneIfBlock(openTag, block):
+      m = re.match(" *type=['\"](.*?)['\"]", openTag)
+      if not m:
+        fatal("Badly formatted <if> conditional")
+
+      conditional_type = m.group(1)
+      if conditional_type == "!t": # 08-Sep-2013
+        conditional_type = 'hepk' # 26-Mar-2014
+      if self.gentype in conditional_type:
+        return block
+      else:
+        return []
+
+    parseStandaloneTagBlock(self.wb, "if", oneIfBlock)
 
     # 19-Nov-2013
     i = 0
@@ -1816,6 +1809,8 @@ class HTML(Book):
         self.css.addcss("[105] .pageno { display:none; }") # no visible page numbers in non-browser HTML
 
     self.css.addcss("[170] p { text-indent:0; margin-top:0.5em; margin-bottom:0.5em;") # para style
+    if uopt.getopt("quote-para-style") == 'block':
+      self.css.addcss("[170] div.blockquote p.pindent { text-indent:0; }") # para style in quote
     align_defined = False
     if 'e' in self.gentype:
       self.css.addcss("[171]     text-align: left; }") # epub ragged right
@@ -4486,6 +4481,7 @@ class Drama:
       m = regexSpeaker.search(line)
       if m:
         speaker = m.group(1)
+        result.extend(self.speakerStandalone(speaker))
         line = regexSpeaker.sub("", line)
 #        if line != '':
 #          fatal("<sp>...</sp> must be alone on the line: " + self.wb[lineNo-1])
@@ -4559,6 +4555,12 @@ class DramaHTML(Drama):
   def startSection(self):
     return [ FORMATTED_PREFIX + "<div class='dramastart'></div>", '' ]
 
+  def speakerStandalone(self, speaker):
+    result = []
+    if speaker != None:
+      result.append("<div class='speaker'>" + speaker + "</div>")
+    return result
+
   def speech(self, block, verse, speaker, isContinue):
     result = []
     for i,line in enumerate(block):
@@ -4574,20 +4576,18 @@ class DramaHTML(Drama):
           spaces = m.group(2)
         spaces = self.space * len(spaces) 
         block[i] = line[:m.start(gr)] + spaces + line[m.end(gr):]
-    if speaker != None:
-      result.append("<div class='speaker'>" + speaker + "</div>")
 
     if verse:
-      result.extend(self.verseSpeech(block, speaker, isContinue))
+      result.extend(self.verseSpeech(block, isContinue))
     else:
-      result.extend(self.filledSpeech(block, speaker, isContinue))
+      result.extend(self.filledSpeech(block, isContinue))
 
     # Whitespace to make it look pretty
     result.append('')
 
     return result
 
-  def verseSpeech(self, block, speaker, isContinue):
+  def verseSpeech(self, block, isContinue):
     result = []
     block = self.decomposeVerse(block)
     for i,line in enumerate(block):
@@ -4618,7 +4618,7 @@ class DramaHTML(Drama):
 
     return result
 
-  def filledSpeech(self, block, speaker, isContinue):
+  def filledSpeech(self, block, isContinue):
     result = []
     for i,line in enumerate(block):
       if i == 0:
@@ -4666,6 +4666,7 @@ class DramaHTML(Drama):
 
   speechCSS = "[899] .{0} {{ margin-top: .2em; margin-bottom: 0; text-indent: {1}; padding-left: {2}; text-align: left; }}"
   stageCSS = "[899] .stage {{ margin-top: 0; margin-bottom: 0; text-indent: {0}; padding-left: {1}; margin-left: {2}; }}"
+  stageStageCSS = "[899] .stage + .stage {{ margin-top: {} }}"
   stageembedCSS = "[899] .stage-embed {{ margin-top: 0; margin-bottom: 0; text-indent: 0; padding-left: {}; }}"
   dramalineCSS = "[899] .{} {{ margin-top: {}; margin-bottom: 0; text-indent: 0em; padding-left: {} }}"
   stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
@@ -4715,6 +4716,7 @@ class DramaHTML(Drama):
       if self.speakerStyle == Style.hang:
         padding = self.speakerWidth
     self.css.addcss(self.stageCSS.format(indent, padding, stageMarginLeft))
+    self.css.addcss(self.stageStageCSS.format(".8em"))
     self.css.addcss(self.stagerightCSS)
     self.css.addcss(self.startCSS)
 
@@ -4764,7 +4766,7 @@ class DramaText(Drama):
       dprint(2, ">" + l + "<")
     return result
 
-  def speech(self, block, verse, speaker, isContinue):
+  def speakerStandalone(self, speaker):
     result = []
     if speaker != None and self.speakerStyle != Style.hang:
       sp = speaker.upper()
@@ -4772,6 +4774,10 @@ class DramaText(Drama):
         result.append(FORMATTED_PREFIX + (((LINE_WIDTH-len(sp))//2) * ' ') + sp)
       else:
         result.append(FORMATTED_PREFIX + sp)
+    return result
+
+  def speech(self, block, verse, speaker, isContinue):
+    result = []
 
     if self.speechIndent == Style.indent:
       speech0Prefix = "  "
@@ -4956,6 +4962,37 @@ class TestDrama(unittest.TestCase):
     result = self.d.speech(self.block, False, "speaker", False)
     self.assertSequenceEqual(result, expectedResult)
 
+  def test_speaker_center(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "         SPEAKER",
+    ]
+    self.d.speakerStyle = Style.centre
+    result = self.d.speakerStandalone("speaker")
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speaker_inline(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "SPEAKER",
+    ]
+    self.d.speakerStyle = Style.inline
+    result = self.d.speakerStandalone("speaker")
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speaker_hang(self):
+    expectedResult = [ ]
+    self.d.speakerStyle = Style.hang
+    result = self.d.speakerStandalone("speaker")
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speaker_center(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "         SPEAKER",
+    ]
+    self.d.speakerStyle = Style.centre
+    result = self.d.speakerStandalone("speaker")
+    self.assertSequenceEqual(result, expectedResult)
+
+  """ TODO: non-hang speaker code moved out of speech
   def test_speech_block_speaker_centre(self):
     expectedResult = [
       FORMATTED_PREFIX + "         SPEAKER",
@@ -4969,6 +5006,7 @@ class TestDrama(unittest.TestCase):
     self.d.speakerStyle = Style.centre
     result = self.d.speech(self.block, False, "speaker", False)
     self.assertSequenceEqual(result, expectedResult)
+  """
 
   def test_speech_block_verse(self):
     expectedResult = [
@@ -5082,6 +5120,7 @@ class TestDrama(unittest.TestCase):
     result = self.d.speech(self.block, False, "speaker", False)
     self.assertSequenceEqual(result, expectedResult)
 
+  """
   def test_speech_indent_speaker_centre(self):
     expectedResult = [
       FORMATTED_PREFIX + "         SPEAKER",
@@ -5095,6 +5134,7 @@ class TestDrama(unittest.TestCase):
     self.d.speakerStyle = Style.centre
     result = self.d.speech(self.block, False, "speaker", False)
     self.assertSequenceEqual(result, expectedResult)
+  """
 
   def test_speech_indent_verse(self):
     expectedResult = [
