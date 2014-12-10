@@ -4433,7 +4433,17 @@ class Drama:
   def oneDramaBlock(self, openTag, drama):
     # Local variables
     inStageDirection = False
-    verse = openTag.find("verse") != -1
+    args = parseTagAttributes("drama", openTag, [ 'type' ])
+    if 'type' in args:
+      blockType = args['type']
+      if blockType == 'verse':
+        verse = True
+      elif blockType == 'prose':
+        verse = False
+      else:
+        fatal("Drama tag: Illegal type value: " + blockType)
+    else:
+      verse = False
     speaker = None
     line = ''
     block = []
@@ -4461,7 +4471,7 @@ class Drama:
           if inStageDirection:
             block = self.stageDirection(block, alignRight)
           else:
-            isContinue = not (self.isSpeechStart(block[0]) or speaker != None)
+            isContinue = not self.isSpeechStart(block[0]) and speaker == None
             block = self.speech(block, verse, speaker, isContinue)
             # Note speaker may have a blank line after it
             speaker = None
@@ -5276,6 +5286,127 @@ class TestDrama(unittest.TestCase):
 
 #### End of class TestDrama
 
+def parseTagAttributes(tag, arg, legalAttributes = None):
+  try:  # TODO: Move this up
+    attributes = parseTagAttributes1(arg)
+
+    if legalAttributes != None:
+      for attribute in attributes.keys():
+        if not attribute in legalAttributes:
+          raise Exception("Keyword " + attribute + ": Unknown keyword in " + arg)
+
+  except Exception as e:
+    fatal(tag + ": " + str(e))
+  return attributes
+
+# A tag looks like:
+#   <tag key1='value1' key2="value2" ...>
+# where whatever quote starts a value, must end a value
+# Returns { 'key1' : 'value1', 'key2' : 'value2' ... }
+def parseTagAttributes1(arg):
+  attributes = {}
+  while True:
+    keyword, sep, rest = arg.partition('=')
+    # Done?
+    if not sep:
+      break
+    keyword = keyword.lstrip()
+    quote = rest[0]
+    if quote not in [ "'", '"' ]:
+      raise Exception("Keyword {}: value is not quoted in {}".format(keyword, arg))
+    off = rest.find(quote, 1)
+    if off == -1:
+      raise Exception("keyword {}: value has no terminating quote in {}".format(keyword, arg))
+    value = rest[1:off]
+    attributes[keyword] = value
+    if off+1 == len(rest):
+      break
+    arg = rest[off+1:].lstrip()
+  #sys.stdout.write("result={}".format(attributes))
+  return attributes
+
+# Parse a single attribute list
+# e.g. rend='mr:5em mb:1em italic'
+# would parse into
+#  { 'mr' : '5em', 'mb' : '1em', 'italic' : '' }
+def parseOption(arg):
+  options = {}
+  arg = arg.strip()
+  while True:
+    m = re.match("^([^ :]*)([ :])(.*)$", arg)
+    if not m:
+      # Rest of string is keyword
+      if arg != "":
+        options[arg] = ""
+      break
+
+    keyword = m.group(1)
+    sep = m.group(2)
+    rest = m.group(3)
+    if sep == ' ':
+      # Simple keyword, no value
+      options[keyword] = ""
+      arg = rest
+    else:
+      off = rest.find(' ')
+      if off == -1:
+        off = len(rest)
+      value = rest[0:off]
+      options[keyword] = value
+      arg = rest[off:].lstrip()
+  #sys.stdout.write("result={}\n".format(options))
+  return options
+
+class TestParseTagAttributes(unittest.TestCase):
+  def test_1(self):
+    assert parseTagAttributes1("k1='a' k2='b'") == { 'k1':'a', 'k2':'b' }
+  def test_EmbeddedOtherQuote(self):
+    assert parseTagAttributes1("k1='aa\"bc'") == { 'k1':'aa"bc' }
+  def test_Empty(self):
+    assert parseTagAttributes1("") == { }
+  def test_SpacesOnly(self):
+    assert parseTagAttributes1("   ") == { }
+  def test_SpaceInKey(self):
+    assert parseTagAttributes1("   kxx ky='a' ") == { "kxx ky" : 'a' }
+  def test_NoCloseQuote1(self):
+    self.assertRaises(Exception, parseTagAttributes1, "   k1='a ")
+  def test_NoCloseQuote(self):
+    assert parseTagAttributes1("   k1='a k2='b' ") == { "k1" : "a k2=" }
+  def test_NoQuote(self):
+    self.assertRaises(Exception, parseTagAttributes1, "k1=a k2='b'")
+
+  def test_WithAtt(self):
+    assert parseTagAttributes("x", "k1='a' k2='b'", [ 'k1', 'k2' ]) == { 'k1':'a', 'k2':'b' }
+  def test_WithAttBad(self):
+    with self.assertRaises(SystemExit) as cm:
+      parseTagAttributes("x", "k1='a' kx='b'", [ 'k1', 'k2' ]) == { 'k1':'a', 'k2':'b' }
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_Option(self):
+    assert parseOption('mr:5em   mb:1em italic') ==  { 'mr' : '5em', 'mb' : '1em', 'italic' : '' }
+  def test_OptionEmpty(self):
+    assert parseOption('') == { }
+  def test_OptionSpacesOnly(self):
+    assert parseOption('') == { }
+  def test_OptionSingleNoEq(self):
+    assert parseOption('italic') == { 'italic' : '' }
+  def test_OptionNoEqLeading(self):
+    assert parseOption('poetry mt:5em') == { 'poetry' : '', 'mt' : '5em' }
+  def test_OptionSingleNoEqTrailingSp(self):
+    assert parseOption('italic  ') == { 'italic' : '' }
+  def test_OptionNoEqSp(self):
+    assert parseOption('   mt:33    italic  ') == { 'mt' : '33', 'italic' : '' }
+  def test_OptionSingleNoEqLeadingSp(self):
+    assert parseOption('  italic') == { 'italic' : '' }
+  def test_OptionSingleEq(self):
+    assert parseOption('mr:4em') == { 'mr' : '4em' }
+  def test_OptionSingleEqTrailingSp(self):
+    assert parseOption('mr:4em   ') == { 'mr' : '4em' }
+  def test_OptionSingleEqLeadingSp(self):
+    assert parseOption('  mr:4em') == { 'mr' : '4em' }
+  def test_OptionSingleEqTrailingSp(self):
+    assert parseOption('mr:4em   ') == { 'mr' : '4em' }
+
 
 # ===== main ==================================================================
 
@@ -5305,7 +5436,9 @@ if options.unittest:
   sys.argv = sys.argv[:1]
   l = unittest.TestLoader();
   tests = []
-  for cl in [ TestParseTableColumn, TestMakeTable, TestDrama, TestParsing ]:
+  for cl in [
+    TestParseTableColumn, TestMakeTable, TestDrama, TestParsing, TestParseTagAttributes
+  ]:
     tests.append(l.loadTestsFromTestCase(cl))
   tests = l.suiteClass(tests)
   unittest.TextTestRunner(verbosity=2).run(tests)
