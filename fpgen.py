@@ -4590,6 +4590,7 @@ class DramaHTML(Drama):
     self.css = css
     self.space = '◻' # ensp; or ⋀ for nbsp?
     self.lastLine = None
+    self.lastLineHadIndent = False
 
   def extractSpeaker(self, line):
     m = re.match("⩤sc⩥(.*)⩤/sc⩥", line)
@@ -4658,27 +4659,42 @@ class DramaHTML(Drama):
 
       para = "<p class='{}'>".format(cl)
 
+      # Inline speaker gets added to the start of the line now, we want it as part of
+      # the line for alignment purposes
+      if speaker != None and self.speakerStyle == Style.inline:
+        speak = "<span class='speaker-inline'>{}</span>".format(speaker)
+        line = speak + line
+
       # Alignment of a verse line with the end of the last emitted line
       if self.verseAlignLast and \
         self.lastLine != None and \
-        re.search(self.space + self.space, line) and \
-        self.speakerStyle == Style.hang:
-        invis = "\n<span class='verse-align'>" + self.lastLine + "</span>"
-        line = re.sub(self.space + self.space + "*", invis, line)
+        re.search(self.space + self.space, line):
+        if self.lastLineHadIndent:
+          invis = "\n<span class='verse-align'>" + self.lastLine + "</span>"
+        else:
+          # Last line wasn't indented; since this is the first line of a paragraph,
+          # need to reverse the indent of the current line, if there was one.
+          invis = "\n<span class='verse-align-noindent'>" + self.lastLine + "</span>"
 
-      if speaker != None and self.speakerStyle == Style.inline:
-        speak = "<span class='speaker-inline'>{}</span>".format(speaker)
-      else:
-        speak = ''
+        # See if we have two non-breaking spaces.  The left of them needs to be
+        # positioned absolutely, since it isn't relevant to the positioning of
+        # the the line which we want aligned.
+        # The right is the positioned after emitting the last line as invisible.
+        m = re.search(self.space + self.space + "*", line)
+        if m:
+          p1 = line[:m.start()]
+          p2 = line[m.end():]
+          if p1 != '':
+            # Absolute position the left (i.e. speaker, colon)
+            p1 = "<span class='verse-align-inline'>" + p1 + "</span>"
+          line = p1 + invis + p2
 
       # Save the last line of the block, for the first line of the next
-      if self.speakerStyle == Style.inline:
-        self.lastLine = speak + line
-      else:
-        self.lastLine = line
+      self.lastLine = line
+      self.lastLineHadIndent = i==0 and not isContinue
 
       # Put the paragraph markers in, and we have our final line
-      result.append(FORMATTED_PREFIX + para + self.lastLine + "</p>")
+      result.append(FORMATTED_PREFIX + para + line + "</p>")
 
       speaker = None
 
@@ -4688,8 +4704,7 @@ class DramaHTML(Drama):
     result = []
     for i,line in enumerate(block):
       if i == 0:
-        if isContinue:
-          # first line of a speech which doesn't look like a speech, is
+        if isContinue: # first line of a speech which doesn't look like a speech, is
           # probably a speech interrupted by a direction
           cl = 'speech-cont'
         else:
@@ -4742,6 +4757,8 @@ class DramaHTML(Drama):
   speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} {} }}"
   speakerInlineCSS = "[899] .speaker-inline { font-variant: small-caps; }"
   alignmentCSS = "[899] .verse-align { visibility:hidden; }"
+  alignmentNoIndentCSS = "[899] .verse-align-noindent {{ visibility:hidden; margin-left:-{}; }}"
+  alignmentInlineCSS = "[899] .verse-align-inline { position:absolute; text-indent:0; }"
 
   # This avoids a problem with margin-collapse when in speaker hang mode
   startCSS = "[899] .dramastart { min-height: 1px; }"
@@ -4775,6 +4792,10 @@ class DramaHTML(Drama):
     self.css.addcss(self.dramalineCSS.format("dramaline-cont", ".8em", padding))
     self.css.addcss(self.stageembedCSS.format(padding))
 
+    self.css.addcss(self.alignmentCSS)
+    self.css.addcss(self.alignmentNoIndentCSS.format(indent))
+    self.css.addcss(self.alignmentInlineCSS)
+
     if self.stageIndent == Style.indent:
       indent = "1em"
       padding = "0em"
@@ -4789,7 +4810,6 @@ class DramaHTML(Drama):
     self.css.addcss(self.stageCSS.format(indent, padding, stageMarginLeft))
     self.css.addcss(self.stageStageCSS.format(".8em"))
     self.css.addcss(self.stagerightCSS)
-    self.css.addcss(self.alignmentCSS)
     self.css.addcss(self.startCSS)
 
     if self.speakerStyle == Style.centre:
@@ -4982,6 +5002,43 @@ class TestDrama(unittest.TestCase):
       "Short second line",
       "This is the third line",
     ]
+
+  def test_verse_speech_align_no_leading_spaces(self):
+    block = [ "This is a simple line" ]
+    expectedResult = [
+      FORMATTED_PREFIX + "<p class='speech'>This is a simple line</p>",
+      ""
+    ]
+    self.align(block, expectedResult, True)
+
+  def test_verse_speech_align_leading_spaces(self):
+    block = [ "  This is a simple line" ]
+    expectedResult = [
+      FORMATTED_PREFIX +
+        "<p class='speech'>" +
+        "\n<span class='verse-align'>Indented line</span>" +
+        "This is a simple line</p>",
+      ""
+    ]
+    self.align(block, expectedResult, True)
+
+  def test_verse_speech_align_leading_spaces_noindent(self):
+    block = [ "  This is a simple line" ]
+    expectedResult = [
+      FORMATTED_PREFIX +
+        "<p class='speech'>" +
+        "\n<span class='verse-align-noindent'>Indented line</span>" +
+        "This is a simple line</p>",
+      ""
+    ]
+    self.align(block, expectedResult, False)
+
+  def align(self, block, expectedResult, hadIndent):
+    self.html.lastLine = "Indented line"
+    self.html.lastLineHadIndent = hadIndent
+    self.html.verseAlignLast = True
+    result = self.html.speech(block, verse=True, speaker=None, isContinue=False)
+    self.assertSequenceEqual(result, expectedResult)
 
   def test_option_drama_speaker_hang_text_width(self):
     self.assertEqual(self.d.SPEAKER_HANG_WIDTH, 10)
