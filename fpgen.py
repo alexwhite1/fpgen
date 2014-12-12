@@ -4421,6 +4421,7 @@ class Drama:
     self.speakerStyle = Style.parseOption('drama-speaker-style',
       [Style.hang, Style.centre, Style.inline, Style.left],
       Style.inline)
+    self.verseAlignLast = False
 
   # Allow for anything needed at the start of drama
   def startSection(self):
@@ -4432,9 +4433,8 @@ class Drama:
   # A <drama>...</drama> block has been found.
   # All the lines between are in the drama arg, a sequence of lines
   def oneDramaBlock(self, openTag, drama):
-    # Local variables
-    inStageDirection = False
-    args = parseTagAttributes("drama", openTag, [ 'type' ])
+    args = parseTagAttributes("drama", openTag, [ 'type', 'rend' ])
+
     if 'type' in args:
       blockType = args['type']
       if blockType == 'verse':
@@ -4445,11 +4445,25 @@ class Drama:
         fatal("Drama tag: Illegal type value: " + blockType)
     else:
       verse = False
+
+    if 'rend' in args:
+      rendArgs = parseOption(args['rend'])
+      if 'align-last' in rendArgs:
+        align = rendArgs['align-last']
+        if align == 'true':
+          self.verseAlignLast = True
+        elif align == 'false':
+          self.verseAlignLast = False
+        else:
+          fatal("align-last rend argument must be true or false: " + openTag)
+
+    # Local variables
+    inStageDirection = False
     speaker = None
     line = ''
     block = []
     alignRight = False
-    regexSpeaker = re.compile("<sp>(.*)</sp> *")
+    regexSpeaker = re.compile("<sp>(.*)</sp>")
 
     self.emitCss();
     result = self.startSection()
@@ -4496,6 +4510,12 @@ class Drama:
         speaker = m.group(1)
         result.extend(self.speakerStandalone(speaker))
         line = regexSpeaker.sub("", line)
+
+        # <sp>speak</sp> line
+        # exactly one space is normal and removed; more than one space is
+        # preserved and used for alignment.
+        if len(line) > 1 and line[0] == ' ' and line[1] != ' ':
+          line = line[1:]
 #        if line != '':
 #          fatal("<sp>...</sp> must be alone on the line: " + self.wb[lineNo-1])
 
@@ -4569,6 +4589,7 @@ class DramaHTML(Drama):
     Drama.__init__(self, wb)
     self.css = css
     self.space = '◻' # ensp; or ⋀ for nbsp?
+    self.lastLine = None
 
   def extractSpeaker(self, line):
     m = re.match("⩤sc⩥(.*)⩤/sc⩥", line)
@@ -4596,15 +4617,15 @@ class DramaHTML(Drama):
       # which will later become &ensp;
       m = re.match(":?(  *)", line)
       if m:
+        n = len(m.group(1))
         spaces = self.space * len(m.group(1)) 
         block[i] = line[0:m.start(1)] + spaces + line[m.end(1):]
 
     if verse:
-      result.extend(self.verseSpeech(block, isContinue, speaker))
-      # Save the last line of the block, for the first line of the next
-      self.lastLine = block[-1]
+      block = self.verseSpeech(block, isContinue, speaker)
     else:
-      result.extend(self.filledSpeech(block, isContinue, speaker))
+      block = self.filledSpeech(block, isContinue, speaker)
+    result.extend(block)
 
     # Whitespace to make it look pretty
     result.append('')
@@ -4616,7 +4637,7 @@ class DramaHTML(Drama):
     block = self.decomposeVerse(block)
     for i,line in enumerate(block):
 
-      # A sequence of lines which is a stage direction
+      # A sequence of lines which is an embedded stage direction
       if not isinstance(line, str):
           stage = line
           stage[0] = "<p class='stage-embed'>" + stage[0]
@@ -4635,10 +4656,30 @@ class DramaHTML(Drama):
       else:
         cl = 'dramaline'
 
+      para = "<p class='{}'>".format(cl)
+
+      # Alignment of a verse line with the end of the last emitted line
+      if self.verseAlignLast and \
+        self.lastLine != None and \
+        re.search(self.space + self.space, line) and \
+        self.speakerStyle == Style.hang:
+        invis = "\n<span class='verse-align'>" + self.lastLine + "</span>"
+        line = re.sub(self.space + self.space + "*", invis, line)
+
       if speaker != None and self.speakerStyle == Style.inline:
-        result.append(FORMATTED_PREFIX + "<p class='{}'><span class='speaker-inline'>{}</span>{}</p>".format(cl, speaker, line))
+        speak = "<span class='speaker-inline'>{}</span>".format(speaker)
       else:
-        result.append(FORMATTED_PREFIX + "<p class='{}'>{}</p>".format(cl, line))
+        speak = ''
+
+      # Save the last line of the block, for the first line of the next
+      if self.speakerStyle == Style.inline:
+        self.lastLine = speak + line
+      else:
+        self.lastLine = line
+
+      # Put the paragraph markers in, and we have our final line
+      result.append(FORMATTED_PREFIX + para + self.lastLine + "</p>")
+
       speaker = None
 
     return result
@@ -4700,6 +4741,7 @@ class DramaHTML(Drama):
   stagerightCSS = "[899] .stageright { margin-top: 0; margin-bottom: 0; text-align:right; }"
   speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} {} }}"
   speakerInlineCSS = "[899] .speaker-inline { font-variant: small-caps; }"
+  alignmentCSS = "[899] .verse-align { visibility:hidden; }"
 
   # This avoids a problem with margin-collapse when in speaker hang mode
   startCSS = "[899] .dramastart { min-height: 1px; }"
@@ -4747,6 +4789,7 @@ class DramaHTML(Drama):
     self.css.addcss(self.stageCSS.format(indent, padding, stageMarginLeft))
     self.css.addcss(self.stageStageCSS.format(".8em"))
     self.css.addcss(self.stagerightCSS)
+    self.css.addcss(self.alignmentCSS)
     self.css.addcss(self.startCSS)
 
     if self.speakerStyle == Style.centre:
@@ -4764,6 +4807,12 @@ class DramaText(Drama):
 
   def __init__(self, wb):
     Drama.__init__(self, wb)
+    w = uopt.getopt("drama-speaker-hang-text-width")
+    if w != '':
+      try:
+        self.SPEAKER_HANG_WIDTH = int(w)
+      except ValueError:
+        fatal("Invalid option for drama-speaker-hang-text-width: " + w)
 
   # Complications:
   # stage directions after the speaker before the colon
@@ -4934,6 +4983,13 @@ class TestDrama(unittest.TestCase):
       "This is the third line",
     ]
 
+  def test_option_drama_speaker_hang_text_width(self):
+    self.assertEqual(self.d.SPEAKER_HANG_WIDTH, 10)
+    uopt.addopt("drama-speaker-hang-text-width", "15")
+    t = DramaText([])
+    uopt.addopt("drama-speaker-hang-text-width", "10")
+    self.assertEqual(t.SPEAKER_HANG_WIDTH, 15)
+
   def test_extract_speaker_html(self):
     line, speaker = self.html.extractSpeaker("⩤sc⩥speaker⩤/sc⩥: This is a line")
     self.assertEqual(line, ": This is a line")
@@ -5064,6 +5120,27 @@ class TestDrama(unittest.TestCase):
     result = self.d.speech(self.block, False, "speaker", False)
     self.assertSequenceEqual(result, expectedResult)
 
+  def test_speech_block_speaker_hang_width(self):
+    expectedResult = [
+      FORMATTED_PREFIX + "SPEAKER        This is",
+      FORMATTED_PREFIX + "               the first",
+      FORMATTED_PREFIX + "               line which",
+      FORMATTED_PREFIX + "               is long",
+      FORMATTED_PREFIX + "               Short",
+      FORMATTED_PREFIX + "               second",
+      FORMATTED_PREFIX + "               line This",
+      FORMATTED_PREFIX + "               is the",
+      FORMATTED_PREFIX + "               third line",
+      FORMATTED_PREFIX + ""
+    ]
+    uopt.addopt("drama-speaker-hang-text-width", "15")
+    t = DramaText([])
+    uopt.addopt("drama-speaker-hang-text-width", "10")
+    t.speechIndent = Style.block
+    t.speakerStyle = Style.hang
+    result = t.speech(self.block, False, "speaker", False)
+    self.assertSequenceEqual(result, expectedResult)
+
   def test_speaker_center(self):
     expectedResult = [
       FORMATTED_PREFIX + "         SPEAKER",
@@ -5136,6 +5213,20 @@ class TestDrama(unittest.TestCase):
     self.d.speechIndent = Style.block
     self.d.speakerStyle = Style.inline
     result = self.d.speech(self.block, True, "Speaker: ", False)
+    self.assertSequenceEqual(result, expectedResult)
+
+  def test_speech_block_verse_leading_spaces_preserved(self):
+    b = [
+      "    This is the first line which is indented",
+      "This is the second line",
+    ]
+    expectedResult = [
+      FORMATTED_PREFIX + "      This is the first line which is indented",
+      FORMATTED_PREFIX + "  This is the second line",
+      FORMATTED_PREFIX + ""
+    ]
+    self.d.speechIndent = Style.block
+    result = self.d.speech(b, True, None, False)
     self.assertSequenceEqual(result, expectedResult)
 
   def test_speech_block_verse_embed_stage(self):
@@ -5478,6 +5569,11 @@ def parseOption(arg):
     keyword = m.group(1)
     sep = m.group(2)
     rest = m.group(3)
+
+    # Remove trailing semi-colon
+    if rest[-1] == ';':
+      rest = rest[0:-1]
+
     if sep == ' ':
       # Simple keyword, no value
       options[keyword] = ""
