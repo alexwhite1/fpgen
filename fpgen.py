@@ -4839,6 +4839,7 @@ class DramaText(Drama):
   #   TIPTREE (looking out):
   # speaker ends with a period (mixes up with MR. FOO:)
   #   ELMA.
+  # Returns Speaker, rest-of-line
   def extractSpeaker(self, line):
     nCap = 0
     off = 0
@@ -4858,7 +4859,12 @@ class DramaText(Drama):
         nCap += 1
       else:
         if nCap > 1:      # More than one leading cap
-          off = i
+          # Back off to the last space
+          while i > 0:
+            if line[i] == ' ':
+              off = i
+              break
+            i -= 1
           break
         return line, None
     if off > 0:
@@ -4926,6 +4932,8 @@ class DramaText(Drama):
       leftmargin = 0
 
     if speaker != None and self.speakerStyle == Style.inline:
+      if speaker[-1] != ' ' and block[0][0].isalpha():
+        speaker += ' '
       block[0] = speaker + block[0]
     if not verse:
       block = self.fill(block, indent, line0indent, leftmargin)
@@ -5072,11 +5080,10 @@ class TestDrama(unittest.TestCase):
     self.assertEqual(line, ": This is a line")
     self.assertEqual(speaker, "MR. FOO")
 
-  # Obviously this is less than satisfactory, but right now the best we can do
   def test_extract_speaker_text_dot2(self):
     line, speaker = self.d.extractSpeaker("ANNA. This is a line")
-    self.assertEqual(line, "his is a line")
-    self.assertEqual(speaker, "ANNA. T")
+    self.assertEqual(line, " This is a line")
+    self.assertEqual(speaker, "ANNA.")
 
   def test_extract_speaker_text_none(self):
     line, speaker = self.d.extractSpeaker("This is a continued line")
