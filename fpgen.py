@@ -9,6 +9,7 @@ import textwrap
 import codecs
 import platform
 import unittest
+from unittest.mock import MagicMock, Mock, call
 
 VERSION="4.23"
 # 20140214 bugfix: handle mixed quotes in toc entry
@@ -4546,8 +4547,6 @@ class Drama:
         len(block) == 0 and \
         (line.startswith("<stage>") or \
           (re.match(r" *\[", line) and not re.search("\] *[^ ]", line))):
-        if len(block) != 0:
-          fatal("Found stage direction in a speech? " + line)
         if inStageDirection:
           fatal("Already in stage direction at " + line)
         inStageDirection = True
@@ -5019,6 +5018,158 @@ class DramaText(Drama):
 
 #### End of class DramaText
 
+class TestOneDramaBlockMethod(unittest.TestCase):
+  def setUp(self):
+    self.d = DramaHTML([], None)
+    self.d.speech = MagicMock()
+    self.d.stageDirection = MagicMock()
+    self.d.extractSpeaker = Mock()
+    self.d.extractSpeaker.side_effect = lambda line: (line, None)
+    self.d.emitCss = MagicMock(name='emitCss')
+
+  def test_drama_parse_1(self):
+    self.d.oneDramaBlock("", [ "A simple speech" ])
+    self.d.speech.assert_called_once_with(["A simple speech"], False, None, True)
+
+  def test_drama_parse_1a(self):
+    self.d.oneDramaBlock("", [ "l1", "l2" ])
+    self.d.speech.assert_called_once_with(["l1", "l2"], False, None, True)
+
+  def test_drama_parse_verse(self):
+    self.d.oneDramaBlock("type='verse'", [ "l1", "l2" ])
+    self.d.speech.assert_called_once_with(["l1", "l2"], True, None, True)
+
+  def test_drama_parse_prose(self):
+    self.d.oneDramaBlock("type='prose'", [ "l1", "l2" ])
+    self.d.speech.assert_called_once_with(["l1", "l2"], False, None, True)
+
+  def test_drama_parse_prose_verse(self):
+    self.d.oneDramaBlock("type='prose'", [ "<verse>", "l1", "l2" ])
+    self.d.speech.assert_called_once_with(["l1", "l2"], True, None, True)
+
+  def test_drama_parse_verse_prose(self):
+    self.d.oneDramaBlock("type='verse'", [ "<prose>", "l1", "l2" ])
+    self.d.speech.assert_called_once_with(["l1", "l2"], False, None, True)
+
+  def test_drama_parse_type_bad(self):
+    with self.assertRaises(SystemExit) as cm:
+      self.d.oneDramaBlock("type='xverse'", [ "<prose>", "l1", "l2" ])
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_drama_parse_rend_bad(self):
+    with self.assertRaises(SystemExit) as cm:
+      self.d.oneDramaBlock("rend='align-last:maybe'", [ "<prose>", "l1", "l2" ])
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_drama_parse_2(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+
+  def test_drama_parse_2_verse(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "<verse>", "", "v1", "v2" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["v1", "v2"], True, None, True)
+      ]
+    )
+
+  def test_drama_parse_stage(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "[stage1", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+    self.d.stageDirection.assert_called_once_with(["[stage1"], False)
+
+  def test_drama_parse_stage_inline(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "[stage1] text", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["[stage1] text"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+
+  @unittest.expectedFailure
+  def test_drama_parse_stage_in_stage(self):
+    self.d.stageIndent = Style.left
+    with self.assertRaises(SystemExit) as cm:
+      self.d.oneDramaBlock("", [ "[stage1", "<stage>[stage2", "", "l3" ])
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_drama_parse_stage_leading_spaces(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "    [stage1", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+    self.d.stageDirection.assert_called_once_with(["[stage1"], False)
+
+  def test_drama_parse_stage_right(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "<right>[stage1", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+    self.d.stageDirection.assert_called_once_with(["[stage1"], True)
+
+  def test_drama_parse_stage_right_2line(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "<right>", "[stage1", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+    self.d.stageDirection.assert_called_once_with(["[stage1"], True)
+
+  def test_drama_parse_explicit_stage(self):
+    self.d.oneDramaBlock("", [ "l1", "l2", "", "<stage>stage1", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+    self.d.stageDirection.assert_called_once_with(["stage1"], False)
+
+  def test_drama_parse_explicit_stage_2line(self):
+    self.d.oneDramaBlock("", [
+      "l1", "l2", "", "<stage>", "stage1", "stage2", "", "l3"
+    ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+    self.d.stageDirection.assert_called_once_with(["stage1", "stage2"], False)
+
+  # TODO: test <sp>...</sp>; and continued blocks
+
+#### End of class TestOneDramaBlockMethod
 
 class TestDrama(unittest.TestCase):
   def setUp(self):
@@ -5753,7 +5904,8 @@ if options.unittest:
   l = unittest.TestLoader();
   tests = []
   for cl in [
-    TestParseTableColumn, TestMakeTable, TestDrama, TestParsing, TestParseTagAttributes
+    TestParseTableColumn, TestMakeTable, TestDrama, TestParsing,
+    TestParseTagAttributes, TestOneDramaBlockMethod
   ]:
     tests.append(l.loadTestsFromTestCase(cl))
   tests = l.suiteClass(tests)
