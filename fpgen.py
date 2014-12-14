@@ -2249,6 +2249,7 @@ class HTML(Book):
         # can include rend and pattern
         tattr = m.group(1)
         self.css.addcss("[560] table.center { margin:0.5em auto; border-collapse: collapse; padding:3px; }")
+        self.css.addcss("[560] table.left { margin:0.5em 1.2em; border-collapse: collapse; padding:3px; }")
 
         # pull the pattern
         columns = parseTablePattern(tattr)
@@ -2263,6 +2264,7 @@ class HTML(Book):
         # pull the rend attributes
         trend = ""
         useborder = False
+        left = False
         m = re.search("rend='(.*?)'", tattr)
         if m:
           trend = m.group(1)
@@ -2273,6 +2275,7 @@ class HTML(Book):
           if m:
             hpad = int(m.group(1))
           useborder = re.search("border", trend) # table uses borders
+          left = re.search("left", trend)  # Left, not centre
 
         # Generate nth-of-type css for columns that need lines between them
         colIndex = 1
@@ -2296,7 +2299,11 @@ class HTML(Book):
         t = []
         j = i + 1
 
-        s = "<table id='" + tableID +"' summary='' class='center"
+        s = "<table id='" + tableID +"' summary='' class='"
+        if left:
+          s += 'left'
+        else:
+          s += 'center'
 
         if useborder:
           s += " border"
@@ -2380,6 +2387,10 @@ class HTML(Book):
               align = col.align
             else:
               align = cell.getAlignment()
+
+            userClass = cell.getUserClass()
+            if userClass != None:
+              class2 = class2 + ' ' + userClass
 
             line += "<td class='" + class1 + " " + class2 + "' " +\
               "style='padding: " + \
@@ -4151,6 +4162,16 @@ class TableCell:
       self.align = '0'
     if not self.isDefaultAlignment():
       self.data = self.data[9:]
+
+    m = re.match("<class=(.*?)>", data)
+    if m:
+      self.userClass = m.group(1)
+      self.data = self.data[m.end():]
+    else:
+      self.userClass = None
+
+  def getUserClass(self):
+    return self.userClass
 
   def getAlignment(self):
     return self.align
