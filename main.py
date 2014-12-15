@@ -1,16 +1,15 @@
 from optparse import OptionParser
 import re
-import sys
+import sys, os
 import unittest
 
 import config
 from fpgen import Lint, Text, HTML
 from fpgen import TestParseTableColumn, TestMakeTable, TestParsing, TestParseTagAttributes
 from drama import TestDrama, TestOneDramaBlockMethod
+from config import pn_cover, uopt
 
 def main():
-  global uopt
-
   # process command line
   parser = OptionParser()
   parser.add_option("-i", "--infile",

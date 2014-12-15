@@ -102,8 +102,6 @@ class userOptions(object):
     else:
       return ""
 
-pn_cover = ""
-
 empty = re.compile("^$")
 
 def dprint(level, msg):
@@ -116,7 +114,7 @@ def cprint(s):
   t = "".join([x if ord(x) < 128 else '?' for x in s])
   print(t)
 
-# Emit the UTF-8 charas as \uXXXX hex strings
+# Emit the UTF-8 chars as \uXXXX hex strings
 def uprint(s):
   s = re.sub("◻"," ", s)
   t = "".join([x if ord(x) < 128 else ("\\u"+hex(ord(x))) for x in s])
@@ -1139,7 +1137,6 @@ class HTML(Book):
       return t
 
   def shortHeading(self):
-    global pn_cover
     # allow shortcut heading
     #
     # .title (default "Unknown")
@@ -1154,7 +1151,7 @@ class HTML(Book):
     dc_author = "Unknown"
     dc_language = "en"
     dc_created = ""
-    pn_cover = "images/cover.jpg"
+    config.pn_cover = "images/cover.jpg"
     pn_displaytitle = ""
     m_generator = "fpgen {}".format(config.VERSION)
     i = 0
@@ -1199,7 +1196,7 @@ class HTML(Book):
 
       m = re.match(r".cover (.*)", self.wb[i])
       if m:
-        pn_cover = m.group(1)
+        config.pn_cover = m.group(1)
         where = i
         del(self.wb[i])
 
@@ -1222,7 +1219,7 @@ class HTML(Book):
       if dc_created != "":
         self.umeta.addmeta("<meta name='DC.Created' content='{}'/>".format(dc_created))
 
-    self.uprop.addprop("cover image", "{}".format(pn_cover))
+    self.uprop.addprop("cover image", "{}".format(config.pn_cover))
     self.uprop.addprop("display title", "{}".format(pn_displaytitle))
 
   # translate marked-up line to HTML
@@ -1492,7 +1489,6 @@ class HTML(Book):
       i += 1
 
   def userHeader(self):
-    global pn_cover
     self.dprint(1,"userHeader")
     i = 0
     while i < len(self.wb):
@@ -1502,8 +1498,8 @@ class HTML(Book):
         # 22-Feb-2014 if it's a specified cover, need to put it in global variable
         # so epub &c. can use it after instance is complete
         if m.group(1) == "cover image":
-          pn_cover = m.group(2)
-          # print("cover image: {}".format(pn_cover))
+          config.pn_cover = m.group(2)
+          # print("cover image: {}".format(config.pn_cover))
         del self.wb[i]
         continue
 
@@ -3201,7 +3197,7 @@ class Text(Book):
         if m:
           rendw = int(m.group(1))
           # user-specified width (in characters). calculate indent
-          indent = " " * ((72 - rendw) // 2)
+          indent = " " * ((config.LINE_WIDTH - rendw) // 2)
           self.qstack.append(indent)
           del(self.wb[i])
           continue
@@ -3393,7 +3389,7 @@ class Text(Book):
 
           if m:
             # rend="right" or rend="mr:0"
-            rmar = 72 - len(self.qstack[-1]) - howmuch
+            rmar = config.LINE_WIDTH - len(self.qstack[-1]) - howmuch
             fstr = "{:>" + str(rmar) + "}"
             self.wb[i] = fstr.format(thetext.strip())
             handled = True
@@ -3518,7 +3514,7 @@ class Text(Book):
                   s = re.sub("□", " ", theline)
                   self.dprint(1,"warning: long poetry line:\n{}".format(s))
                 if self.poetryindent == 'center':
-                    leader = " " * ((72 - maxwidth) // 2)
+                    leader = " " * ((config.LINE_WIDTH - maxwidth) // 2)
                 else:
                     leader = " " * 4
                 self.wb[i] = "▹" + self.qstack[-1] + leader + "{:<}".format(theline)
@@ -3559,11 +3555,11 @@ class Text(Book):
               longline = thetext
             j += 1
           # have maxw calculated
-          if maxw > 72:
+          if maxw > config.LINE_WIDTH:
             self.dprint(1,"warning: long line: ({})\n{}".format(len(longline),longline))
             leader = ""
           else:
-            leader = "□" * ((72 - maxw) // 2) # fixed left indent for block
+            leader = "□" * ((config.LINE_WIDTH - maxw) // 2) # fixed left indent for block
 
           while not re.match("<\/lg>",self.wb[i]):
             m = re.match("<l(.*?)>(.*?)</l>", self.wb[i]) # parse each line
@@ -3629,7 +3625,7 @@ class Text(Book):
         i += 1
       mark2 = i
       # here at end of para or eof
-      llen = 72 - (2 * len(self.qstack[-1]))
+      llen = config.LINE_WIDTH - (2 * len(self.qstack[-1]))
       leader = self.qstack[-1]
       s = " ".join(t)
 
