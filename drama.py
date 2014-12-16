@@ -227,7 +227,15 @@ class DramaHTML(Drama):
     return line, None
 
   def startSection(self):
-    return [ FORMATTED_PREFIX + "<div class='dramastart'></div>", '' ]
+    #
+    # This div is needed to stop the margin collapse between any quote
+    # before the start of the drama; and leading spaces above our first
+    # paragraph.  Not that we really care about the collapse, but if we
+    # are using hanging speakers, then that div does not collapse, but
+    # ends up at a different level than the speech.
+    #
+    # Note the html comment stops HTML Tidy from warning about empty div
+    return [ FORMATTED_PREFIX + "<div class='dramastart'><!----></div>", '' ]
 
   # Handle speaker when it is part of a diversion: all but inline
   def speakerStandalone(self, speaker):
@@ -774,7 +782,50 @@ class TestOneDramaBlockMethod(unittest.TestCase):
     )
     self.d.stageDirection.assert_called_once_with(["stage1", "stage2"], False)
 
-  # TODO: test <sp>...</sp>; and continued blocks
+  def test_drama_parse_explicit_sp(self):
+    self.d.oneDramaBlock("", [ "<sp>speaker</sp>l1", "l2", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, "speaker", False),
+        call(["l3"], False, None, True)
+      ]
+    )
+
+  def test_drama_parse_explicit_sp_own_line(self):
+    self.d.oneDramaBlock("", [ "<sp>speaker</sp>", "l1", "l2", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, "speaker", False),
+        call(["l3"], False, None, True)
+      ]
+    )
+
+  def test_drama_parse_explicit_sp_blank_line(self):
+    self.d.oneDramaBlock("", [ "<sp>speaker</sp>", "", "l1", "l2", "", "l3" ])
+    self.assertEquals(
+      self.d.speech.call_args_list,
+      [
+        call(["l1", "l2"], False, "speaker", False),
+        call(["l3"], False, None, True)
+      ]
+    )
+
+  def test_drama_parse_implicit_sp(self):
+    # Don't want extractSpeaker mocked. Is there an easier way?
+    d = DramaHTML([], None)
+    d.speech = MagicMock()
+    d.stageDirection = MagicMock()
+    d.emitCss = MagicMock(name='emitCss')
+    d.oneDramaBlock("", [ "⩤sc⩥speaker⩤/sc⩥: l1", "l2", "", "l3" ])
+    self.assertEquals(
+      d.speech.call_args_list,
+      [
+        call([": l1", "l2"], False, "speaker", False),
+        call(["l3"], False, None, True)
+      ]
+    )
 
 #### End of class TestOneDramaBlockMethod
 
