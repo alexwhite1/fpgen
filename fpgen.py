@@ -55,6 +55,7 @@ import config
 # 4.22     Text footnote output change to [#] same line
 # 4.23     <drama> tag
 # 4.23a    Fix bug from 4.22: <lg> starting a footnote (text output)
+# 4.23b    Fix bug with gesperrt inside <sc>
 
 
 """
@@ -2868,13 +2869,53 @@ class Text(Book):
       m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s)
     return s
 
+  # Uppercase between the <sc> tags
+  # NOTE: Do not uppercase any tags! e.g. <sc><g>xx</g></sc> do not
+  # uppercase the <g> tags or they stop working!
+  # self.wb[i] = re.sub("<sc>(.*?)<\/sc>", lambda pat: pat.group(1).upper(), line)
+  def smallCaps(self, line):
+    scTitle = (config.uopt.getopt("sc") == "titlecase")
+
+    # return re.sub("<\/?sc>", "=", line) # small-caps
+
+    if (scTitle):
+      # Title-case: Just delete the tags
+      return re.sub("<\/?sc>", "", line)
+
+    while True:
+      m = re.search("<sc>(.*?)<\/sc>", line)
+      if not m:
+        break
+      sub = line[m.start(1):m.end(1)]
+      n = len(sub)
+      replace = ""
+      off = 0
+      while off < n:
+        c = sub[off]
+        if c == '<':
+          # Ignore tags
+          while True:
+            c = sub[off]
+            replace += c
+            if c == '>':
+              break
+            off += 1
+            if off >= n:
+              break
+        else:
+          replace += c.upper()
+        off += 1
+
+      line = line[:m.start()] + replace + line[m.end():]
+
+    return line
+
   # convert all inline markup to text equivalent at start of run
   def processInline(self):
     if self.italicdef == "decorative":
         replacewith = "" # decorative. ignore
     else:
         replacewith = "_" # emphasis. treat as <em>
-    scTitle = (config.uopt.getopt("sc") == "titlecase")
 
     regexOL = re.compile("<\/?ol>")
     regexI = re.compile("<\/?i>")
@@ -2894,16 +2935,7 @@ class Text(Book):
         self.wb[i] = regexI.sub(replacewith, self.wb[i]) # italic
         self.wb[i] = regexEM.sub("_", self.wb[i]) # italic
         self.wb[i] = regexB.sub("=", self.wb[i]) # bold
-
-        # self.wb[i] = re.sub("<\/?sc>", "=", self.wb[i]) # small-caps
-        if (scTitle):
-          # Title-case: Just delete the tags
-          self.wb[i] = re.sub("<\/?sc>", "", self.wb[i])
-        else:
-          # Normal: Uppercase between the tags
-          self.wb[i] = re.sub("<sc>(.*?)<\/sc>",
-              lambda pat: pat.group(1).upper(), self.wb[i]);
-
+        self.wb[i] = self.smallCaps(self.wb[i]) # smallcaps
         self.wb[i] = regexU.sub("=", self.wb[i]) # underline
         while regexDOT.search(self.wb[i]):
             self.wb[i] = regexDOT.sub(".□.", self.wb[i], 1) # spaces in ellipsis
@@ -3790,33 +3822,6 @@ class Text(Book):
     self.process()
     self.saveFile(self.dstfile)
 # END OF CLASS Text
-
-class TestTextRewrap(unittest.TestCase):
-  def setUp(self):
-    self.text = Text(None, None, 0, 't')
-    config.LINE_WIDTH = 25
-
-  def test_text_rewrap_footnote1(self):
-    self.text.wb = [
-      "l1", "<footnote id='1'>", "l2", "l3", "</footnote>", "l4"
-    ]
-    self.text.rewrap();
-    self.assertSequenceEqual(self.text.wb, [
-      ".rs 1", "l1", ".rs 1", ".rs 1",
-      "[1] l2 l3", ".rs 1", ".rs 1", "l4", ".rs 1",
-    ])
-
-  def test_text_rewrap_footnote_l(self):
-    self.text.wb = [
-      "l1", "<footnote id='1'>", "<l rend='center'>l2</l>", "l3", "</footnote>", "l4"
-    ]
-    self.text.rewrap();
-    self.assertSequenceEqual(self.text.wb, [
-      ".rs 1", "l1", ".rs 1", ".rs 1",
-      "[1]", ".rs 1",
-      config.FORMATTED_PREFIX + "           l2            ",
-      ".rs 1", "l3", ".rs 1", ".rs 1", "l4", ".rs 1",
-    ])
 
 class TableFormatter:
 
