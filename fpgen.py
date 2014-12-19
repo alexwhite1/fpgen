@@ -54,6 +54,7 @@ import config
 # 4.21a    Bug with level 4 headers
 # 4.22     Text footnote output change to [#] same line
 # 4.23     <drama> tag
+# 4.23a    Fix bug from 4.22: <lg> starting a footnote (text output)
 
 
 """
@@ -3226,12 +3227,18 @@ class Text(Book):
         # strip blank lines leading the footnote
         j = i+1;
         while j < len(self.wb):
-            if self.wb[j] != '':
-                break
-            del self.wb[j]
+          if self.wb[j] != '':
+            break
+          del self.wb[j]
         # Put the first line on the same line as the footnote number [#]
-        self.wb[i] = "[{}] ".format(m.group(1)) + self.wb[j];
-        del self.wb[i+1:j+1]
+        # unless it is formatting itself, e.g. <lg>...</lg>
+        fn = "[{}] ".format(m.group(1));
+        if self.wb[j][0] != '<':
+          self.wb[i] = fn + self.wb[j];
+          del self.wb[i+1:j+1]
+        else:
+          self.wb[i] = fn
+          del self.wb[i+1:j]
         # continue & wrap
 
       if self.wb[i].startswith("</footnote"):
@@ -3397,7 +3404,7 @@ class Text(Book):
           m = re.search("center", therend)
           if m:
             # center
-            self.wb[i] = "▹" + '{:^72}'.format(thetext.strip())
+            self.wb[i] = "▹" + '{:^{width}}'.format(thetext.strip(), width=config.LINE_WIDTH)
             handled = True
 
           if not handled:
@@ -3443,7 +3450,7 @@ class Text(Book):
                 if len(theline) > 75:
                   s = re.sub("□", " ", theline)
                   cprint("warning (long line):\n{}".format(s))
-                self.wb[i] = "▹" + '{:^72}'.format(theline)
+                self.wb[i] = "▹" + '{:^{width}}'.format(theline, width=config.LINE_WIDTH)
               else:
                 self.wb[i] = "▹"
             i += 1
@@ -3618,7 +3625,7 @@ class Text(Book):
         self.fatal("unhandled tag@{}: {}".format(i, self.wb[i]))
       t = []
       mark1 = i
-      while ( i < len(self.wb)
+      while (i < len(self.wb)
           and not empty.match(self.wb[i])
           and not re.match("[<▹]",self.wb[i])):
         t.append(self.wb[i])
@@ -3783,6 +3790,33 @@ class Text(Book):
     self.process()
     self.saveFile(self.dstfile)
 # END OF CLASS Text
+
+class TestTextRewrap(unittest.TestCase):
+  def setUp(self):
+    self.text = Text(None, None, 0, 't')
+    config.LINE_WIDTH = 25
+
+  def test_text_rewrap_footnote1(self):
+    self.text.wb = [
+      "l1", "<footnote id='1'>", "l2", "l3", "</footnote>", "l4"
+    ]
+    self.text.rewrap();
+    self.assertSequenceEqual(self.text.wb, [
+      ".rs 1", "l1", ".rs 1", ".rs 1",
+      "[1] l2 l3", ".rs 1", ".rs 1", "l4", ".rs 1",
+    ])
+
+  def test_text_rewrap_footnote_l(self):
+    self.text.wb = [
+      "l1", "<footnote id='1'>", "<l rend='center'>l2</l>", "l3", "</footnote>", "l4"
+    ]
+    self.text.rewrap();
+    self.assertSequenceEqual(self.text.wb, [
+      ".rs 1", "l1", ".rs 1", ".rs 1",
+      "[1]", ".rs 1",
+      config.FORMATTED_PREFIX + "           l2            ",
+      ".rs 1", "l3", ".rs 1", ".rs 1", "l4", ".rs 1",
+    ])
 
 class TableFormatter:
 
