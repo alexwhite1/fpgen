@@ -8,7 +8,6 @@ from fpgen import Lint, Text, HTML
 from fpgen import TestParseTableColumn, TestMakeTable, TestParsing, TestParseTagAttributes
 from drama import TestDrama, TestOneDramaBlockMethod
 from testtext import TestTextInline, TestTextRewrap
-from config import pn_cover, uopt
 
 def main():
   # process command line
@@ -153,16 +152,16 @@ def main():
     hb.run()
     OPT_EPUB_ARGS[1] = "{}-e.html".format(bn)
     OPT_EPUB_ARGS[2] = "{}.epub".format(bn)
-    if pn_cover != "":
-      OPT_EPUB_ARGS[4] = pn_cover
+    if config.pn_cover != "":
+      OPT_EPUB_ARGS[4] = config.pn_cover
 
-    if uopt.getopt('epub-margin-left') != "": # added 27-Mar-2014
+    if config.uopt.getopt('epub-margin-left') != "": # added 27-Mar-2014
       OPT_EPUB_ARGS.append("--margin-left")
-      OPT_EPUB_ARGS.append("{}".format(uopt.getopt('epub-margin-left')))
+      OPT_EPUB_ARGS.append("{}".format(config.uopt.getopt('epub-margin-left')))
 
-    if uopt.getopt('epub-margin-right') != "": # added 27-Mar-2014
+    if config.uopt.getopt('epub-margin-right') != "": # added 27-Mar-2014
       OPT_EPUB_ARGS.append("--margin-right")
-      OPT_EPUB_ARGS.append("{}".format(uopt.getopt('epub-margin-right')))
+      OPT_EPUB_ARGS.append("{}".format(config.uopt.getopt('epub-margin-right')))
 
     # call(OPT_EPUB_ARGS, shell=False)
     js = " ".join(OPT_EPUB_ARGS)
@@ -180,8 +179,8 @@ def main():
     hb.run()
     OPT_EPUB_ARGS[1] = "{}-e2.html".format(bn)
     OPT_EPUB_ARGS[2] = "{}-e2.epub".format(bn)
-    if pn_cover != "":
-      OPT_EPUB_ARGS[4] = pn_cover
+    if config.pn_cover != "":
+      OPT_EPUB_ARGS[4] = config.pn_cover
     # call(OPT_EPUB_ARGS, shell=False)
     js = " ".join(OPT_EPUB_ARGS)
     os.system(js)
@@ -202,20 +201,20 @@ def main():
     OPT_PDF_ARGS[1] = "{}-p.html".format(bn)
     OPT_PDF_ARGS[2] = "{}-a5.pdf".format(bn)
 
-    if uopt.getopt('pdf-default-font-size') != "":
+    if config.uopt.getopt('pdf-default-font-size') != "":
       OPT_PDF_ARGS.append("--pdf-default-font-size")
-      OPT_PDF_ARGS.append("{}".format(uopt.getopt('pdf-default-font-size')))
+      OPT_PDF_ARGS.append("{}".format(config.uopt.getopt('pdf-default-font-size')))
 
-    if uopt.getopt('pdf-margin-left') != "":
+    if config.uopt.getopt('pdf-margin-left') != "":
       OPT_PDF_ARGS.append("--margin-left")
-      OPT_PDF_ARGS.append("{}".format(uopt.getopt('pdf-margin-left')))
+      OPT_PDF_ARGS.append("{}".format(config.uopt.getopt('pdf-margin-left')))
 
-    if uopt.getopt('pdf-margin-right') != "":
+    if config.uopt.getopt('pdf-margin-right') != "":
       OPT_PDF_ARGS.append("--margin-right")
-      OPT_PDF_ARGS.append("{}".format(uopt.getopt('pdf-margin-right')))
+      OPT_PDF_ARGS.append("{}".format(config.uopt.getopt('pdf-margin-right')))
 
-    if pn_cover != "":
-      OPT_PDF_ARGS[4] = pn_cover
+    if config.pn_cover != "":
+      OPT_PDF_ARGS[4] = config.pn_cover
 
     # call(OPT_PDF_ARGS, shell=False)
     js = " ".join(OPT_PDF_ARGS)
