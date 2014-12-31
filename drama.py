@@ -392,7 +392,7 @@ class DramaHTML(Drama):
   speakerCSS = "[899] .speaker {{ margin-left: 0; margin-top: {}; font-variant: small-caps; {} {} }}"
   speakerInlineCSS = "[899] .speaker-inline { font-variant: small-caps; }"
   alignmentCSS = "[899] .verse-align { visibility:hidden; }"
-  alignmentNoIndentCSS = "[899] .verse-align-noindent {{ visibility:hidden; margin-left:-{}; }}"
+  alignmentNoIndentCSS = "[899] .verse-align-noindent {{ visibility:hidden; margin-left:{}; }}"
   alignmentInlineCSS = "[899] .verse-align-inline { position:absolute; text-indent:0; }"
 
   # This avoids a problem with margin-collapse when in speaker hang mode
@@ -428,7 +428,7 @@ class DramaHTML(Drama):
     self.css.addcss(self.stageembedCSS.format(padding))
 
     self.css.addcss(self.alignmentCSS)
-    self.css.addcss(self.alignmentNoIndentCSS.format(indent))
+    self.css.addcss(self.alignmentNoIndentCSS.format(indent[1:] if indent[0]=='-' else '-' + indent))
     self.css.addcss(self.alignmentInlineCSS)
 
     if self.stageIndent == Style.indent:
