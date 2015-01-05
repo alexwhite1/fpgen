@@ -58,6 +58,7 @@ import config
 # 4.23b    Fix bug with gesperrt inside <sc>
 # 4.23c    Fix pn_cover usage broken in 4.23
 # 4.23d    Fix .verse-align-noindent with hang
+# 4.23e    Fix implicit speech recognition in text
 
 
 """

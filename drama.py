@@ -116,7 +116,13 @@ class Drama:
             block = self.stageDirection(block, alignRight)
           else:
             if speaker == None:
+              # No explicit speaker defined.  See if we can make implicit
+              # speaker recognition.
               block[0], speaker = self.extractSpeaker(block[0])
+              if speaker != None:
+                # Generate left/center speakers, if we did an implicit
+                # speaker recognition
+                result.extend(self.speakerStandalone(speaker))
             isContinue = speaker == None
             block = self.speech(block, verse, speaker, isContinue)
             # Note speaker may have a blank line after it
@@ -137,8 +143,12 @@ class Drama:
       m = regexSpeaker.search(line)
       if m:
         speaker = m.group(1)
-        result.extend(self.speakerStandalone(speaker))
         line = regexSpeaker.sub("", line)
+
+        # Generate speaker for left and center.
+        # Note that hang and lineline are generated in speech,
+        # since they are part of the generated speech
+        result.extend(self.speakerStandalone(speaker))
 
         # <sp>speak</sp> line
         # exactly one space is normal and removed; more than one space is
@@ -474,7 +484,7 @@ class DramaText(Drama):
   #   TIPTREE (looking out):
   # speaker ends with a period (mixes up with MR. FOO:)
   #   ELMA.
-  # Returns Speaker, rest-of-line
+  # Returns rest-of-line, speaker
   def extractSpeaker(self, line):
     nCap = 0
     off = 0
@@ -488,7 +498,7 @@ class DramaText(Drama):
       elif c == ':':      # end of character name
         off = i
         break
-      elif c == '.':      # Mr., Mrs.
+      elif c == '.' or c == '-' or c == "'" or c == "’":      # Mr., Mrs.
         continue
       elif c.isupper():
         nCap += 1
@@ -500,12 +510,16 @@ class DramaText(Drama):
               off = i
               break
             i -= 1
-          break
+          if i > 0:
+            break
         return line, None
     if off > 0:
       return line[off:], line[:off]
-    # All upper-case?
-    return line, None
+    if nCap > 0:
+      # All upper-case?
+      return '', line
+    else:
+      return line, None
 
   def fill(self, block, indent, line0indent, leftmargin):
     # Fill the block in specified width
@@ -523,11 +537,12 @@ class DramaText(Drama):
       sp = speaker.upper()
       if self.speakerStyle == Style.centre:
         result.append(FORMATTED_PREFIX + (((config.LINE_WIDTH-len(sp))//2) * ' ') + sp)
-      else:
+      else: # self.speakerStyle == Style.left
         result.append(FORMATTED_PREFIX + sp)
     return result
 
   def speech(self, block, verse, speaker, isContinue):
+    #cprint("Speech: " + block[0] + ", " + str(verse) + ", " + str(speaker) + ", " + str(isContinue));
     result = []
 
     if self.speechIndent == Style.indent:
@@ -567,7 +582,7 @@ class DramaText(Drama):
       leftmargin = 0
 
     if speaker != None and self.speakerStyle == Style.inline:
-      if speaker[-1] != ' ' and block[0][0].isalpha():
+      if len(speaker) > 0 and speaker[-1] != ' ' and len(block[0]) > 0 and block[0][0].isalpha():
         speaker += ' '
       block[0] = speaker + block[0]
     if not verse:
@@ -899,15 +914,25 @@ class TestDrama(unittest.TestCase):
     self.assertEqual(line, ": This is a line")
     self.assertEqual(speaker, "SPEAKER")
 
+  def test_extract_speaker_text_standalone(self):
+    line, speaker = self.d.extractSpeaker("SPEAKER.")
+    self.assertEqual(line, "")
+    self.assertEqual(speaker, "SPEAKER.")
+
   def test_extract_speaker_text_with_stage(self):
     line, speaker = self.d.extractSpeaker("SPEAKER (stage): This is a line")
     self.assertEqual(line, "(stage): This is a line")
     self.assertEqual(speaker, "SPEAKER ")
 
   def test_extract_speaker_text_dot(self):
-    line, speaker = self.d.extractSpeaker("MR. FOO: This is a line")
+    line, speaker = self.d.extractSpeaker("MR. FOO-BAR'S SPEECH: This is a line")
     self.assertEqual(line, ": This is a line")
-    self.assertEqual(speaker, "MR. FOO")
+    self.assertEqual(speaker, "MR. FOO-BAR'S SPEECH")
+
+  def test_extract_speaker_text_cap_then_normal(self):
+    line, speaker = self.d.extractSpeaker("O'Brien is not caps")
+    self.assertEqual(line, "O'Brien is not caps")
+    self.assertEqual(speaker, None)
 
   def test_extract_speaker_text_dot2(self):
     line, speaker = self.d.extractSpeaker("ANNA. This is a line")
