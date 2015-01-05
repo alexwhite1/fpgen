@@ -842,6 +842,29 @@ class TestOneDramaBlockMethod(unittest.TestCase):
       ]
     )
 
+  def test_drama_parse_implicit_sp_calls_standalone(self):
+    # Don't want extractSpeaker mocked. Is there an easier way?
+    d = DramaHTML([], None)
+    d.speech = MagicMock()
+    d.stageDirection = MagicMock()
+    d.emitCss = MagicMock(name='emitCss')
+    d.speakerStandalone = MagicMock()
+    d.oneDramaBlock("", [ "⩤sc⩥speaker⩤/sc⩥", "", "l1", "l2", "", "l3" ])
+    self.assertEquals(
+      d.speakerStandalone.call_args_list,
+      [
+        call("speaker"),
+      ]
+    );
+    self.assertEquals(
+      d.speech.call_args_list,
+      [
+        call([""], False, "speaker", False),
+        call(["l1", "l2"], False, None, True),
+        call(["l3"], False, None, True)
+      ]
+    )
+
 #### End of class TestOneDramaBlockMethod
 
 class TestDrama(unittest.TestCase):
