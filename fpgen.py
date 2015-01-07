@@ -1685,6 +1685,13 @@ class HTML(Book):
 
       i += 1
 
+  fontmap = {
+    'l' : '⓯',
+    'xl' : '⓰',
+    's' : '⓱',
+    'xs' : '⓲'
+  }
+
   def restoreMarkup(self):
     self.dprint(1,"restoreMarkup")
     for i,line in enumerate(self.wb):
@@ -1724,10 +1731,16 @@ class HTML(Book):
       self.wb[i] = re.sub(r"⩤(fn id=['\"].*?['\"]/?)⩥",r'<\1>', self.wb[i])
 
       # new inline tags 2014.01.27
-      self.wb[i] = re.sub(r"<fs:l>",'⓯', self.wb[i])
-      self.wb[i] = re.sub(r"<fs:xl>",'⓰', self.wb[i])
-      self.wb[i] = re.sub(r"<fs:s>",'⓱', self.wb[i])
-      self.wb[i] = re.sub(r"<fs:xs>",'⓲', self.wb[i])
+      while True:
+        m = re.search(r"<fs:(.*?)>", self.wb[i])
+        if not m:
+          break
+        size = m.group(1)
+        if not size in self.fontmap:
+          fatal("<fs> tag has an unknown or unsupported size " + size +
+              " in line " + self.wb[i])
+        self.wb[i] = self.wb[i][:m.start()] + self.fontmap[size] + self.wb[i][m.end():]
+
       self.wb[i] = re.sub(r"<\/fs>",'⓳', self.wb[i])
 
   def startHTML(self):

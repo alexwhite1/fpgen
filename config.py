@@ -51,7 +51,8 @@ uopt = userOptions()
 # 4.23c    Fix pn_cover usage broken in 4.23
 # 4.23d    Fix .verse-align-noindent with hang
 # 4.23e    Fix implicit speech recognition in text
-VERSION="4.23e"
+# 4.23f    Give error if <fs:xx> value is not matched
+VERSION="4.23f"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
