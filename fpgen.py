@@ -2894,10 +2894,20 @@ class Text(Book):
     regexFS1 = re.compile("<fs:.+?>")
     regexG = re.compile(r"<g>(.*?)<\/g>")
 
+    # A set of characters to be removed.  In case somebody is tweaking
+    # the spacing of the html output, we don't want it in the text output,
+    # we don't want it part of the alignment.
+    # 2009: thin space
+    # 202f: narrow no-break space
+    # 2060: word-joiner
+    regexRemove = re.compile("[\u2009\u202f\u2060]")
+
     i = 0
     while i < len(self.wb):
 
         self.wb[i] = regexOL.sub("‾", self.wb[i]) # overline 10-Apr-2014
+
+        self.wb[i] = regexRemove.sub("", self.wb[i])
 
         self.wb[i] = regexI.sub(replacewith, self.wb[i]) # italic
         self.wb[i] = regexEM.sub("_", self.wb[i]) # italic

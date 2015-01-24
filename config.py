@@ -52,7 +52,8 @@ uopt = userOptions()
 # 4.23d    Fix .verse-align-noindent with hang
 # 4.23e    Fix implicit speech recognition in text
 # 4.23f    Give error if <fs:xx> value is not matched
-VERSION="4.23f"
+# 4.24     Remove special unicode spaces from text formatting input
+VERSION="4.24"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
