@@ -53,7 +53,8 @@ uopt = userOptions()
 # 4.23e    Fix implicit speech recognition in text
 # 4.23f    Give error if <fs:xx> value is not matched
 # 4.24     Remove special unicode spaces from text formatting input
-VERSION="4.24"
+# 4.24a    french-with-typographic-spaces option added
+VERSION="4.24a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

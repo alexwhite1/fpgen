@@ -58,6 +58,16 @@ class userOptions(object):
     else:
       return ""
 
+  def isOpt(self, k, default):
+    if k in self.opt:
+      if self.opt[k] == "true":
+        return True
+      elif self.opt[k] == "false":
+        return False
+      else:
+        fatal("Option " + k + ": must be true or false, not " + self.opt[k])
+    return default
+
 empty = re.compile("^$")
 
 def dprint(level, msg):
@@ -1623,23 +1633,23 @@ class HTML(Book):
     i = 1
     while i < len(self.wb)-1:
 
-      if re.match("▹", self.wb[i]): # preformatted
+      if self.wb[i].startswith("▹"): # preformatted
         i += 1
         continue
 
-      if re.match("<lg",self.wb[i]): # no paragraphs in line groups
-        while not re.match("<\/lg",self.wb[i]):
+      if self.wb[i].startswith("<lg"): # no paragraphs in line groups
+        while not self.wb[i].startswith("</lg"):
           i += 1
         i += 1
         continue
 
-      if re.match("<table",self.wb[i]): # no paragraphs in tables
-        while not re.match("<\/table",self.wb[i]):
+      if self.wb[i].startswith("<table"): # no paragraphs in tables
+        while not self.wb[i].startswith("</table"):
           i += 1
         i += 1
         continue
 
-      if re.match("<nobreak>", self.wb[i]): # new 27-Mar-2014
+      if self.wb[i].startswith("<nobreak>"): # new 27-Mar-2014
         if not indent:
           self.fatal("<nobreak> only legal with option pstyle set to indent")
         paragraphTag = noIndentPara
@@ -1649,7 +1659,7 @@ class HTML(Book):
       if re.search("☊", self.wb[i]) and indent:
         paragraphTag = noIndentPara
 
-      if re.match("<hang>", self.wb[i]):
+      if self.wb[i].startswith("<hang>"):
         paragraphTag = hangPara
         self.wb[i] = re.sub("<hang>", "", self.wb[i])
 
@@ -1670,7 +1680,7 @@ class HTML(Book):
 
       # start of paragraph # 07-Mar-2014 edit
       if (empty.match(self.wb[i-1]) and not empty.match(self.wb[i])
-        and not re.match("<", self.wb[i])):
+        and not self.wb[i].startswith("<")):
           self.wb[i] = paragraphTag + self.wb[i] # 27-Mar-2014
           paragraphTag = defaultPara
           i +=  1
@@ -1938,6 +1948,25 @@ class HTML(Book):
             u.append(mline)
         self.wb[i:i+1] = u
         return
+      i += 1
+
+  NARROW_NO_BREAK_SPACE = "\u202f"
+
+  # Add non-breaking thin space before !, ? and ;
+  # per french typographic rules.
+  # Only done with an option
+  def tweakSpacing(self):
+    self.dprint(1, "tweakSpacing")
+
+    # Default is false, this code is not run
+    if not config.uopt.isOpt("french-with-typographic-spaces", False):
+      return
+
+    repl = r"\1" + self.NARROW_NO_BREAK_SPACE + r"\2"
+    i = 0
+    while i < len(self.wb):
+      if not self.wb[i].startswith("▹") and not self.wb[i].startswith("<"):
+        self.wb[i] = re.sub(r"(\w)([!?;])", repl, self.wb[i])
       i += 1
 
   def endHTML(self):
@@ -2711,6 +2740,7 @@ class HTML(Book):
     self.protectMarkup()
     self.preprocess()
     self.userHeader()
+    self.tweakSpacing()
     self.userToc()
     self.processLinks()
     self.processTargets()
