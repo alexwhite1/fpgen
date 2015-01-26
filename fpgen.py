@@ -1361,6 +1361,10 @@ class HTML(Book):
         self.wb[i] = re.sub(r"\\<", '≼', self.wb[i]) # escaped open tag marks
         self.wb[i] = re.sub(r"\\>", '≽', self.wb[i]) # escaped close tag marks
 
+        self.wb[i] = re.sub(r"<thinsp>", "\u2009", self.wb[i])
+        self.wb[i] = re.sub(r"<nnbsp>", "\u202f", self.wb[i])
+        self.wb[i] = re.sub(r"<wjoiner>", "\u2060", self.wb[i])
+
         # Line ending in period must join with subsequent line starting with periods
         # We do not have agreement on this yet!
 #        if self.wb[i].endswith('.') and  i + 1 < len(self.wb) :
@@ -3142,6 +3146,7 @@ class Text(Book):
       s = re.sub("<(\/?g)>", r"[[\1]]", s) # gesperrt
       s = re.sub("<(\/?u)>", r"[[\1]]", s) # underline
       s = re.sub(r"\\ ", "□", s) # hard spaces
+      s = re.sub(r"<thinsp>|<nnbsp>|<wjoiner>", "", s) # remove special tags
       s = re.sub(r" ",'□', s) # unicode 0xA0, non-breaking space
       while re.search(r"\. \.", s):
         s = re.sub(r"\. \.", ".□.", s) # spaces in ellipsis
