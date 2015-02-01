@@ -3,11 +3,14 @@
 
 from optparse import OptionParser
 from subprocess import call
+from parse import parseTagAttributes, parseOption
+from msgs import cprint, uprint, dprint, fatal
 import re, sys, string, os, shutil
 import textwrap
 import codecs
 import platform
 import unittest
+import collections
 from unittest.mock import MagicMock, Mock, call
 
 import config
@@ -69,26 +72,6 @@ class userOptions(object):
     return default
 
 empty = re.compile("^$")
-
-def dprint(level, msg):
-  if int(config.debug) >= level:
-    cprint("{}".format(msg))
-
-# safe print of possible UTF-8 character strings on ISO-8859 terminal
-def cprint(s):
-  s = re.sub("◻"," ", s)
-  t = "".join([x if ord(x) < 128 else '?' for x in s])
-  print(t)
-
-# Emit the UTF-8 chars as \uXXXX hex strings
-def uprint(s):
-  s = re.sub("◻"," ", s)
-  t = "".join([x if ord(x) < 128 else ("\\u"+hex(ord(x))) for x in s])
-  print(t)
-
-def fatal(message):
-  sys.stderr.write("fatal: " + message + "\n")
-  exit(1)
 
 # wrap string s, returns wrapped list
 # parameters
@@ -526,17 +509,12 @@ class Book(object):
         i += len(u)
       i += 1
 
-    # map drop caps requests
     for i, line in enumerate(self.wb):
+      # map drop caps requests
       self.wb[i] = re.sub("<drop>", "☊", self.wb[i])
       self.wb[i] = re.sub("<\/drop>", "☋", self.wb[i])
 
-    # courtesy remaps mr:0 to mr:0em, etc. for all formats
-    for i,line in enumerate(self.wb):
-      self.wb[i] = re.sub("mr:0", "mr:0em", self.wb[i])
-      self.wb[i] = re.sub("ml:0", "ml:0em", self.wb[i])
-      self.wb[i] = re.sub("mt:0", "mt:0em", self.wb[i])
-      self.wb[i] = re.sub("mb:0", "mb:0em", self.wb[i])
+      # map <br> to be legal
       self.wb[i] = re.sub("<br>", "<br/>", self.wb[i])
 
     # normalize rend format to have trailing semicolons
@@ -1194,135 +1172,115 @@ class HTML(Book):
   #   pf:  true if line being used in poetry
   #   lgr: encompassing markup (i.e. from a lg rend attribute)
 
+  # This is only an ordered dictionary so that the values come out in
+  # the same order as they used to, which is only required for tests,
+  # to not show changes.
+  marginMap = collections.OrderedDict(
+    ml= 'margin-left',
+    mr= 'margin-right',
+    mt= 'margin-top',
+    mb= 'margin-bottom',
+  )
+
+  sizeMap = {
+    "xlg"   : "x-large",
+    "xlarge": "x-large",
+    "lg"    : "large",
+    "large" : "large",
+    "xsm"   : "x-small",
+    "xsmall": "x-small",
+    "sm"    : "small",
+    "small" : "small",
+  }
+
+  legalOptions = [
+    "center", "right", "left",
+    "mr", "ml", "mt", "mb",
+    "sa", "sb",
+    "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
+    "under", "bold", "sc", "smallcaps", "i", "italic",
+  ]
+
   def m2h(self, s, pf='False', lgr=''):
     incoming = s
     m = re.match("<l(.*?)>(.*?)<\/l>",s)
     if not m:
       self.fatal("malformed line: {}".format(s))
     # combine rend specified on line with rend specified for line group
-    t1 = m.group(1).strip() + " " + lgr
+    attributes = parseTagAttributes("l", m.group(1), [ 'rend', 'id' ])
+    rend = attributes['rend'] if 'rend' in attributes else ""
+    options = parseOption("<lg>/rend=", lgr, self.legalOptions) if lgr != '' else {}
+    options.update(parseOption("<l>/rend=", rend, self.legalOptions))
+    #t1 = m.group(1).strip() + " " + lgr
     t2 = m.group(2)
 
-    setid = ""
-    m = re.search("id=[\"'](.*?)[\"']", t1) # an id (target)
-    if m:
-      setid = m.group(1)
-      t1 = re.sub("id=[\"'](.*?)[\"']", "", t1)
+    setid = attributes['id'] if id in attributes else ''
 
-    therend = t1
-
-    if re.match("(◻+)", t2) and re.search("center", therend):
+    if re.match("(◻+)", t2) and 'center' in options:
       self.fatal("indent requested on centered line. exiting")
-    if re.match("(◻+)", t2) and re.search("right", therend):
+    if re.match("(◻+)", t2) and 'right' in options:
       self.fatal("indent requested on right-aligned line. exiting")
 
     # with poetry, leave indents as hard spaces; otherwise, convert to ml
     m = re.match("(\s+)", t2) # leading spaces on line
     if m:
       if not pf: # not poetry
-        therend += "ml:{}em".format(len(m.group(1)))
+        options['ml'] = '{}em'.format(len(m.group(1)))
         t2 = re.sub("^\s+","",t2)
       else:
         t2 = "&#160;"*len(m.group(1)) + re.sub("^\s+","",t2)
 
     thetext = t2
-    therend = therend.strip()
     thestyle = "" # reset the style
 
     # ----- alignment -----------
-    if re.search("center", therend):
+    if 'center' in options:
       thestyle += "text-align:center;"
-      therend = re.sub("center", "", therend)
 
-    if re.search("right", therend):
+    if 'right' in options:
       thestyle += "text-align:right;"
-      therend = re.sub("right", "", therend)
 
-    if re.search("left", therend):
+    if 'left' in options:
       thestyle += "text-align:left;"
-      therend = re.sub("left", "", therend)
 
     # ----- margins -------------
+    if 'mr' in options:
+      thestyle += 'text-align:right;'
+    elif 'ml' in options:
+      thestyle += 'text-align:left;'
 
-    # three forms: mt:2em or mt:2.5em or mt:.8em
-
-    m = re.search("m[tblr]:\.\d+em", therend)
-    if m:
-      therend = re.sub(":\.",":0.", therend)
-
-    m = re.search("mt:(\d+)em", therend)
-    if m:
-      thestyle += "margin-top:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-    m = re.search("mt:(\d+\.\d+)em", therend)
-    if m:
-      thestyle += "margin-top:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-
-    m = re.search("mr:(\d+)em", therend)
-    if m:
-      thestyle += "text-align:right;margin-right:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-    m = re.search("mr:(\d+\.\d+)em", therend)
-    if m:
-      thestyle += "text-align:right;margin-right:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-
-    m = re.search("mb:(\d+)em", therend)
-    if m:
-      thestyle += "margin-bottom:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-    m = re.search("mb:(\d+\.\d+)em", therend)
-    if m:
-      thestyle += "margin-bottom:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-
-    m = re.search("ml:(\d+)em", therend)
-    if m:
-      thestyle += "text-align:left;margin-left:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-    m = re.search("ml:(\d+\.\d+)em", therend)
-    if m:
-      thestyle += "text-align:left;margin-left:{}em;".format(m.group(1))
-      therend = re.sub(m.group(0), "", therend)
-
-    # check that all mt, mr, mb and ml have been handled
-    if re.search(r"mt|mr|mb|ml", therend):
-      print("unhandled margin: {}".format(incoming))
+    for key in self.marginMap:
+      if key in options:
+        value = options[key]
+        if value != '0' and not value.endswith('em'):
+          fatal("Margin option " + key + " value " + value +
+            " must either be 0 or end with em.  Found in options: " +
+            rend + " " + lgr)
+        if value == '0':
+          value = '0em'
+        thestyle += self.marginMap[key] + ":" + value + ";"
 
     # ----- font size -----------
-    if re.search("xlg", therend):
-      thestyle += "font-size:x-large;"
-      therend = re.sub("xlg", "", therend)
-    if re.search("lg", therend):
-      thestyle += "font-size:large;"
-      therend = re.sub("lg", "", therend)
+    for key in self.sizeMap:
+      if key in options:
+        thestyle += "font-size:" + self.sizeMap[key] + ";"
 
-    if re.search("xsm", therend):
-      thestyle += "font-size:x-small;"
-      therend = re.sub("xsm", "", therend)
-    if re.search("sm", therend):
-      thestyle += "font-size:small;"
-      therend = re.sub("sm", "", therend)
-
-    m = re.search("fs:([\d\.]+)em", therend)
-    if m:
-      thestyle += "font-size:{}em;".format(m.group(1))
-      therend = re.sub("fs([\d\.]+)em", "", therend)
+    if "fs" in options:
+      value = options['fs']
+      if not re.match("[\d\.]+em$", value):
+        fatal("Font size option fs:" + value + ", must be specified in ems." +
+          " Found in options: " + rend + " " + lgr)
+      thestyle += "font-size:{};".format(options['fs'])
 
     # ----- font presentation ---
-    if re.search("under", therend):
+    if "under" in options:
       thestyle += "text-decoration:underline;"
-      therend = re.sub("under", "", therend)
-    if re.search("bold", therend):
+    if "bold" in options:
       thestyle += "font-weight:bold;"
-      therend = re.sub("bold", "", therend)
-    if re.search("sc", therend):
+    if "sc" in options or "smallcaps" in options:
       thestyle += "font-variant:small-caps;"
-      therend = re.sub("sc", "", therend)
-    if re.search("i", therend):
+    if "i" in options or "italic" in options:
       thestyle += "font-style:italic;"
-      therend = re.sub("i", "", therend)
 
     thestyle = thestyle.strip()
     hstyle = ""
@@ -3426,6 +3384,12 @@ class Text(Book):
           if m:
             # indent left
             howmuch = int(m.group(1))
+          else:
+            m = re.search("ml:0", therend)
+            if m:
+              howmuch = 0
+
+          if m:
             self.wb[i] = self.qstack[-1] + " " * howmuch + thetext.strip()
             handled = True
 
@@ -3437,6 +3401,10 @@ class Text(Book):
             if m:
               # indent right
               howmuch = int(m.group(1))
+            else:
+              m = re.search("mr:0", therend)
+              if m:
+                howmuch = 0
 
           if m:
             # rend="right" or rend="mr:0"
@@ -3549,7 +3517,7 @@ class Text(Book):
                 self.wb[i] = tstr.format(itext)
                 i += 1
                 continue
-              if re.search("mr:0em", irend):
+              if re.search("mr:0em", irend) or re.search("mr:0", irend):
                 tstr = "▹{0:>" + "{}".format(maxwidth) + "}"
                 self.wb[i] = tstr.format(itext)
                 i += 1
@@ -4447,132 +4415,6 @@ class TestMakeTable(unittest.TestCase):
 
   # TODO: Tests for computing widths
   # TODO: Tests for computing some widths
-
-def parseTagAttributes(tag, arg, legalAttributes = None):
-  try:  # TODO: Move this up
-    attributes = parseTagAttributes1(arg)
-
-    if legalAttributes != None:
-      for attribute in attributes.keys():
-        if not attribute in legalAttributes:
-          raise Exception("Keyword " + attribute + ": Unknown keyword in " + arg)
-
-  except Exception as e:
-    fatal(tag + ": " + str(e))
-  return attributes
-
-# A tag looks like:
-#   <tag key1='value1' key2="value2" ...>
-# where whatever quote starts a value, must end a value
-# Returns { 'key1' : 'value1', 'key2' : 'value2' ... }
-def parseTagAttributes1(arg):
-  attributes = {}
-  while True:
-    keyword, sep, rest = arg.partition('=')
-    # Done?
-    if not sep:
-      break
-    keyword = keyword.lstrip()
-    quote = rest[0]
-    if quote not in [ "'", '"' ]:
-      raise Exception("Keyword {}: value is not quoted in {}".format(keyword, arg))
-    off = rest.find(quote, 1)
-    if off == -1:
-      raise Exception("keyword {}: value has no terminating quote in {}".format(keyword, arg))
-    value = rest[1:off]
-    attributes[keyword] = value
-    if off+1 == len(rest):
-      break
-    arg = rest[off+1:].lstrip()
-  #sys.stdout.write("result={}".format(attributes))
-  return attributes
-
-# Parse a single attribute list
-# e.g. rend='mr:5em mb:1em italic'
-# would parse into
-#  { 'mr' : '5em', 'mb' : '1em', 'italic' : '' }
-def parseOption(arg):
-  options = {}
-  arg = arg.strip()
-  while True:
-    m = re.match("^([^ :]*)([ :])(.*)$", arg)
-    if not m:
-      # Rest of string is keyword
-      if arg != "":
-        options[arg] = ""
-      break
-
-    keyword = m.group(1)
-    sep = m.group(2)
-    rest = m.group(3)
-
-    # Remove trailing semi-colon
-    if rest[-1] == ';':
-      rest = rest[0:-1]
-
-    if sep == ' ':
-      # Simple keyword, no value
-      options[keyword] = ""
-      arg = rest
-    else:
-      off = rest.find(' ')
-      if off == -1:
-        off = len(rest)
-      value = rest[0:off]
-      options[keyword] = value
-      arg = rest[off:].lstrip()
-  #sys.stdout.write("result={}\n".format(options))
-  return options
-
-class TestParseTagAttributes(unittest.TestCase):
-  def test_1(self):
-    assert parseTagAttributes1("k1='a' k2='b'") == { 'k1':'a', 'k2':'b' }
-  def test_EmbeddedOtherQuote(self):
-    assert parseTagAttributes1("k1='aa\"bc'") == { 'k1':'aa"bc' }
-  def test_Empty(self):
-    assert parseTagAttributes1("") == { }
-  def test_SpacesOnly(self):
-    assert parseTagAttributes1("   ") == { }
-  def test_SpaceInKey(self):
-    assert parseTagAttributes1("   kxx ky='a' ") == { "kxx ky" : 'a' }
-  def test_NoCloseQuote1(self):
-    self.assertRaises(Exception, parseTagAttributes1, "   k1='a ")
-  def test_NoCloseQuote(self):
-    assert parseTagAttributes1("   k1='a k2='b' ") == { "k1" : "a k2=" }
-  def test_NoQuote(self):
-    self.assertRaises(Exception, parseTagAttributes1, "k1=a k2='b'")
-
-  def test_WithAtt(self):
-    assert parseTagAttributes("x", "k1='a' k2='b'", [ 'k1', 'k2' ]) == { 'k1':'a', 'k2':'b' }
-  def test_WithAttBad(self):
-    with self.assertRaises(SystemExit) as cm:
-      parseTagAttributes("x", "k1='a' kx='b'", [ 'k1', 'k2' ]) == { 'k1':'a', 'k2':'b' }
-    self.assertEqual(cm.exception.code, 1)
-
-  def test_Option(self):
-    assert parseOption('mr:5em   mb:1em italic') ==  { 'mr' : '5em', 'mb' : '1em', 'italic' : '' }
-  def test_OptionEmpty(self):
-    assert parseOption('') == { }
-  def test_OptionSpacesOnly(self):
-    assert parseOption('') == { }
-  def test_OptionSingleNoEq(self):
-    assert parseOption('italic') == { 'italic' : '' }
-  def test_OptionNoEqLeading(self):
-    assert parseOption('poetry mt:5em') == { 'poetry' : '', 'mt' : '5em' }
-  def test_OptionSingleNoEqTrailingSp(self):
-    assert parseOption('italic  ') == { 'italic' : '' }
-  def test_OptionNoEqSp(self):
-    assert parseOption('   mt:33    italic  ') == { 'mt' : '33', 'italic' : '' }
-  def test_OptionSingleNoEqLeadingSp(self):
-    assert parseOption('  italic') == { 'italic' : '' }
-  def test_OptionSingleEq(self):
-    assert parseOption('mr:4em') == { 'mr' : '4em' }
-  def test_OptionSingleEqTrailingSp(self):
-    assert parseOption('mr:4em   ') == { 'mr' : '4em' }
-  def test_OptionSingleEqLeadingSp(self):
-    assert parseOption('  mr:4em') == { 'mr' : '4em' }
-  def test_OptionSingleEqTrailingSp(self):
-    assert parseOption('mr:4em   ') == { 'mr' : '4em' }
 
 if __name__ == '__main__':
   from main import main

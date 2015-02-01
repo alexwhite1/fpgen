@@ -7,9 +7,10 @@ import unittest
 from unittest.mock import MagicMock, Mock, call
 
 import config
-from fpgen import parseStandaloneTagBlock, parseTagAttributes, wrap2, dprint, \
-  fatal, parseOption, cprint
+from fpgen import parseStandaloneTagBlock, wrap2
+from parse import parseTagAttributes, parseOption1
 from config import FORMATTED_PREFIX
+from msgs import fatal, uprint, cprint, dprint
 
 class Style:
   indent = 1
@@ -76,7 +77,7 @@ class Drama:
       verse = False
 
     if 'rend' in args:
-      rendArgs = parseOption(args['rend'])
+      rendArgs = parseOption1(args['rend'])
       if 'align-last' in rendArgs:
         align = rendArgs['align-last']
         if align == 'true':

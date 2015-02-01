@@ -55,7 +55,8 @@ uopt = userOptions()
 # 4.24     Remove special unicode spaces from text formatting input
 # 4.24a    french-with-typographic-spaces option added
 # 4.24b    unicode space tags
-VERSION="4.24b"
+# 4.25     <l> uses proper option parser with errors
+VERSION="4.25"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

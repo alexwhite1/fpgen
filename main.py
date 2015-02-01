@@ -5,7 +5,8 @@ import unittest
 
 import config
 from fpgen import Lint, Text, HTML
-from fpgen import TestParseTableColumn, TestMakeTable, TestParsing, TestParseTagAttributes
+from fpgen import TestParseTableColumn, TestMakeTable, TestParsing
+from parse import TestParseTagAttributes
 from drama import TestDrama, TestOneDramaBlockMethod
 from testtext import TestTextInline, TestTextRewrap
 
