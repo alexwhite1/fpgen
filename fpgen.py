@@ -1531,17 +1531,23 @@ class HTML(Book):
   def processLinks(self):
     self.dprint(1,"processLinks")
     for i,line in enumerate(self.wb):
-      m = re.search("<link target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
-      if m:
-        self.wb[i] = re.sub("<link target=[\"'].*?[\"']>","⩤a href='#{}'⩥".format(m.group(1)), self.wb[i])
-        self.wb[i] = re.sub("<\/link>","⩤/a⩥",self.wb[i])
+      while True:
+        m = re.search("<link target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
+        if m:
+          self.wb[i] = re.sub("<link target=[\"'].*?[\"']>","⩤a href='#{}'⩥".format(m.group(1)), self.wb[i], 1)
+          self.wb[i] = re.sub("<\/link>","⩤/a⩥",self.wb[i], 1)
+        else:
+          break
 
   def processTargets(self):
     self.dprint(1,"processTargets")
     for i,line in enumerate(self.wb):
-      m = re.search("<target id=[\"'](.*?)[\"']\/?>", self.wb[i])
-      if m:
-        self.wb[i] = re.sub("<target id=[\"'].*?[\"']\/?>","⩤a id='{}'⩥⩤/a⩥".format(m.group(1)), self.wb[i])
+      while True:
+        m = re.search("<target id=[\"'](.*?)[\"']\/?>", self.wb[i])
+        if m:
+          self.wb[i] = re.sub("<target id=[\"'].*?[\"']\/?>","⩤a id='{}'⩥⩤/a⩥".format(m.group(1)), self.wb[i], 1)
+        else:
+          break
 
   def protectMarkup(self):
     fnc = 1 # available to autonumber footnotes

@@ -56,7 +56,8 @@ uopt = userOptions()
 # 4.24a    french-with-typographic-spaces option added
 # 4.24b    unicode space tags
 # 4.25     <l> uses proper option parser with errors
-VERSION="4.25"
+# 4.25a    Multiple <link> or <target> on the same line fixed
+VERSION="4.25a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
