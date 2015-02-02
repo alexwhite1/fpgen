@@ -2492,16 +2492,26 @@ class HTML(Book):
   def doFootnotes(self):
     self.dprint(1,"doFootnotes")
 
+    regex = re.compile("<fn id=[\"'](.*?)[\"']\/?>")
+    footnotes = []
+
     # footnote marks in text
     i = 0
     while i < len(self.wb):
-      m = re.search("<fn id=[\"'](.*?)[\"']\/?>", self.wb[i])
+      m = regex.search(self.wb[i])
       while m: # two footnotes on same line
         fmid = m.group(1)
-        self.wb[i] = re.sub("<fn id=[\"'](.*?)[\"']\/?>",
-          "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
-          self.wb[i],1)
-        m = re.search("<fn id=[\"'](.*?)[\"']\/?>", self.wb[i])
+        if fmid in footnotes:
+          cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
+          self.wb[i] = re.sub("<fn id=[\"'](.*?)[\"']\/?>",
+            "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
+            self.wb[i], 1)
+        else:
+          footnotes.append(fmid)
+          self.wb[i] = re.sub("<fn id=[\"'](.*?)[\"']\/?>",
+            "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
+            self.wb[i], 1)
+        m = regex.search(self.wb[i])
       i += 1
 
     # footnote targets and text
