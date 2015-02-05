@@ -58,7 +58,8 @@ uopt = userOptions()
 # 4.25     <l> uses proper option parser with errors
 # 4.25a    Multiple <link> or <target> on the same line fixed
 # 4.25b    Fix multiple <fn id='#"> same id for reverse at the first
-VERSION="4.25b"
+# 4.26     Add <summary> tag
+VERSION="4.26"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

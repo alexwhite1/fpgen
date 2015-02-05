@@ -258,6 +258,18 @@ class Book(object):
               i += len(numeral)
       return result
 
+  summaryStyle = "hang"
+
+  def doSummary(self):
+    self.dprint(1,"doSummary")
+    style = config.uopt.getopt("summary-style");
+    if style != "":
+      if style == "hang" or style == "block":
+        self.summaryStyle = style
+      else:
+        fatal("option summary-style must be either hang or block, not: " + style)
+    parseStandaloneTagBlock(self.wb, "summary", self.oneSummary)
+
   # validate file as UTF-8
   def checkFile(self, fn):
     fileOk = True
@@ -2055,6 +2067,15 @@ class HTML(Book):
             self.css.addcss("[260] h4 { text-align:center; font-weight:normal;")
             self.css.addcss("[261]      font-size:1.0em; margin:1em auto 0.5em auto}")
 
+  def oneSummary(self, openTag, block):
+    if openTag != "":
+      fatal("Badly formatted <summary>: <summary " + openTag + ">")
+    if self.summaryStyle == "hang":
+      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:3em; padding-right:1.5em; text-indent:-1.5em; }")
+    else:
+      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; }")
+    return [ "<div class='summary'>" ] + block + [ "</div>" ]
+
   def doBlockq(self):
     self.dprint(1,"doBlockq")
     regex = re.compile("<quote(.*?)>")
@@ -2703,6 +2724,7 @@ class HTML(Book):
     self.doHeadings()
     # self.doDrama()
     self.doBlockq()
+    self.doSummary()
     self.doBreaks()
     self.doTables()
     self.doIllustrations()
@@ -3195,6 +3217,20 @@ class Text(Book):
               i += len(t)
               continue
       i += 1
+
+  def oneSummary(self, openTag, block):
+    if openTag != "":
+      fatal("Badly formatted <summary>: <summary " + openTag + ">")
+    if self.summaryStyle == "hang":
+      lm = 2
+      ti = 0
+    else:
+      lm = 0
+      ti = 0
+    result = wrap2(" ".join(block), 3, 3, lm, ti)
+    for i in range(0, len(result)):
+      result[i] = config.FORMATTED_PREFIX + result[i]
+    return result
 
   # rewrap
   # doesn't touch lines that are already formatted
@@ -3809,6 +3845,7 @@ class Text(Book):
     from drama import DramaText
     DramaText(self.wb).doDrama()
     self.markLines()
+    self.doSummary()
     self.rewrap()
     self.finalSpacing()
     self.finalRend()
