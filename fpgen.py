@@ -730,11 +730,16 @@ class Book(object):
 
 # end of class Book
 
-def parseTablePattern(line):
+def parseTablePattern(line, isHTML):
   # pull the pattern
-  m = re.search("pattern=[\"'](.*?)[\"']", line)
+  if isHTML:
+    m = re.search("patternhtml=[\"'](.*?)[\"']", line)
+  else:
+    m = re.search("patterntext=[\"'](.*?)[\"']", line)
   if not m:
-    fatal("No pattern= option to table: " + line)
+    m = re.search("pattern=[\"'](.*?)[\"']", line)
+    if not m:
+      fatal("No pattern= option to table: " + line)
   tpat = m.group(1)
 
   cols = []
@@ -767,6 +772,9 @@ def parseTablePattern(line):
       col.align = "center"
     elif oneCol[off] == 'l':
       col.align = "left"
+    elif oneCol[off] == 'h':
+      col.align = "left"
+      col.hang = True
     elif oneCol[off] == 'r':
       col.align = "right"
     off += 1
@@ -827,6 +835,7 @@ class Col:
     self.lineBeforeStyle = '|'
     self.lineAfterStyle = '|'
     self.isLast = False
+    self.hang = False
 
   def __eq__(self, other):
     return self.__dict__ == other.__dict__
@@ -2229,9 +2238,10 @@ class HTML(Book):
         tattr = m.group(1)
         self.css.addcss("[560] table.center { margin:0.5em auto; border-collapse: collapse; padding:3px; }")
         self.css.addcss("[560] table.left { margin:0.5em 1.2em; border-collapse: collapse; padding:3px; }")
+        self.css.addcss("[560] table.flushleft { margin:0.5em 0em; border-collapse: collapse; padding:3px; }")
 
         # pull the pattern
-        columns = parseTablePattern(tattr)
+        columns = parseTablePattern(tattr, True)
 
         # Were there any user-specified widths?
         userWidth = False
@@ -2244,6 +2254,7 @@ class HTML(Book):
         trend = ""
         useborder = False
         left = False
+        flushleft = False
         m = re.search("rend='(.*?)'", tattr)
         if m:
           trend = m.group(1)
@@ -2255,6 +2266,7 @@ class HTML(Book):
             hpad = int(m.group(1))
           useborder = re.search("border", trend) # table uses borders
           left = re.search("left", trend)  # Left, not centre
+          flushleft = re.search("flushleft", trend)  # Left, without indent
 
         # Generate nth-of-type css for columns that need lines between them
         colIndex = 1
@@ -2279,7 +2291,9 @@ class HTML(Book):
         j = i + 1
 
         s = "<table id='" + tableID +"' summary='' class='"
-        if left:
+        if flushleft:
+          s += 'flushleft'
+        elif left:
           s += 'left'
         else:
           s += 'center'
@@ -2373,10 +2387,17 @@ class HTML(Book):
             if userClass != None:
               class2 = class2 + ' ' + userClass
 
+            if col.hang:
+              hang = "padding-left:1.5em; text-indent:-1.5em;"
+            else:
+              hang = ''
+
             line += "<td class='" + class1 + " " + class2 + "' " +\
               "style='padding: " + \
               str(vpad) + "px " + str(hpad) + "px; " + \
-              "text-align:" + align + "; vertical-align:top'" + \
+              "text-align:" + align + "; vertical-align:top;" + \
+              hang + \
+              "'" + \
               colspan + ">" + data + "</td>"
 
           line += "</tr>"
@@ -3886,7 +3907,7 @@ class TableFormatter:
         self.vpad = True
 
     # pattern must be specified
-    self.columns = parseTablePattern(self.tableLine)
+    self.columns = parseTablePattern(self.tableLine, False)
     self.ncols = len(self.columns)
 
   def width(self, cell):

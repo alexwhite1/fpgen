@@ -60,7 +60,8 @@ uopt = userOptions()
 # 4.25b    Fix multiple <fn id='#"> same id for reverse at the first
 # 4.26     Add <summary> tag
 # 4.26a    Fixes to text table widths: non-spacing chars & align
-VERSION="4.26a"
+# 4.27     Add hang column for table; flushleft
+VERSION="4.27"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
