@@ -2354,6 +2354,8 @@ class HTML(Book):
             if nspan > 1:
               endID = "-col" + str(n+nspan)
               class2 = tableID + colID + endID
+              if n+nspan-1 >= len(columns):
+                fatal("More spans than table columns")
               endCol = columns[n+nspan-1]
 
               property = "border-right"
@@ -3887,6 +3889,20 @@ class TableFormatter:
     self.columns = parseTablePattern(self.tableLine)
     self.ncols = len(self.columns)
 
+  def width(self, cell):
+    # Hack: there must be a better way to figure size here
+    if cell.startswith("<align="):
+      cell = cell[9:]
+    w = 0
+    for c in cell:
+      c = ord(c)
+      # Do not count the combining dots
+      if c == 0x0323 or c == 0x0307:
+        pass
+      else:
+        w += 1
+    return w
+
   #
   # Figure out how wide each column is going to be.
   #
@@ -3901,8 +3917,10 @@ class TableFormatter:
           u = line.split("|")
           for x, item in enumerate(u):
             item = item.strip()
-            if len(item) > self.columns[x].width:
-              self.columns[x].width = len(item)
+            w = self.width(item)
+            if w > self.columns[x].width:
+              self.columns[x].width = w
+
         # and compute totalwidth against those maxes
         totalwidth = tableWidth(self.columns)
         dprint(1, "Computed table widths: " +
@@ -3913,6 +3931,14 @@ class TableFormatter:
     maxTableWidth = 75  # this is the size that saveFile decides to wrap at
 
     # for text, may have to force narrower to keep totalwidth < maxTableWidth
+    tooWide = False
+    if totalwidth > maxTableWidth:
+      tooWide = True
+      cprint("warning: Table " + self.tableLine + " too wide, " +
+          str(totalwidth) + " columns; max " + str(maxTableWidth) +
+          ". Reducing widest column by one; until it fits." +
+          " Initial widths: " + toWidthString(self.columns))
+
     while totalwidth > maxTableWidth:
       widest = 0
       for x, item in enumerate(self.columns):
@@ -3925,9 +3951,9 @@ class TableFormatter:
 
       # Recompute total width
       totalwidth = tableWidth(self.columns)
-      cprint("warning: Table too wide: column " + str(widex) +
-        "[" + str(widest) + "->" + str(self.columns[widex].width) +
-        "], total width now " + str(totalwidth));
+
+    if tooWide:
+      cprint("Resulting widths: " + toWidthString(self.columns))
 
     # calculate tindent from max table width
     self.tindent = (maxTableWidth - totalwidth) // 2
@@ -4074,7 +4100,7 @@ class TableFormatter:
       try:
         if len(s2) <= w:
           # It all fits, done
-          fits = s2.strip()
+          fits = s2
           remainder = ""
         else:
           # Doesn't fit; find the last space in the
@@ -4084,8 +4110,8 @@ class TableFormatter:
           fits = s2[0:chopat+1].strip()
           remainder = s2[chopat+1:].strip()
       except:
-        fits = s2.strip()
-        remainder = ""
+        fits = s2[0:w]
+        remainder = s2[w:]
 
       if n < nColData:
         # Replace cell with whatever is left, if we wrapped the cell
@@ -4096,13 +4122,17 @@ class TableFormatter:
         align = cell.getAlignment()
       else:
         align = column.align
+
+      # Make sure we use the printable width
+      pad = w - self.width(fits)
       if align == 'left':
-        fstr = '{:<'+str(w)+'}'
+        content = fits + ' ' * pad
       elif align == 'center':
-        fstr = '{:^'+str(w)+'}'
+        half = pad // 2
+        content = half * ' ' + fits + (pad-half) * ' '
       elif align == 'right':
-        fstr = '{:>'+str(w)+'}'
-      line += fstr.format(fits)
+        content = pad * ' ' + fits
+      line += content
 
       # Compute delimiter: sum of this column's after and next column's before
       delimiter = " "

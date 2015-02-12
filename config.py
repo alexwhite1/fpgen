@@ -59,7 +59,8 @@ uopt = userOptions()
 # 4.25a    Multiple <link> or <target> on the same line fixed
 # 4.25b    Fix multiple <fn id='#"> same id for reverse at the first
 # 4.26     Add <summary> tag
-VERSION="4.26"
+# 4.26a    Fixes to text table widths: non-spacing chars & align
+VERSION="4.26a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
