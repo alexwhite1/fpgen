@@ -3930,24 +3930,31 @@ class TableFormatter:
   def computeWidths(self):
     totalwidth = tableWidth(self.columns)
 
-    # any cells missing a width we need to calculate
+    # if any cells missing a width we need to calculate
+    computeMax = False
     for col in self.columns:
       if col.width == 0:
-        # need to calculate max width on each column
-        for line in self.lines:
-          u = line.split("|")
-          for x, item in enumerate(u):
-            item = item.strip()
-            w = self.width(item)
-            if w > self.columns[x].width:
-              self.columns[x].width = w
+        computeMax = True
 
-        # and compute totalwidth against those maxes
-        totalwidth = tableWidth(self.columns)
-        dprint(1, "Computed table widths: " +
-          toWidthString(self.columns) +
-          ", total: " + str(totalwidth))
-        break
+    if computeMax:
+      # need to calculate max width on each column
+      widths = [0 for i in range(len(self.columns))]
+      for line in self.lines:
+        u = line.split("|")
+        for x, item in enumerate(u):
+          item = item.strip()
+          w = self.width(item)
+          if w > widths[x]:
+            widths[x] = w
+
+      for i in range(len(self.columns)):
+        if self.columns[i].width == 0:
+          self.columns[i].width = widths[i]
+
+    # Compute totalwidth against those maxes
+    totalwidth = tableWidth(self.columns)
+    dprint(1, "Computed table widths: " + toWidthString(self.columns) +
+      ", total: " + str(totalwidth))
 
     maxTableWidth = 75  # this is the size that saveFile decides to wrap at
 

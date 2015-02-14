@@ -61,7 +61,8 @@ uopt = userOptions()
 # 4.26     Add <summary> tag
 # 4.26a    Fixes to text table widths: non-spacing chars & align
 # 4.27     Add hang column for table; flushleft
-VERSION="4.27"
+# 4.27a    text table widths: use any specified width
+VERSION="4.27a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
