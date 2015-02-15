@@ -5,7 +5,7 @@ import unittest
 
 import config
 from fpgen import Lint, Text, HTML
-from fpgen import TestParseTableColumn, TestMakeTable, TestParsing
+from fpgen import TestParseTableColumn, TestMakeTable, TestParsing, TestTableCellFormat
 from parse import TestParseTagAttributes
 from drama import TestDrama, TestOneDramaBlockMethod
 from testtext import TestTextInline, TestTextRewrap
@@ -38,7 +38,7 @@ def main():
     for cl in [
       TestParseTableColumn, TestMakeTable, TestDrama, TestParsing,
       TestParseTagAttributes, TestOneDramaBlockMethod, TestTextRewrap,
-      TestTextInline
+      TestTextInline, TestTableCellFormat
     ]:
       tests.append(l.loadTestsFromTestCase(cl))
     tests = l.suiteClass(tests)

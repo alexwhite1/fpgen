@@ -767,17 +767,28 @@ def parseTablePattern(line, isHTML):
       if col.lineBeforeStyle == '#':
         col.lineBefore *= 4
 
-    # Parse column position
-    if oneCol[off] == 'c':
-      col.align = "center"
-    elif oneCol[off] == 'l':
-      col.align = "left"
-    elif oneCol[off] == 'h':
-      col.align = "left"
-      col.hang = True
-    elif oneCol[off] == 'r':
-      col.align = "right"
-    off += 1
+    # Parse column horizontal and vertical alignment
+    while True:
+      if oneCol[off] == 'c':
+        col.align = "center"
+      elif oneCol[off] == 'l':
+        col.align = "left"
+      elif oneCol[off] == 'h':
+        col.align = "left"
+        col.hang = True
+      elif oneCol[off] == 'r':
+        col.align = "right"
+      elif oneCol[off] == 'T':
+        col.valign = "top"
+      elif oneCol[off] == 'B':
+        col.valign = "bottom"
+      elif oneCol[off] == 'C':
+        col.valign = "center"
+      else:
+        break
+      off += 1
+      if off == n:
+        break
 
     # Does the column have a user-specified width?
     col.userWidth = False
@@ -829,6 +840,7 @@ class Col:
     self.userWidth = 0
     self.width = 0
     self.align = ""
+    self.valign = "top"
     self.lineBefore = 0
     self.lineAfter = 0
     self.lineBetween = 0
@@ -855,27 +867,27 @@ class TestParseTableColumn(unittest.TestCase):
 
   def test_empty(self):
     with self.assertRaises(SystemExit) as cm:
-      parseTablePattern("pattern=''")
+      parseTablePattern("pattern=''", False)
     self.assertEqual(cm.exception.code, 1)
 
   def test_nopattern(self):
     with self.assertRaises(SystemExit) as cm:
-      parseTablePattern("atern='r c l'")
+      parseTablePattern("atern='r c l'", False)
     self.assertEqual(cm.exception.code, 1)
 
   def test_simple(self):
-    assert parseTablePattern("pattern='r'") == [ TestParseTableColumn.expect ]
+    assert parseTablePattern("pattern='r'", False) == [ TestParseTableColumn.expect ]
 
   def test_simple1(self):
-    assert parseTablePattern("pattern='   r   '") == [ TestParseTableColumn.expect ]
+    assert parseTablePattern("pattern='   r   '", False) == [ TestParseTableColumn.expect ]
 
   def test_simple2(self):
     with self.assertRaises(SystemExit) as cm:
-      parseTablePattern("pattern='   rr   '")
+      parseTablePattern("pattern='   rx   '", False)
     self.assertEqual(cm.exception.code, 1)
 
   def test_simple3(self):
-    result = parseTablePattern("pattern='   r   l33 c5 '")
+    result = parseTablePattern("pattern='   r   l33 c5 '", False)
     assert len(result) == 3
     assert result[0].align == "right"
     assert result[1].align == "left"
@@ -892,11 +904,11 @@ class TestParseTableColumn(unittest.TestCase):
 
   def test_bar1(self):
     with self.assertRaises(SystemExit) as cm:
-      result = parseTablePattern("pattern='|'")
+      result = parseTablePattern("pattern='|'", False)
     self.assertEqual(cm.exception.code, 1)
 
   def test_bar2(self):
-    result = parseTablePattern("pattern='|r| c55||| |||l ||r99||'")
+    result = parseTablePattern("pattern='|r| c55||| |||l ||r99||'", False)
     assert len(result) == 4
     assert result[0].lineBefore == 1
     assert result[0].lineAfter == 1
@@ -917,11 +929,11 @@ class TestParseTableColumn(unittest.TestCase):
 
   def test_bar3(self):
     with self.assertRaises(SystemExit) as cm:
-      result = parseTablePattern("pattern='|r|c'")
+      result = parseTablePattern("pattern='|r|c'", False)
     self.assertEqual(cm.exception.code, 1)
 
   def test_hash(self):
-    result = parseTablePattern("pattern='r# #l'")
+    result = parseTablePattern("pattern='r# #l'", False)
     assert len(result) == 2
     assert result[0].lineAfter == 4
     assert result[0].lineAfterStyle == '#'
@@ -2383,6 +2395,8 @@ class HTML(Book):
             else:
               align = cell.getAlignment()
 
+            valign = col.valign
+
             userClass = cell.getUserClass()
             if userClass != None:
               class2 = class2 + ' ' + userClass
@@ -2395,7 +2409,7 @@ class HTML(Book):
             line += "<td class='" + class1 + " " + class2 + "' " +\
               "style='padding: " + \
               str(vpad) + "px " + str(hpad) + "px; " + \
-              "text-align:" + align + "; vertical-align:top;" + \
+              "text-align:" + align + "; vertical-align:" + valign + ";" + \
               hang + \
               "'" + \
               colspan + ">" + data + "</td>"
@@ -3879,6 +3893,20 @@ class Text(Book):
     self.saveFile(self.dstfile)
 # END OF CLASS Text
 
+def textCellWidth(cell):
+  # Hack: there must be a better way to figure size here
+  if cell.startswith("<align="):
+    cell = cell[9:]
+  w = 0
+  for c in cell:
+    c = ord(c)
+    # Do not count the combining dots
+    if c == 0x0323 or c == 0x0307:
+      pass
+    else:
+      w += 1
+  return w
+
 class TableFormatter:
 
   FIRST_LINECHARS = "─┬┰━┯┳"
@@ -3910,20 +3938,6 @@ class TableFormatter:
     self.columns = parseTablePattern(self.tableLine, False)
     self.ncols = len(self.columns)
 
-  def width(self, cell):
-    # Hack: there must be a better way to figure size here
-    if cell.startswith("<align="):
-      cell = cell[9:]
-    w = 0
-    for c in cell:
-      c = ord(c)
-      # Do not count the combining dots
-      if c == 0x0323 or c == 0x0307:
-        pass
-      else:
-        w += 1
-    return w
-
   #
   # Figure out how wide each column is going to be.
   #
@@ -3943,7 +3957,7 @@ class TableFormatter:
         u = line.split("|")
         for x, item in enumerate(u):
           item = item.strip()
-          w = self.width(item)
+          w = textCellWidth(item)
           if w > widths[x]:
             widths[x] = w
 
@@ -4065,45 +4079,77 @@ class TableFormatter:
   #
   def formatOneRow(self, lineno, tablerow, splitLines):
 
-      rowtext = tablerow.getCells()
+    rowcells = tablerow.getCells()
 
-      # Draw box characters with appropriate connectors for a line
-      if tablerow.isSingle() or tablerow.isDouble():
-        line = self.drawLine(tablerow.isSingle(), lineno, splitLines)
-        # Add the box line to the output & finished with this row
-        self.output(line)
-        return
+    # Draw box characters with appropriate connectors for a line
+    if tablerow.isSingle() or tablerow.isDouble():
+      line = self.drawLine(tablerow.isSingle(), lineno, splitLines)
+      # Add the box line to the output & finished with this row
+      self.output(line)
+      return
 
-      if len(rowtext) == 0:
-        # A completely blank line has no data, so hasAnyData will be false
-        # But we need column delimiters on empty lines
-        rowtext = [ TableCell(" ") ]
+    nColData = len(rowcells)
+    if nColData == 0:
+      # A completely blank line has no data, so hasAnyData will be false
+      # But we need column delimiters on empty lines
+      rowcells = [ TableCell(" ") ]
 
-      # Cells may be wrapped onto multiple lines.
-      # As we emit each cell, we reduce its content by the line just emitted
-      # When all cells have become empty, we're done
-      # Always go through once, so blank lines are processed
-      hasData = True
-      while hasData:
-        self.formatOneOutputLine(rowtext)
-        hasData = tablerow.hasAnyData()
+    for n in range(nColData, len(self.columns)):
+      rowcells.append(TableCell(""))
+
+    maxLines = 0
+    for n, column in enumerate(self.columns):
+      cell = rowcells[n]
+
+      # If this cell was spanned by the previous, ignore it.
+      if cell.isSpanned():
+        continue;
+
+      # Compute total column width, over all spanned columns
+      w = column.width
+      nspan = cell.getSpan()
+      while nspan > 1:
+        w += 1      # for the delimiter
+        w += self.columns[n+nspan-1].width
+        nspan -= 1
+      if w <= 0 and len(cell.getData()) > 0:
+        fatal("Unable to compute text table widths for " + tableLine + \
+          ".  Specify them manually.")
+
+      cell.format(w, column)
+
+      nline = cell.lineCount()
+      if nline > maxLines:
+        maxLines = nline
+
+    #cprint(self.tableLine + ": MaxLines=" + str(maxLines))
+    # Now that we know how many lines the largest cell is, we can do vertical
+    # alignment
+    for n, column in enumerate(self.columns):
+      cell = rowcells[n]
+      if not cell.isSpanned():
+        cell.valign(maxLines, column)
+
+    # Cells may be wrapped onto multiple lines.
+    # As we emit each cell, we reduce its content by the line just emitted
+    # When all cells have become empty, we're done
+    # Always go through once, so blank lines are processed
+    for i in range(0, maxLines):
+      self.formatOneOutputLine(rowcells, i)
 
       if self.vpad:
         self.output("▹" + ".rs 1")
 
   #
-  # Output one real line of output.  The cells in rowtext are adjusted
+  # Output one real line of output.  The cells in rowcells are adjusted
   # for whatever was emitted
-  # rowtext is an array of TableCell objects
+  # rowcells is an array of TableCell objects
   #
-  def formatOneOutputLine(self, rowtext):
+  def formatOneOutputLine(self, rowcells, lineNo):
     line = ""
-    nColData = len(rowtext)
+    nColData = len(rowcells)
     for n, column in enumerate(self.columns):
-      if n < nColData:
-        cell = rowtext[n]
-      else:
-        cell = TableCell("")
+      cell = rowcells[n]
 
       # If this cell was spanned by the previous, ignore it.
       if cell.isSpanned():
@@ -4113,53 +4159,7 @@ class TableFormatter:
       nspan = cell.getSpan()
       lastSpanningColumn = self.columns[n+nspan-1]
 
-      # Compute total column width, over all spanned columns
-      w = column.width
-      while nspan > 1:
-        w += 1      # for the delimiter
-        w += self.columns[n+nspan-1].width
-        nspan -= 1
-      if w <= 0 and len(cell.getData()) > 0:
-        fatal("Unable to compute text table widths for " + tableLine + \
-          ".  Specify them manually.")
-
-      # Figure out what will fit in the current width and remove from the cell
-      s2 = cell.getData().strip()
-      try:
-        if len(s2) <= w:
-          # It all fits, done
-          fits = s2
-          remainder = ""
-        else:
-          # Doesn't fit; find the last space in the
-          # allocated width, and break into this line, and
-          # subsequent lines
-          chopat = s2.rindex(" ", 0, w)
-          fits = s2[0:chopat+1].strip()
-          remainder = s2[chopat+1:].strip()
-      except:
-        fits = s2[0:w]
-        remainder = s2[w:]
-
-      if n < nColData:
-        # Replace cell with whatever is left, if we wrapped the cell
-        cell.setData(remainder) # empty or something for another line
-
-      # And format the part we decided to use onto the end of the current line
-      if not cell.isDefaultAlignment():
-        align = cell.getAlignment()
-      else:
-        align = column.align
-
-      # Make sure we use the printable width
-      pad = w - self.width(fits)
-      if align == 'left':
-        content = fits + ' ' * pad
-      elif align == 'center':
-        half = pad // 2
-        content = half * ' ' + fits + (pad-half) * ' '
-      elif align == 'right':
-        content = pad * ' ' + fits
+      content = cell.getLine(lineNo)
       line += content
 
       # Compute delimiter: sum of this column's after and next column's before
@@ -4316,6 +4316,195 @@ class TableCell:
   def getSpan(self):
     return self.spanning
 
+  # Format up our data in `w' columns, using the alignment specified by the TableCell column
+  # starts with getData(), and populates the lines[] variable with the results
+  # After calling this method, you can use lineCount() and getLine()
+  def format(self, w, column):
+    # Figure out what will fit in the current width and remove from the cell
+    remainder = self.getData().strip()
+    self.lines = []
+
+    # Empty cell: always one line
+    if remainder == "":
+      remainder = " "
+
+    # Figure out the alignment
+    if not self.isDefaultAlignment():
+      align = self.getAlignment()
+    else:
+      align = column.align
+
+    indent = 0
+    first = True
+
+    while remainder != "":
+      try:
+        if len(remainder) <= w:
+          # It all fits, done
+          fits = remainder
+          remainder = ""
+        else:
+          # Doesn't fit; find the last space in the
+          # allocated width, and break into this line, and
+          # subsequent lines
+          if remainder[w] == ' ':
+            # Exact fit?
+            fits = remainder[0:w].strip()
+            remainder = remainder[w:].strip()
+          else:
+            chopat = remainder.rindex(" ", 0, w)
+            fits = remainder[0:chopat+1].strip()
+            remainder = remainder[chopat+1:].strip()
+      except:
+        fits = remainder[0:w]
+        remainder = remainder[w:]
+
+      # Make sure we use the printable width
+      pad = w - textCellWidth(fits)
+      if align == 'left':
+        content = fits + ' ' * pad
+      elif align == 'center':
+        half = pad // 2
+        content = half * ' ' + fits + (pad-half) * ' '
+      elif align == 'right':
+        content = pad * ' ' + fits
+
+      self.lines.append(' ' * indent + content)
+
+      # For hang, change indent after first line
+      if first and column.hang:
+        indent = 2
+        w -= 2
+        first = False
+
+  # Vertical align in N
+  def valign(self, n, column):
+
+    m = len(self.lines)
+    if column.valign == "bottom":
+      insert = n-m
+    elif column.valign == "center":
+      insert = (n-m)//2
+    elif column.valign == "top":
+      insert = 0
+
+    # Always have a line[0], use it for the width
+    w = len(self.lines[0])
+
+    for i in range(0, insert):
+      self.lines.insert(0, ' ' * w)
+
+    for i in range(len(self.lines), n):
+      self.lines.append(' ' * w)
+
+  def lineCount(self):
+    return len(self.lines)
+
+  def getLine(self, n):
+    return self.lines[n] if n < len(self.lines) else ""
+
+class TestTableCellFormat(unittest.TestCase):
+  def testL(self):
+    col = Col()
+    col.align = 'left'
+    col.hang = False
+    cell = TableCell("w1")
+    cell.format(5, col)
+    self.assertEqual(cell.lineCount(), 1)
+    self.assertEqual(cell.getLine(0), "w1   ")
+
+  def testR(self):
+    col = Col()
+    col.align = 'right'
+    col.hang = False
+    cell = TableCell("w1")
+    cell.format(5, col)
+    self.assertEqual(cell.lineCount(), 1)
+    self.assertEqual(cell.getLine(0), "   w1")
+
+  def testC(self):
+    col = Col()
+    col.align = 'center'
+    col.hang = False
+    cell = TableCell("w1")
+    cell.format(5, col)
+    self.assertEqual(cell.lineCount(), 1)
+    self.assertEqual(cell.getLine(0), " w1  ")
+
+  def testLwrap(self):
+    col = Col()
+    col.align = 'left'
+    col.hang = False
+    cell = TableCell("w1 word234 w2 w3 w4 w5")
+    cell.format(5, col)
+    self.assertEqual(cell.lineCount(), 5)
+    self.assertEqual(cell.getLine(0), "w1   ")
+    self.assertEqual(cell.getLine(1), "word2")
+    self.assertEqual(cell.getLine(2), "34 w2")
+    self.assertEqual(cell.getLine(3), "w3 w4")
+    self.assertEqual(cell.getLine(4), "w5   ")
+
+  def testLB(self):
+    col = Col()
+    col.align = 'left'
+    col.hang = False
+    col.valign = "bottom"
+    cell = TableCell("word1 w2")
+    cell.format(5, col)
+    cell.valign(5, col)
+    self.assertEqual(cell.lineCount(), 5)
+    self.assertEqual(cell.getLine(0), "     ")
+    self.assertEqual(cell.getLine(1), "     ")
+    self.assertEqual(cell.getLine(2), "     ")
+    self.assertEqual(cell.getLine(3), "word1")
+    self.assertEqual(cell.getLine(4), "w2   ")
+
+  def testLBEmpty(self):
+    col = Col()
+    col.align = 'left'
+    col.hang = False
+    col.valign = "bottom"
+    cell = TableCell("")
+    cell.format(5, col)
+    cell.valign(5, col)
+    self.assertEqual(cell.lineCount(), 5)
+    self.assertEqual(cell.getLine(0), "     ")
+    self.assertEqual(cell.getLine(1), "     ")
+    self.assertEqual(cell.getLine(2), "     ")
+    self.assertEqual(cell.getLine(3), "     ")
+    self.assertEqual(cell.getLine(4), "     ")
+
+  def testLC(self):
+    col = Col()
+    col.align = 'left'
+    col.hang = False
+    col.valign = "center"
+    cell = TableCell("word1 w2")
+    cell.format(5, col)
+    cell.valign(5, col)
+    self.assertEqual(cell.lineCount(), 5)
+    self.assertEqual(cell.getLine(0), "     ")
+    self.assertEqual(cell.getLine(1), "word1")
+    self.assertEqual(cell.getLine(2), "w2   ")
+    self.assertEqual(cell.getLine(3), "     ")
+    self.assertEqual(cell.getLine(4), "     ")
+
+  def testHwrap(self):
+    col = Col()
+    col.align = 'left'
+    col.hang = True
+    cell = TableCell("w1 word234 w2 w3 w4 w5")
+    cell.format(5, col)
+    self.assertEqual(cell.lineCount(), 8)
+    self.assertEqual(cell.getLine(0), "w1   ")
+    self.assertEqual(cell.getLine(1), "  wor")
+    self.assertEqual(cell.getLine(2), "  d23")
+    self.assertEqual(cell.getLine(3), "  4  ")
+    self.assertEqual(cell.getLine(4), "  w2 ")
+    self.assertEqual(cell.getLine(5), "  w3 ")
+    self.assertEqual(cell.getLine(6), "  w4 ")
+    self.assertEqual(cell.getLine(7), "  w5 ")
+
 class TestMakeTable(unittest.TestCase):
   t = Text('ifile', 'ofile', 0, 'fmt')
 
@@ -4414,6 +4603,8 @@ class TestMakeTable(unittest.TestCase):
     u = self.t.makeTable([ "<table pattern='l1 |r1'>", '_', '', '_', "</table>" ])
     # 75-3=72//2 = 36.
     # Should be 36 + 3
+    #for l in u:
+    #  uprint("Line: " + l + "$")
     assert len(u) == 5
     assert len(u[1]) == 39
     assert u[1].endswith("                                   ─┬─")
