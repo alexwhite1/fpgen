@@ -4017,7 +4017,7 @@ class TableFormatter:
 
       # Will the next line span over the next column?
       nextSpan = False
-      if lineno+1 < self.nlines:
+      if lineno+1 < len(lines):
         nextLine = lines[lineno+1]
         if colno+1 < len(nextLine.getCells()):
           nextSpan = (nextLine.getCells()[colno+1].isSpanned())
