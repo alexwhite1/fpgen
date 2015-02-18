@@ -63,7 +63,8 @@ uopt = userOptions()
 # 4.27     Add hang column for table; flushleft
 # 4.27a    text table widths: use any specified width
 # 4.27b    Vertical alignment for table; hang column for text table
-VERSION="4.27b"
+# 4.28     <col=#> for table
+VERSION="4.28"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
