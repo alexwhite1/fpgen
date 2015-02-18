@@ -2093,6 +2093,9 @@ class HTML(Book):
       fatal("Badly formatted <summary>: <summary " + openTag + ">")
     if self.summaryStyle == "hang":
       self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:3em; padding-right:1.5em; text-indent:-1.5em; }")
+      # div only applies to the first para.  For multi-para, regular code
+      # will emit <p class="pindent">
+      self.css.addcss("[1234] .summary .pindent { text-indent:-1.5em; }")
     else:
       self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; }")
     return [ "<div class='summary'>" ] + block + [ "</div>" ]
