@@ -82,6 +82,7 @@ def main():
    "",
    "",
    "--cover", "\"images/cover.jpg\"",
+   #"--flow-size", "500",
    "--change-justification", "\"left\"",
    "--chapter-mark", "\"none\"",
    "--disable-remove-fake-margins",

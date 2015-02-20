@@ -64,7 +64,8 @@ uopt = userOptions()
 # 4.27a    text table widths: use any specified width
 # 4.27b    Vertical alignment for table; hang column for text table
 # 4.28     <col=#> for table
-VERSION="4.28"
+# 4.28a    New column pattern S for preserve spaces
+VERSION="4.28a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

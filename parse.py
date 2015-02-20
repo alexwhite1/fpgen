@@ -4,6 +4,7 @@
 import unittest
 import re
 import sys
+import collections
 from msgs import fatal
 
 def parseTagAttributes(tag, arg, legalAttributes = None):
@@ -24,7 +25,7 @@ def parseTagAttributes(tag, arg, legalAttributes = None):
 # where whatever quote starts a value, must end a value
 # Returns { 'key1' : 'value1', 'key2' : 'value2' ... }
 def parseTagAttributes1(arg):
-  attributes = {}
+  attributes = collections.OrderedDict()
   while True:
     keyword, sep, rest = arg.partition('=')
     # Done?
