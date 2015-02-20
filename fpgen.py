@@ -4277,8 +4277,12 @@ class TableRow:#{
       rowtext = [ " " ]
 
     self.columns = []
+    nColDesc = len(columnDescriptions)
     for colno, col in enumerate(rowtext):
-      self.columns.append(TableCell(col, columnDescriptions[colno]))
+      if colno < nColDesc:
+        self.columns.append(TableCell(col, columnDescriptions[colno]))
+      # Give error? Probably lots of existing tables with trailing |
+      # Give error if col is non-empty?
 
     self.resetSpans()
 
@@ -4515,6 +4519,16 @@ class TestTableCellFormat(unittest.TestCase):
 
   def testParseTableRows(self):
     t = parseTableRows([ "r1", "r2" ], self.colDesc2)
+    self.assertEqual(len(t), 2)
+    l = t[0].getCells()
+    self.assertEquals(len(l), 1)
+    self.assertEquals(l[0].getData(), "r1")
+    l = t[1].getCells()
+    self.assertEquals(len(l), 1)
+    self.assertEquals(l[0].getData(), "r2")
+
+  def testParseTableRows_tooMany(self):
+    t = parseTableRows([ "r1", "r2|xyzzy" ], self.colDesc1)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
     self.assertEquals(len(l), 1)
