@@ -2419,7 +2419,8 @@ class HTML(Book):
         if userClass != None:
           class2 = class2 + ' ' + userClass
 
-        if col.hang:
+        # Check both hang and align: hang can be set, but <align=c> override
+        if col.hang and align == 'left':
           hang = "padding-left:1.5em; text-indent:-1.5em;"
         else:
           hang = ''
@@ -2606,6 +2607,44 @@ class HTML(Book):
         self.wb[i] = "</div> <!-- footnote end -->"
       i += 1
 
+  sidenote = """[990]
+    .sidenote {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: smaller;
+      background: #f0f0f0;
+      display:block;
+      position: absolute;
+      text-align:right;
+      max-width:9.5%;
+      right:.2em;
+      top:auto;
+    }
+  """
+  sidenoteOff = """[990]
+    .sidenote { visibility: hidden; }
+  """
+
+  def doSidenotes(self):
+    if 'h' in self.gentype:
+      self.css.addcss(self.sidenote)
+    else:
+      self.css.addcss(self.sidenoteOff)
+    # footnote targets and text
+    i = 0
+    n = len(self.wb)
+    while i < n:
+      m = re.search("<sidenote>", self.wb[i])
+      if m:
+        self.wb[i] = self.wb[i][0:m.start(0)] + "<div class='sidenote'>" + self.wb[i][m.end(0):]
+        while i < n:
+          m = re.search("<\/sidenote>", self.wb[i])
+          if m:
+            self.wb[i] = self.wb[i][0:m.start(0)] + "</div>" + self.wb[i][m.end(0):]
+            break
+          i += 1
+      i += 1
+
   # setup the framework around the lines
   # if a rend option of mt or mb appears, it applies to the entire block
   # other rend options apply to the contents of the block
@@ -2789,6 +2828,7 @@ class HTML(Book):
     self.doIllustrations()
     self.doLinks()
     self.doFootnotes()
+    self.doSidenotes()
     self.doLineGroups()
     self.doLines()
 
@@ -3303,6 +3343,7 @@ class Text(Book):
     regexL = re.compile("<l(.*?)>(.*?)<\/l>")
     regexFootnote = re.compile(r"<footnote id=['\"](.*?)['\"]>")
     regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
+    regexSidenote = re.compile("<sidenote>")
     while i < len(self.wb):
       self.dprint(2,"[rewrap] {}: {}".format(i,self.wb[i]))
       if self.wb[i].startswith("<quote"):
@@ -3357,6 +3398,26 @@ class Text(Book):
       if self.wb[i].startswith("</footnote"):
         del self.wb[i]
         continue
+
+      # ----- sidenotes --------------------------------------------------------
+      m = regexSidenote.search(self.wb[i])
+      if m:
+        m1 = re.search("<sidenote>.*<\/sidenote>", self.wb[i])
+        if m1:
+          # Remove <sidenote>...</sidenote>
+          self.wb[i] = self.wb[i][0:m1.start(0)] + self.wb[i][m1.end(0):]
+        else:
+          # Remove <sidenote>...
+          self.wb[i] = self.wb[i][0:m.start(0)]
+          j = i+1
+          while j < len(self.wb):
+            m = re.search("<\/sidenote>", self.wb[j])
+            if m:
+              # Remove ...</sidenote>
+              self.wb[j] = self.wb[j][m.end(0):]
+              break
+            # Remove line between <sidenote>\n...\n</sidenote>
+            del self.wb[j]
 
       # ----- headings --------------------------------------------------------
       m = regexHeading.match(self.wb[i])
