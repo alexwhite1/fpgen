@@ -3633,7 +3633,8 @@ class Text(Book):
         # Process <tb> for all cases
         j = i
         while not regexEndLg.match(self.wb[j]):
-          if re.match("<tb\/?>", self.wb[j]):
+          # Only do a prefix match, we ignore potential the rend=
+          if re.match("<tb", self.wb[j]):
             self.wb[j] = "▹                 *        *        *        *        *"
           j += 1
 
