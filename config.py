@@ -65,7 +65,8 @@ uopt = userOptions()
 # 4.27b    Vertical alignment for table; hang column for text table
 # 4.28     <col=#> for table
 # 4.28a    New column pattern S for preserve spaces
-VERSION="4.28a"
+# 4.29     Adds sidenotes; html table style as class; hang bug fixes
+VERSION="4.29"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

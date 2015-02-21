@@ -2265,11 +2265,13 @@ class HTML(Book):
           self.fatal("unknown hr rend: /{}/".format(m.group(1)))
 
   tableCount = 0
+  styleClasses = {}
+
   def oneTableBlock(self, openTag, block):
     self.tableCount += 1
     tableID = "tab" + str(self.tableCount)
-    vpad = "2" # defaults
-    hpad = "5"
+    vpad = 2 # defaults
+    hpad = 5
 
     # can include rend and pattern
     self.css.addcss("[560] table.center { margin:0.5em auto; border-collapse: collapse; padding:3px; }")
@@ -2410,7 +2412,7 @@ class HTML(Book):
           linetype = "solid" if endCol.lineAfterStyle == '|' else "double"
           value = str(endCol.lineAfter) + "px"
           self.css.addcss("[563] ." + class2 +
-            " { " + property + ": " + value + " " + linetype + " black; }");
+            " { " + property + ": " + value + " " + linetype + " black; }")
 
         align = cell.getAlignment()
         valign = cell.getVAlignment()
@@ -2421,16 +2423,26 @@ class HTML(Book):
 
         # Check both hang and align: hang can be set, but <align=c> override
         if col.hang and align == 'left':
-          hang = "padding-left:1.5em; text-indent:-1.5em;"
+          # We still want our horizontal padding, i.e. we want to add hpad pixels to 1.5em
+          # An em is normally 16px.
+          left = 24 + hpad
+          hang = "padding-left:" + str(left) + "px; text-indent:-24px;"
         else:
           hang = ''
 
-        line += "<td class='" + class1 + " " + class2 + "' " +\
-          "style='padding: " + \
-          str(vpad) + "px " + str(hpad) + "px; " + \
+        # Minimize the size of our html so we don't blow up epubs; always use a class
+        style = \
+          "padding: " + str(vpad) + "px " + str(hpad) + "px; " + \
           "text-align:" + align + "; vertical-align:" + valign + ";" + \
-          hang + \
-          "'" + \
+          hang;
+        if not style in self.styleClasses:
+          styleClass = "tdStyle" + str(len(self.styleClasses))
+          self.styleClasses[style] = styleClass
+          self.css.addcss("[564] ." + styleClass + " {\n" + style + "\n}")
+        else:
+          styleClass = self.styleClasses[style]
+
+        line += "<td class='" + class1 + " " + class2 + " " + styleClass + "' " +\
           colspan + ">" + data + "</td>"
       # End of column for loop
 
@@ -4000,9 +4012,9 @@ class TableFormatter: #{
   def __init__(self, tableLine, lines):
     self.tableLine = tableLine
     self.lines = lines
-    self.nlines = len(lines)
     self.parseFormat()
     self.splitLines = parseTableRows(self.lines, self.columns)
+    self.nlines = len(self.splitLines)
     self.computeWidths()
     self.u = []
 
@@ -4107,7 +4119,7 @@ class TableFormatter: #{
 
       # Will the next line span over the next column?
       nextSpan = False
-      if lineno+1 < len(lines):
+      if lineno+1 < self.nlines:
         nextLine = lines[lineno+1]
         if colno+1 < len(nextLine.getCells()):
           nextSpan = (nextLine.getCells()[colno+1].isSpanned())
@@ -4128,6 +4140,14 @@ class TableFormatter: #{
         chars = self.LAST_LINECHARS
       else:
         chars = self.MIDDLE_LINECHARS
+
+      #cprint("lineno=" + str(lineno) +
+      #    ", len(lines)=" + str(len(lines)) +
+      #    ", nlines=" + str(self.nlines) +
+      #    ", nextSpan=" + str(nextSpan) +
+      #    ", lastSpan=" + str(lastSpan) +
+      #    ", chars=" + chars)
+      #uprint("Chars=" + chars)
 
       off = 0 if isSingle else 3
       line += col.width * chars[off + 0]
@@ -4840,7 +4860,8 @@ class TestMakeTable(unittest.TestCase):
     #  t.uprint("Line: " + l)
     # 11 + 11 = 22, 75-22=53//2 = 26.
     # Should be 26 + 1 + 10 + 1 + 10 
-    assert len(u[textN]) == 48 and u[textN][0] == '▹'
+    self.assertEquals(len(u[textN]), 48)
+    self.assertEquals(u[textN][0], '▹')
 
   def test_t1(self):
     u = self.t.makeTable([ "<table pattern='r10 r10'>", "1|2", "</table>" ])
@@ -4876,6 +4897,13 @@ class TestMakeTable(unittest.TestCase):
 
   def test_t6(self):
     u = self.t.makeTable([ "<table pattern='l10| r10'>", "=", "1|2", "=", "</table>" ])
+    self.common_assertions(u, 5, 2)
+    assert u[1].endswith("━━━━━━━━━━┯━━━━━━━━━━")
+    assert u[2].endswith("1         │         2")
+    assert u[3].endswith("━━━━━━━━━━┷━━━━━━━━━━")
+
+  def test_t6_col(self):
+    u = self.t.makeTable([ "<table pattern='l10| r10'>", "=", "1", "=", "<col=1>", "", "2", "</table>" ])
     self.common_assertions(u, 5, 2)
     assert u[1].endswith("━━━━━━━━━━┯━━━━━━━━━━")
     assert u[2].endswith("1         │         2")
