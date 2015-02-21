@@ -66,7 +66,8 @@ uopt = userOptions()
 # 4.28     <col=#> for table
 # 4.28a    New column pattern S for preserve spaces
 # 4.29     Adds sidenotes; html table style as class; hang bug fixes
-VERSION="4.29"
+# 4.29a    Fixes <tb> tag inside <lg> for text output
+VERSION="4.29a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

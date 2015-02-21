@@ -3352,6 +3352,7 @@ class Text(Book):
     i = 0
     regexTable = re.compile(r"<table(.*?)>")
     regexLg = re.compile("<lg(.*?)>")
+    regexEndLg = re.compile("<\/lg>")
     regexL = re.compile("<l(.*?)>(.*?)<\/l>")
     regexFootnote = re.compile(r"<footnote id=['\"](.*?)['\"]>")
     regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
@@ -3628,17 +3629,21 @@ class Text(Book):
       if m:
         self.wb[i] = ".rs 1" # the <lg...
         i += 1 # first line of line group
+
+        # Process <tb> for all cases
+        j = i
+        while not regexEndLg.match(self.wb[j]):
+          if re.match("<tb\/?>", self.wb[j]):
+            self.wb[j] = "▹                 *        *        *        *        *"
+          j += 1
+
+        # Isolate the attribute, and process the different styles: center, left, right, poetry,
+        # and block; all separately
         attrib = m.group(1)
 
         m = re.search("center", attrib)
         if m:
-          while not re.match("<\/lg>",self.wb[i]):
-            # bandaid alert: tb in center
-            m = re.search(r"<tb", self.wb[i])
-            if m:
-              self.wb[i] = "▹                 *        *        *        *        *"
-              i += 1
-              continue
+          while not regexEndLg.match(self.wb[i]):
             m = re.match(r"<l.*?>(.*?)</l>", self.wb[i])
             if m:
               if not empty.match(m.group(1)):
@@ -3655,7 +3660,7 @@ class Text(Book):
 
         m = re.search("right", attrib)
         if m:
-          while not re.match("<\/lg>",self.wb[i]):
+          while not regexEndLg.match(self.wb[i]):
             m = re.match(r"<l.*?>(.*?)</l>", self.wb[i])
             if m:
               if not empty.match(m.group(1)):
@@ -3663,7 +3668,7 @@ class Text(Book):
                 if len(theline) > 75:
                   s = re.sub("□", " ", theline)
                   cprint("warning (long line):\n{}".format(s))
-                self.wb[i] = "▹" + '{:>72}'.format(theline)
+                self.wb[i] = "▹" + '{:>{width}}'.format(theline, width=config.LINE_WIDTH)
               else:
                 self.wb[i] = "▹"
             i += 1
@@ -3678,7 +3683,7 @@ class Text(Book):
           j = i
           maxwidth = 0
           maxline = ""
-          while not re.match("<\/lg>",self.wb[j]):
+          while not regexEndLg.match(self.wb[j]):
             self.wb[j] = self.detag(self.wb[j])
             theline = re.sub(r"<.+?>", "", self.wb[j]) # centering tags, etc.
             if len(theline) > maxwidth:
@@ -3689,7 +3694,7 @@ class Text(Book):
           if maxwidth > 70:
             cprint("warning (long poetry line {} chars)".format(maxwidth))
             self.dprint(1,"  " + maxline) # shown in debug in internal form
-          while not re.match("<\/lg>",self.wb[i]):
+          while not regexEndLg.match(self.wb[i]):
             m = re.match("<l(.*?)>(.*?)</l>", self.wb[i])
             if m:
               irend = m.group(1)
@@ -3737,7 +3742,7 @@ class Text(Book):
           j = i
           maxw = 0
           longline = ""
-          while not re.match("<\/lg>",self.wb[j]):
+          while not regexEndLg.match(self.wb[j]):
             m = re.match("<l(.*?)>(.*?)</l>", self.wb[j])
             if m:
               therend = m.group(1)
@@ -3751,6 +3756,8 @@ class Text(Book):
                 thetext = self.detag(thetext) # handle markup
               textlen = len(thetext) # calculate length
               totlen = rendlen + textlen
+            elif self.wb[j].startswith("▹"):
+              pass
             else:
               self.fatal(self.wb[j])
             if totlen > maxw:
@@ -3764,7 +3771,7 @@ class Text(Book):
           else:
             leader = "□" * ((config.LINE_WIDTH - maxw) // 2) # fixed left indent for block
 
-          while not re.match("<\/lg>",self.wb[i]):
+          while not regexEndLg.match(self.wb[i]):
             m = re.match("<l(.*?)>(.*?)</l>", self.wb[i]) # parse each line
             if m:
               s = m.group(2) # text part
@@ -3792,6 +3799,8 @@ class Text(Book):
 
               # if not specified,
               self.wb[i] = "▹" + leader + thetext
+            elif self.wb[i].startswith("▹"):
+              pass
             else:
               self.wb[i] = "▹"
             i += 1
@@ -3799,7 +3808,7 @@ class Text(Book):
           continue
 
         # if not handled, line group is left-align
-        while not re.match("<\/lg>",self.wb[i]):
+        while not regexEndLg.match(self.wb[i]):
           m = re.match("<l.*?>(.*?)</l>", self.wb[i])
           if m:
             if empty.match(m.group(1)):
