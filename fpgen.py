@@ -1648,16 +1648,20 @@ class HTML(Book):
   def markPara(self):
     self.dprint(1,"markPara")
 
+    hangPara = "<p class='hang'>"
+    linePara = "<p>"
+    blockPara = "<p class='noindent'>"
+    indentPara = "<p class='pindent'>"
+
     if config.uopt.getopt("pstyle") == "indent": # new 27-Mar-2014
       self.css.addcss("[811] .pindent { margin-top:0; margin-bottom:0; text-indent:1.5em; }")
       self.css.addcss("[812] .noindent { margin-top:0; margin-bottom:0; text-indent:0; }")
       indent = True
-      defaultPara = "<p class='pindent'>"
-      noIndentPara = "<p class='noindent'>"
+      defaultPara = indentPara
+      noIndentPara = blockPara
     else:
-      defaultPara = "<p>"
+      defaultPara = linePara
       indent = False
-    hangPara = "<p class='hang'>"
     self.css.addcss("[813] .hang { padding-left:1.5em; text-indent:-1.5em; }");
     paragraphTag = defaultPara
 
@@ -1679,6 +1683,19 @@ class HTML(Book):
           i += 1
         i += 1
         continue
+
+      if self.wb[i].startswith("<pstyle="):
+        rest = self.wb[i][8:]
+        if rest == "hang>":
+          defaultPara = hangPara
+        elif rest == "default>":
+          if indent:
+            defaultPara = indentPara
+          else:
+            defaultPara = linePara
+        else:
+          fatal("Bad pstyle: " + self.wb[i])
+        paragraphTag = defaultPara
 
       if self.wb[i].startswith("<nobreak>"): # new 27-Mar-2014
         if not indent:
@@ -2272,6 +2289,7 @@ class HTML(Book):
     tableID = "tab" + str(self.tableCount)
     vpad = 2 # defaults
     hpad = 5
+    hangIndent = 24
 
     # can include rend and pattern
     self.css.addcss("[560] table.center { margin:0.5em auto; border-collapse: collapse; padding:3px; }")
@@ -2304,6 +2322,10 @@ class HTML(Book):
       useborder = re.search("border", trend) # table uses borders
       left = re.search("left", trend)  # Left, not centre
       flushleft = re.search("flushleft", trend)  # Left, without indent
+
+      m = re.search("hang:(\d+)", trend)
+      if m:
+        hangIndent = int(m.group(1))
 
     # Generate nth-of-type css for columns that need lines between them
     colIndex = 1
@@ -2425,8 +2447,8 @@ class HTML(Book):
         if col.hang and align == 'left':
           # We still want our horizontal padding, i.e. we want to add hpad pixels to 1.5em
           # An em is normally 16px.
-          left = 24 + hpad
-          hang = "padding-left:" + str(left) + "px; text-indent:-24px;"
+          left = hangIndent + hpad
+          hang = "padding-left:" + str(left) + "px; text-indent:-" + str(hangIndent) + "px;"
         else:
           hang = ''
 
@@ -3200,6 +3222,7 @@ class Text(Book):
 
       self.wb[i] = re.sub("<nobreak>", "", self.wb[i])  # 28-Mar-2014
       self.wb[i] = re.sub("<hang>", "", self.wb[i])  # 05-Jun-2014
+      self.wb[i] = re.sub("<pstyle=.*>", "", self.wb[i])  # 21-Feb-2015
 
       self.wb[i] = re.sub("#(\d+)#", r'\1', self.wb[i]) # page number links
       self.wb[i] = re.sub("#(\d+):.*?#", r'\1', self.wb[i]) # page number links type 2 2014.01.14

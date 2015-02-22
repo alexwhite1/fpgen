@@ -67,7 +67,8 @@ uopt = userOptions()
 # 4.28a    New column pattern S for preserve spaces
 # 4.29     Adds sidenotes; html table style as class; hang bug fixes
 # 4.29a    Fixes <tb> tag inside <lg> for text output
-VERSION="4.29a"
+# 4.30     Adds <pstyle=hang>; patternhtml/text; hang:#px
+VERSION="4.30"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
