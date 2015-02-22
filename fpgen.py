@@ -1695,6 +1695,7 @@ class HTML(Book):
             defaultPara = linePara
         else:
           fatal("Bad pstyle: " + self.wb[i])
+        self.wb[i] = '' # Clear the tag
         paragraphTag = defaultPara
 
       if self.wb[i].startswith("<nobreak>"): # new 27-Mar-2014
