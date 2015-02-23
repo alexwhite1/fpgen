@@ -2938,34 +2938,41 @@ class Text(Book):
       if len(t) < lineWidth:
         f1.write( "{:s}{}".format(t,lineEnd) ) # no wrapping required
       else:
-        sliceat = 0
-        try:
-          sliceat = t.rindex(" ", 0, lineWidth) # should be 74?
-        except:
-          cprint("Cannot wrap text: Line longer than " + str(lineWidth) + \
-              " characters without a space.\n" + \
-              t + "\nLine will be emitted without wrapping.")
-          f1.write(t+"\n")
-          continue
+        # Strip leading spaces, and figure out indent first
         m = re.match("( +)", t)
         if m:
           userindent = len(m.group(1))
         else:
           userindent = 0
+        t = t.strip()
+        lw = lineWidth - userindent
+
+        # This is probably all wrong, and should be rewritten and tested
+        # Or, we could just fix the rest of the code which lets long lines
+        # through to here...
+        sliceat = 0
+        try:
+          sliceat = t.rindex(" ", 0, lw) # should be 74?
+        except:
+          cprint("Cannot wrap text: Line longer than " + str(lw) + \
+              " characters without a space.\n" + \
+              t + "\nLine will be emitted without wrapping.")
+          f1.write(" " * userindent + t + lineEnd)
+          continue
         firstline = " " * userindent + t[0:sliceat].strip()
         f1.write( "{:s}{}".format(firstline,lineEnd) )
         cprint("warning: Wrapping line: [" + t + "]. ", end="")
         t = t[sliceat:].strip()
         nwrapped += 1
         while len(t) > 0:
-          if len(t) < lineWidth-3:
+          if len(t) < lw-3:
             f1.write( " " * userindent + "  {:s}{}".format(t,lineEnd) )
             t = ""
           else:
             try:
-              sliceat = t.rindex(" ", 0, lineWidth)
+              sliceat = t.rindex(" ", 0, lw)
             except:
-              sliceat = lineWidth
+              sliceat = lw
               cprint("Line too long with no break. Chopping at line width. Line: " + t, end="")
             nextline = t[0:sliceat].strip()
             f1.write( " " * userindent + "  {:s}{}".format(nextline,lineEnd) )
