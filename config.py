@@ -68,6 +68,7 @@ uopt = userOptions()
 # 4.29     Adds sidenotes; html table style as class; hang bug fixes
 # 4.29a    Fixes <tb> tag inside <lg> for text output
 # 4.30     Adds <pstyle=hang>; patternhtml/text; hang:#px
+# 4.30a    Fixes text table measurement by including all combining diacriticals
 VERSION="4.30"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"

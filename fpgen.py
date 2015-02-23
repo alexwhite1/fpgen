@@ -4029,8 +4029,8 @@ def textCellWidth(cell):
   w = 0
   for c in cell:
     c = ord(c)
-    # Do not count the combining dots
-    if c == 0x0323 or c == 0x0307:
+    # Do not count combining diacritical marks
+    if c >= 0x0300 and c <= 0x036F:
       pass
     else:
       w += 1
