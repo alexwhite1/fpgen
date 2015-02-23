@@ -5,10 +5,13 @@ import sys
 import re
 
 # safe print of possible UTF-8 character strings on ISO-8859 terminal
-def cprint(s):
+def cprint(s, end=None):
   s = re.sub("◻"," ", s)
   t = "".join([x if ord(x) < 128 else '?' for x in s])
-  print(t)
+  if end != None:
+    print(t, end=end)
+  else:
+    print(t)
 
 # Emit the UTF-8 chars as \uXXXX hex strings
 def uprint(s):

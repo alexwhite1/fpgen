@@ -2954,7 +2954,7 @@ class Text(Book):
           userindent = 0
         firstline = " " * userindent + t[0:sliceat].strip()
         f1.write( "{:s}{}".format(firstline,lineEnd) )
-        cprint("Wrapping: " + t)
+        cprint("warning: Wrapping line: [" + t + "]. ", end="")
         t = t[sliceat:].strip()
         nwrapped += 1
         while len(t) > 0:
@@ -2966,11 +2966,12 @@ class Text(Book):
               sliceat = t.rindex(" ", 0, lineWidth)
             except:
               sliceat = lineWidth
-              cprint("warning: Line too long with no break. Chopping at line width. Line: " + t)
+              cprint("Line too long with no break. Chopping at line width. Line: " + t, end="")
             nextline = t[0:sliceat].strip()
             f1.write( " " * userindent + "  {:s}{}".format(nextline,lineEnd) )
             t = t[sliceat:].strip()
             nwrapped += 1
+        cprint("")
     f1.close()
     if nwrapped > 0:
       cprint ("info: {} lines rewrapped in text file.".format(nwrapped))
@@ -3625,7 +3626,10 @@ class Text(Book):
           m = re.search("center", therend)
           if m:
             # center
-            self.wb[i] = "▹" + '{:^{width}}'.format(thetext.strip(), width=config.LINE_WIDTH)
+            #self.wb[i] = "▹" + '{:^{width}}'.format(thetext.strip(), width=config.LINE_WIDTH)
+            replacements = self.centerL(thetext.strip())
+            self.wb[i:i+1] = replacements
+            i += len(replacements)-1
             handled = True
 
           if not handled:
@@ -3880,6 +3884,46 @@ class Text(Book):
       self.wb[mark1:mark2] = u
       i = mark1 + len(u)
 
+  # Center a single line enclosed in <l>...</l>
+  # If it doesn't fit, break appropriately and center multiple lines
+  def centerL(self, line):
+    result = []
+    # For some reason, saveFile wraps at 75 chars; but we want to center within LINE_WIDTH(72)
+    # chars instead.
+    w = config.LINE_WIDTH+2
+    remainder = line
+    while True:
+      try:
+        if textCellWidth(remainder) <= w:
+          # It all fits, done
+          fits = remainder
+          remainder = ""
+        else:
+          # Doesn't fit; find the last space in the
+          # allocated width, and break into this line, and
+          # subsequent lines
+          if remainder[w] == ' ':
+            # Exact fit?
+            fits = remainder[0:w].rstrip()
+            remainder = remainder[w:].strip()
+          else:
+            chopat = remainder.rindex(" ", 0, w)
+            fits = remainder[0:chopat+1].rstrip()
+            remainder = remainder[chopat+1:].strip()
+      except:
+        fits = remainder[0:w]
+        remainder = remainder[w:]
+
+      # Make sure we use the printable width
+      pad = config.LINE_WIDTH - textCellWidth(fits)
+      half = pad // 2
+      content = config.FORMATTED_PREFIX + half * ' ' + fits + (pad-half) * ' '
+      result.append(content)
+      if remainder == "":
+        break
+    return result
+
+
   # make printable table from source code block
   def makeTable(self, t):
 
@@ -4113,7 +4157,7 @@ class TableFormatter: #{
       cprint("warning: Table " + self.tableLine + " too wide, " +
           str(totalwidth) + " columns; max " + str(maxTableWidth) +
           ". Reducing widest column by one; until it fits." +
-          " Initial widths: " + toWidthString(self.columns))
+          " Initial widths: " + toWidthString(self.columns), end="")
 
     while totalwidth > maxTableWidth:
       widest = 0
@@ -4129,7 +4173,7 @@ class TableFormatter: #{
       totalwidth = tableWidth(self.columns)
 
     if tooWide:
-      cprint("Resulting widths: " + toWidthString(self.columns))
+      cprint("; Resulting widths: " + toWidthString(self.columns))
 
     # calculate tindent from max table width
     self.tindent = (maxTableWidth - totalwidth) // 2
