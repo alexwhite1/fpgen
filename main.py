@@ -9,6 +9,7 @@ from fpgen import TestParseTableColumn, TestMakeTable, TestParsing, TestTableCel
 from parse import TestParseTagAttributes
 from drama import TestDrama, TestOneDramaBlockMethod
 from testtext import TestTextInline, TestTextRewrap
+import msgs
 
 def main():
   # process command line
@@ -167,6 +168,7 @@ def main():
 
     # call(OPT_EPUB_ARGS, shell=False)
     js = " ".join(OPT_EPUB_ARGS)
+    msgs.dprint(1, js)
     os.system(js)
 
     if not options.saveint:
@@ -185,10 +187,12 @@ def main():
       OPT_EPUB_ARGS[4] = config.pn_cover
     # call(OPT_EPUB_ARGS, shell=False)
     js = " ".join(OPT_EPUB_ARGS)
+    msgs.dprint(1, js)
     os.system(js)
 
     # generate mobi with Kindlegen based on epub made by ebook-convert
     # os.system("kindlegen {0}-k.html -o {0}.mobi".format(bn))
+    msgs.dprint(1, "kindlegen {0}-e2.epub -o {0}.mobi".format(bn))
     os.system("kindlegen {0}-e2.epub -o {0}.mobi".format(bn))
 
     if not options.saveint:
@@ -220,6 +224,8 @@ def main():
 
     # call(OPT_PDF_ARGS, shell=False)
     js = " ".join(OPT_PDF_ARGS)
+
+    msgs.dprint(1, js)
     os.system(js)
 
     if not options.saveint:

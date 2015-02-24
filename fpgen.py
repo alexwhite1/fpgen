@@ -817,7 +817,7 @@ class ColDescr: #{
       elif oneCol[off] == 'B':
         self.valign = "bottom"
       elif oneCol[off] == 'C':
-        self.valign = "center"
+        self.valign = "middle"
       elif oneCol[off] == 'S':
         self.preserveSpaces = True
       else:
@@ -2656,21 +2656,44 @@ class HTML(Book):
       top:auto;
     }
   """
+
+  sidenotePDF = """[990]
+    .sidenote {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: smaller;
+      background: #f0f0f0;
+      display:block;
+      position: absolute;
+      text-align:right;
+      max-width:65pt;
+      right:4pt;
+      top:auto;
+    }
+  """
+
   sidenoteOff = """[990]
     .sidenote { visibility: hidden; }
   """
 
   def doSidenotes(self):
+    # Sidenotes only in html and pdf
     if 'h' in self.gentype:
       self.css.addcss(self.sidenote)
+    # Does not work
+    #elif 'p' in self.gentype:
+    #  self.css.addcss(self.sidenotePDF)
     else:
       self.css.addcss(self.sidenoteOff)
+    sawSidenote = False
+
     # footnote targets and text
     i = 0
     n = len(self.wb)
     while i < n:
       m = re.search("<sidenote>", self.wb[i])
       if m:
+        sawSidenote = True
         self.wb[i] = self.wb[i][0:m.start(0)] + "<div class='sidenote'>" + self.wb[i][m.end(0):]
         while i < n:
           m = re.search("<\/sidenote>", self.wb[i])
@@ -2679,6 +2702,9 @@ class HTML(Book):
             break
           i += 1
       i += 1
+
+    if sawSidenote and config.uopt.getopt('pdf-margin-right') == "":
+      config.uopt.addopt('pdf-margin-right', '72')
 
   # setup the framework around the lines
   # if a rend option of mt or mb appears, it applies to the entire block
