@@ -70,7 +70,8 @@ uopt = userOptions()
 # 4.30     Adds <pstyle=hang>; patternhtml/text; hang:#px
 # 4.30a    Fixes text table measurement by including all combining diacriticals
 # 4.30b    Fixes <l rend='center'> to break and center
-VERSION="4.30b"
+# 4.30c    .meta information: add tags; fix display title; add generator
+VERSION="4.30c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

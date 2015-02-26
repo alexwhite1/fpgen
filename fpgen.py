@@ -977,6 +977,34 @@ class Lint(Book):
   def __init__(self, ifile, ofile, d, fmt):
     Book.__init__(self, ifile, ofile, d, fmt)
 
+  def verifyMatching(self, reports, tag, line, lineno, lineGroupStartLine):
+    open = "<" + tag + ">"
+    close = "</" + tag + ">"
+
+    # Match all opens to a close
+    oLine = line
+    while True:
+      m = re.search(open, line)
+      if not m:
+        break
+      line = re.sub(open, "", line, 1)
+      if not re.search(close, line):
+        # TODO: Fix line group, or <l>
+        reports.append("error:unclosed " + open +
+          " tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, lineno, oLine))
+      line = re.sub(close, "", line, 1)
+
+    # Match all closes to an open
+    line = oLine
+    while True:
+      m = re.search(close, line)
+      if not m:
+        break
+      line = re.sub(close, "", line, 1)
+      if not re.search(open, line):
+        reports.append("error:unopened " + close + " tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, lineno, oLine))
+      line = re.sub(open, "", line, 1)
+
   def process(self):
     inLineGroup = False
     reports = []
@@ -1006,58 +1034,11 @@ class Lint(Book):
         inLineGroup = False
 
       # while in a line group all inline tags must be paired
-      if inLineGroup:
-        oLine = line
+      # Also in a <l>...</l>, and <heading>...</heading>
+      if inLineGroup or re.match("<l[> ]", line) or re.match("<heading[> ]", line):
 
-        m = re.search("<sc>", line)
-        while m:
-          line = re.sub("<sc>", "", line, 1)
-          if not re.search("<\/sc>", line):
-            reports.append("error:unclosed <sc> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
-          line = re.sub("<\/sc>", "", line, 1)
-          m = re.search("<sc>", line)
-        line = oLine
-        m = re.search("<\/sc>", line)
-        while m:
-          line = re.sub("<\/sc>", "", line, 1)
-          if not re.search("<sc>", line):
-            reports.append("error:unopened </sc> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
-          line = re.sub("<sc>", "", line, 1)
-          m = re.search("<\/sc>", line)
-
-        line = oLine
-        m = re.search("<i>", line)
-        while m:
-          line = re.sub("<i>", "", line, 1)
-          if not re.search("<\/i>", line):
-            reports.append("error:unclosed <i> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
-          line = re.sub("<\/i>", "", line, 1)
-          m = re.search("<i>", line)
-        line = oLine
-        m = re.search("<\/i>", line)
-        while m:
-          line = re.sub("<\/i>", "", line, 1)
-          if not re.search("<i>", line):
-            reports.append("error:unopened </i> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
-          line = re.sub("<i>", "", line, 1)
-          m = re.search("<\/i>", line)
-
-        line = oLine
-        m = re.search("<b>", line)
-        while m:
-          line = re.sub("<b>", "", line, 1)
-          if not re.search("<\/b>", line):
-            reports.append("error:unclosed <b> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
-          line = re.sub("<\/b>", "", line, 1)
-          m = re.search("<b>", line)
-        line = oLine
-        m = re.search("<\/b>", line)
-        while m:
-          line = re.sub("<\/b>", "", line, 1)
-          if not re.search("<b>", line):
-            reports.append("error:unopened </b> tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, i, oLine))
-          line = re.sub("<b>", "", line, 1)
-          m = re.search("<\/b>", line)
+        for tag in [ "sc", "i", "b", "u", "g" ]:
+          self.verifyMatching(reports, tag, line, i, lineGroupStartLine)
 
     # check for obsolete rend markup
     for i,line in enumerate(self.wb):
@@ -1158,6 +1139,7 @@ class HTML(Book):
     dc_author = "Unknown"
     dc_language = "en"
     dc_created = ""
+    dc_subject = ""
     config.pn_cover = "images/cover.jpg"
     pn_displaytitle = ""
     m_generator = "fpgen {}".format(config.VERSION)
@@ -1213,11 +1195,23 @@ class HTML(Book):
         where = i
         del(self.wb[i])
 
+      m = re.match(r".generator (.*)", self.wb[i])
+      if m:
+        m_generator = m.group(1)
+        where = i
+        del(self.wb[i])
+
+      m = re.match(r".tags (.*)", self.wb[i])
+      if m:
+        dc_subject = m.group(1)
+        where = i
+        del(self.wb[i])
+
       i += 1
 
-    # if user hasn't specified display title, build it from title+author
+    # if user hasn't specified display title, build it
     if pn_displaytitle == "":
-      pn_displaytitle = "{}, by {}".format(dc_title, dc_author)
+      pn_displaytitle = "The Distributed Proofreaders Canada eBook of {}".format(dc_title)
 
     if shortused:
       self.umeta.addmeta("<meta name='DC.Title' content='{}'/>".format(dc_title))
@@ -1225,9 +1219,20 @@ class HTML(Book):
       self.umeta.addmeta("<meta name='DC.Language' content='{}'/>".format(dc_language))
       if dc_created != "":
         self.umeta.addmeta("<meta name='DC.Created' content='{}'/>".format(dc_created))
+        self.umeta.addmeta("<meta name='DC.date.issued' content='{}'/>".format(dc_created))
+
+    if dc_subject != "":
+      self.umeta.addmeta("<meta name='DC.Subject' content='{}'/>".format(dc_subject))
+      self.umeta.addmeta("<meta name='Tags' content='{}'/>".format(dc_subject))
+
+    if m_generator != "":
+      self.umeta.addmeta("<meta name='generator' content='{}'/>".format(m_generator))
 
     self.uprop.addprop("cover image", "{}".format(config.pn_cover))
     self.uprop.addprop("display title", "{}".format(pn_displaytitle))
+
+    self.umeta.addmeta("<meta name='DC.Publisher' content='{}'/>".format("Distributed Proofreaders Canada"))
+
 
   # translate marked-up line to HTML
   # input:
