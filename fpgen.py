@@ -908,7 +908,7 @@ class TestParseTableColumn(unittest.TestCase):
   def test_valignC(self):
     c = ColDescr("rC")
     self.assertEqual(c.align, "right")
-    self.assertEqual(c.valign, "center")
+    self.assertEqual(c.valign, "middle")
     self.assertEqual(c.preserveSpaces, False)
 
   def test_colS(self):
@@ -4685,7 +4685,7 @@ class TableCell: #{
     m = len(self.lines)
     if self.columnDescription.valign == "bottom":
       insert = n-m
-    elif self.columnDescription.valign == "center":
+    elif self.columnDescription.valign == "middle":
       insert = (n-m)//2
     elif self.columnDescription.valign == "top":
       insert = 0
