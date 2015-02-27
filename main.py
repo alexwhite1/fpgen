@@ -2,6 +2,7 @@ from optparse import OptionParser
 import re
 import sys, os
 import unittest
+import zipfile
 
 import config
 from fpgen import Lint, Text, HTML
@@ -28,6 +29,9 @@ def main():
       help="save intermediate file")
   parser.add_option("--unittest",
       action="store_true", dest="unittest", default=False, help="run unittests")
+  parser.add_option("", "--ebookid",
+      dest="ebookid", default="",
+      help="Create fadedpage zip file")
   (options, args) = parser.parse_args()
 
   print("fpgen {}".format(config.VERSION))
@@ -45,6 +49,13 @@ def main():
     tests = l.suiteClass(tests)
     unittest.TextTestRunner(verbosity=2).run(tests)
     exit(0)
+
+  if options.ebookid != "":
+    options.formats = "thkep"
+    if not re.match("^201\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.ebookid):
+      print("Ebookid doesn't look correct: " + options.ebookid)
+      exit(1)
+
 
   tmp = options.formats
   tmp = re.sub('a|h|t|k|e|p', '', tmp)
@@ -230,6 +241,26 @@ def main():
 
     if not options.saveint:
       os.remove(outfile)
+
+  # Create a zip file with the ebook id, and all the output formats
+  # appropriately named
+  if options.ebookid != "":
+    epubid = options.ebookid
+    zipname = epubid + ".zip"
+    print("Writing zip file " + zipname)
+    zip = zipfile.ZipFile(zipname, "w", compression = zipfile.ZIP_DEFLATED)
+    zip.write(bn + "-src.txt")
+    for suffix in [ ".txt", ".html", ".mobi", ".epub", "-a5.pdf" ]:
+      src = bn + suffix
+      target = epubid + suffix
+      print("Adding " + src + " as " + target)
+      zip.write(src, target)
+    for dir, subdirs, files in os.walk("images"):
+      for file in files:
+        image = dir + "/" + file
+        print("Adding image: " + image)
+        zip.write(image)
+    zip.close()
 
 if __name__ == '__main__':
   main()

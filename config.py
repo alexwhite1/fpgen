@@ -71,7 +71,8 @@ uopt = userOptions()
 # 4.30a    Fixes text table measurement by including all combining diacriticals
 # 4.30b    Fixes <l rend='center'> to break and center
 # 4.30c    .meta information: add tags; fix display title; add generator
-VERSION="4.30c"
+# 4.31     Adds --ebookid flag to create fadedpage zip file
+VERSION="4.31"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
