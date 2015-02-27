@@ -1035,7 +1035,8 @@ class Lint(Book):
 
       # while in a line group all inline tags must be paired
       # Also in a <l>...</l>, and <heading>...</heading>
-      if inLineGroup or re.match("<l[> ]", line) or re.match("<heading[> ]", line):
+      if inLineGroup:
+        #or re.match("<l[> ]", line) or re.match("<heading[> ]", line):
 
         for tag in [ "sc", "i", "b", "u", "g" ]:
           self.verifyMatching(reports, tag, line, i, lineGroupStartLine)
@@ -2977,6 +2978,10 @@ class Text(Book):
           userindent = 0
         t = t.strip()
         lw = lineWidth - userindent
+        if lw < 5:
+          cprint("Warning: Line indented more than line width! [" + t + "]")
+          userindent = 0
+          lw = lineWidth
 
         # This is probably all wrong, and should be rewritten and tested
         # Or, we could just fix the rest of the code which lets long lines
