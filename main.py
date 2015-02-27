@@ -249,7 +249,7 @@ def main():
     zipname = epubid + ".zip"
     print("Writing zip file " + zipname)
     zip = zipfile.ZipFile(zipname, "w", compression = zipfile.ZIP_DEFLATED)
-    print("Adding " + b + "-src.txt")
+    print("Adding " + bn + "-src.txt")
     zip.write(bn + "-src.txt")
     for suffix in [ ".txt", ".html", ".mobi", ".epub", "-a5.pdf" ]:
       src = bn + suffix
