@@ -72,7 +72,8 @@ uopt = userOptions()
 # 4.30b    Fixes <l rend='center'> to break and center
 # 4.30c    .meta information: add tags; fix display title; add generator
 # 4.31     Adds --ebookid flag to create fadedpage zip file
-VERSION="4.31"
+# 4.31a    Fix more french-with-typo cases; extend lint to <l>&<heading>; fix trace at end of file
+VERSION="4.31a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

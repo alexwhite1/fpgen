@@ -292,6 +292,23 @@ class Book(object):
     if not fileOk:
         exit(1)
 
+  def blankLines(self, tag, before, after):
+    self.dprint(1, tag + "+spacing")
+    i = 0
+    while i < len(self.wb):
+      if self.wb[i].startswith(tag):
+        if before:
+          if i == 0 or not empty.match(self.wb[i-1]):
+            t = self.wb[i]
+            self.wb[i:i+1] = ["", t]
+            i += 1
+        if after:
+          if i+1 == len(self.wb) or not empty.match(self.wb[i+1]):
+            t = self.wb[i]
+            self.wb[i:i+1] = [t, ""]
+            i += 1
+      i += 1
+
   # load file from specified source file
   def loadFile(self, fn):
     self.dprint(1, "loadFile")
@@ -448,36 +465,11 @@ class Book(object):
       i += 1
 
     # ensure heading has a blank line before
-    self.dprint(1,"headings+spacing")
-    i = 0
-    while i < len(self.wb):
-      if self.wb[i].startswith("<heading"):
-        if not empty.match(self.wb[i-1]):
-          t = self.wb[i]
-          self.wb[i:i+1] = ["", t]
-          i += 1
-      i += 1
+    self.blankLines("<heading", True, False)
 
     # ensure line group has a blank line before
-    self.dprint(1,"line group+spacing")
-    i = 0
-    while i < len(self.wb):
-      if self.wb[i].startswith("<lg"):
-        if not empty.match(self.wb[i-1]):
-          t = self.wb[i]
-          self.wb[i:i+1] = ["", t]
-          i += 1
-      i += 1
-
-    # ensure line group has a blank line after
-    i = 0
-    while i < len(self.wb):
-      if self.wb[i].startswith("</lg"):
-        if not empty.match(self.wb[i+1]):
-          t = self.wb[i]
-          self.wb[i:i+1] = [t,""]
-          i += 1
-      i += 1
+    self.blankLines("<lg", True, False)
+    self.blankLines("</lg", False, True)
 
     # ensure standalone illustration line has blank lines before, after
     i = 0
@@ -496,30 +488,8 @@ class Book(object):
       i += 1
 
     # ensure illustration line has blank lines before
-    i = 0
-    while i < len(self.wb):
-      if self.wb[i].startswith("<illustration"):
-        t = self.wb[i]
-        u = []
-        if not empty.match(self.wb[i-1]):
-          u.append("")
-        u.append(t)
-        self.wb[i:i+1] = u
-        i += len(u)
-      i += 1
-
-    # illustration close
-    i = 0
-    while i < len(self.wb):
-      if self.wb[i].startswith("</illustration>"):
-        t = self.wb[i]
-        u = []
-        u.append(t)
-        if not empty.match(self.wb[i+1]):
-          u.append("")
-        self.wb[i:i+1] = u
-        i += len(u)
-      i += 1
+    self.blankLines("<illustration", True, False)
+    self.blankLines("</illustration", False, True)
 
     for i, line in enumerate(self.wb):
       # map drop caps requests
@@ -977,6 +947,10 @@ class Lint(Book):
   def __init__(self, ifile, ofile, d, fmt):
     Book.__init__(self, ifile, ofile, d, fmt)
 
+  def balanced(self, reports, line, lineno, lineGroupStartLine):
+    for tag in [ "sc", "i", "b", "u", "g" ]:
+      self.verifyMatching(reports, tag, line, lineno, lineGroupStartLine)
+
   def verifyMatching(self, reports, tag, line, lineno, lineGroupStartLine):
     open = "<" + tag + ">"
     close = "</" + tag + ">"
@@ -989,9 +963,13 @@ class Lint(Book):
         break
       line = re.sub(open, "", line, 1)
       if not re.search(close, line):
-        # TODO: Fix line group, or <l>
-        reports.append("error:unclosed " + open +
-          " tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, lineno, oLine))
+        if lineGroupStartLine == None:
+          reports.append("error:unclosed " + open +
+            " tag at line number: {}\n{}".format(lineno, oLine))
+        else:
+          reports.append("error:unclosed " + open +
+            " tag in line group starting at line {}:\nline number: {}\n{}". \
+            format(lineGroupStartLine, lineno, oLine))
       line = re.sub(close, "", line, 1)
 
     # Match all closes to an open
@@ -1002,7 +980,13 @@ class Lint(Book):
         break
       line = re.sub(close, "", line, 1)
       if not re.search(open, line):
-        reports.append("error:unopened " + close + " tag in line group starting at line {}:\nline number: {}\n{}".format(lineGroupStartLine, lineno, oLine))
+        if lineGroupStartLine == None:
+          reports.append("error:unopened " + close +
+            " tag at line number: {}\n{}".format(lineno, oLine))
+        else:
+          reports.append("error:unopened " + close +
+            " tag in line group starting at line {}:\nline number: {}\n{}". \
+            format(lineGroupStartLine, lineno, oLine))
       line = re.sub(open, "", line, 1)
 
   def process(self):
@@ -1036,10 +1020,10 @@ class Lint(Book):
       # while in a line group all inline tags must be paired
       # Also in a <l>...</l>, and <heading>...</heading>
       if inLineGroup:
-        #or re.match("<l[> ]", line) or re.match("<heading[> ]", line):
+        self.balanced(reports, line, i, lineGroupStartLine)
 
-        for tag in [ "sc", "i", "b", "u", "g" ]:
-          self.verifyMatching(reports, tag, line, i, lineGroupStartLine)
+      if re.match("<l[> ]", line) or re.match("<heading[> ]", line):
+        self.balanced(reports, line, i, None)
 
     # check for obsolete rend markup
     for i,line in enumerate(self.wb):
@@ -2006,6 +1990,7 @@ class HTML(Book):
       i += 1
 
   NARROW_NO_BREAK_SPACE = "\u202f"
+  RIGHT_DOUBLE_ANGLE_QUOTATION_MARK = "\u00bb"
 
   # Add non-breaking thin space before !, ? and ;
   # per french typographic rules.
@@ -2018,11 +2003,19 @@ class HTML(Book):
       return
 
     repl = r"\1" + self.NARROW_NO_BREAK_SPACE + r"\2"
-    i = 0
-    while i < len(self.wb):
-      if not self.wb[i].startswith("▹") and not self.wb[i].startswith("<"):
-        self.wb[i] = re.sub(r"(\w)([!?;])", repl, self.wb[i])
-      i += 1
+    sub = r"([\w⩥" + self.RIGHT_DOUBLE_ANGLE_QUOTATION_MARK + "])([!?;])"
+    for i,line in enumerate(self.wb):
+      if line.startswith("▹"):
+        continue
+      if not line.startswith("<"):
+        # Note that all <font> changes are protected by changing to ⩥
+        self.wb[i] = re.sub(sub, repl, line)
+      # TODO
+      # matching <l rend='center; mt:3em'>text!</l>
+      # don't sub before the semi, but do the exclamation!
+      # Ditto any arbitrary leading tag that is allowed to be followed by
+      # text...  Note that font changes do work, because they have been
+      # protected already.  But <target>, <l>, ...
 
   def endHTML(self):
     self.dprint(1,"endHTML")

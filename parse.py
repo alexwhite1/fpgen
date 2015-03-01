@@ -64,7 +64,7 @@ def parseOption(tag, arg, legalOptions = None):
 # would parse into
 #  { 'mr' : '5em', 'mb' : '1em', 'italic' : '' }
 def parseOption1(arg):
-  options = {}
+  options = collections.OrderedDict()
   arg = arg.strip()
   while True:
     while len(arg) > 0 and (arg[0] == ';' or arg[0] == ' '):
