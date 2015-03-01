@@ -73,7 +73,8 @@ uopt = userOptions()
 # 4.30c    .meta information: add tags; fix display title; add generator
 # 4.31     Adds --ebookid flag to create fadedpage zip file
 # 4.31a    Fix more french-with-typo cases; extend lint to <l>&<heading>; fix trace at end of file
-VERSION="4.31a"
+# 4.31b    Proper error with unmatched <lg>
+VERSION="4.31b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

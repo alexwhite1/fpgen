@@ -1394,28 +1394,23 @@ class HTML(Book):
         self.wb[i] = re.sub("<l\/>","<l></l>", self.wb[i]) # allow user shortcut <l/> -> </l></l>
       i += 1
 
-    i = 0
-    while i < len(self.wb):
-      # unadorned lines in line groups get marked here
-      m = re.match("<lg(.*?)>",self.wb[i])
-      if m:
-        lgopts = m.group(1) # what kind of line group
-        i += 1
-        if re.search("rend='center'",lgopts): # it's a centered line group
-          while not re.match("<\/lg>",self.wb[i]): # go over each line until </lg>
-            # already marked? <l or <ill..
-            if not re.match("^\s*<",self.wb[i]) or re.match("<link",self.wb[i]):
-              self.wb[i] = "<l>" + self.wb[i] + "</l>" # no, mark it now.
-            i += 1
-        else: # not a centered line group so honor leading spaces
-          while not re.search("<\/lg>",self.wb[i]): # go over each line until </lg>
-            if not re.match("^\s*<l",self.wb[i]) or re.match("<link",self.wb[i]): # already marked?
-              self.wb[i] = "<l>" + self.wb[i].rstrip() + "</l>"
-              m = re.match(r"(<l.*?>)(\s+)(.*?)<\/l>", self.wb[i])
-              if m:
-                self.wb[i] = m.group(1) + "◻"*len(m.group(2)) + m.group(3) + "</l>"
-            i += 1
-      i += 1
+    def lgBlock(lgopts, block):
+      if re.search("rend='center'",lgopts): # it's a centered line group
+        for i, line in enumerate(block):
+          # already marked? <l or <ill..
+          if not re.match("^\s*<", line) or re.match("<link", line):
+            block[i] = "<l>" + line + "</l>" # no, mark it now.
+      else: # not a centered line group so honor leading spaces
+        for i, line in enumerate(block):
+          if not re.match("^\s*<l", line) or re.match("<link", line): # already marked?
+            line = "<l>" + line.rstrip() + "</l>"
+            m = re.match(r"(<l.*?>)(\s+)(.*?)<\/l>", line)
+            if m:
+              line = m.group(1) + "◻"*len(m.group(2)) + m.group(3) + "</l>"
+            block[i] = line
+      return [ "<lg " + lgopts + ">" ] + block + [ "</lg>" ]
+
+    parseStandaloneTagBlock(self.wb, "lg", lgBlock)
 
     i = 1
     while i < len(self.wb)-1:
@@ -3332,17 +3327,19 @@ class Text(Book):
   # process any line in a line group that doesn't have <l> markup
   # include left-indent for poetry
   def markLines(self):
+    def lgBlock(args, block):
+      # For each line in the lg block.
+      for i, line in enumerate(block):
+        if not (re.match("<l", line) or re.match("<tb", line)):
+          line = re.sub(" ", "□", line)
+          line = "<l>{0}</l>".format(line)
+          block[i] = line
+      return [ "<lg " + args + ">" ] + block + [ "</lg>" ]
+
     self.dprint(1,"markLines")
-    i = 0
-    while i < len(self.wb):
-      if re.match("<lg", self.wb[i]):
-        i += 1
-        while not re.match("</lg>", self.wb[i]):
-          if not (re.match("<l", self.wb[i]) or re.match("<tb", self.wb[i])):
-            self.wb[i] = re.sub(" ", "□", self.wb[i])
-            self.wb[i] = "<l>{0}</l>".format(self.wb[i])
-          i += 1
-      i += 1
+
+    # Use parseStandalone to handle missing scenarios
+    parseStandaloneTagBlock(self.wb, "lg", lgBlock)
 
   # illustrations
   def illustrations(self):
