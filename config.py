@@ -74,7 +74,8 @@ uopt = userOptions()
 # 4.31     Adds --ebookid flag to create fadedpage zip file
 # 4.31a    Fix more french-with-typo cases; extend lint to <l>&<heading>; fix trace at end of file
 # 4.31b    Proper error with unmatched <lg>
-VERSION="4.31b"
+# 4.31c    Break and center headers correctly in text output
+VERSION="4.31c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

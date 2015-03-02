@@ -111,6 +111,60 @@ def wrap2(s, lm=0, rm=0, li=0, ti=0):  # 22-Feb-2014
   lines += wrap2h(s.strip(), lm, rm, li, ti) # last or only piece to wrap
   return lines
 
+def alignLine(line, align, w):
+  # Figure out what will fit in the current width and remove from the cell
+  remainder = line
+  lines = []
+
+  # Empty: always one line
+  if remainder == "":
+    remainder = " "
+
+  indent = 0
+  first = True
+
+  while remainder != "":
+    try:
+      if len(remainder) <= w:
+        # It all fits, done
+        fits = remainder
+        remainder = ""
+      else:
+        # Doesn't fit; find the last space in the
+        # allocated width, and break into this line, and
+        # subsequent lines
+        if remainder[w] == ' ':
+          # Exact fit?
+          fits = remainder[0:w].rstrip()
+          remainder = remainder[w:].strip()
+        else:
+          chopat = remainder.rindex(" ", 0, w)
+          fits = remainder[0:chopat+1].rstrip()
+          remainder = remainder[chopat+1:].strip()
+    except:
+      fits = remainder[0:w]
+      remainder = remainder[w:]
+
+    # Make sure we use the printable width
+    pad = w - textCellWidth(fits)
+    if align == 'left' or align == 'hang':
+      content = fits + ' ' * pad
+    elif align == 'center':
+      half = pad // 2
+      content = half * ' ' + fits + (pad-half) * ' '
+    elif align == 'right':
+      content = pad * ' ' + fits
+
+    lines.append(' ' * indent + content)
+
+    # For hang, change indent after first line
+    if first and align == 'hang':
+      indent = 2
+      w -= 2
+      first = False
+
+  return lines
+
 # Look for <tag> ... </tag> where the tags are on standalone lines.
 # As we find each such block, invoke the function against it
 def parseStandaloneTagBlock(lines, tag, function):
@@ -3519,16 +3573,15 @@ class Text(Book):
           self.wb[i:i+1] = t
         else:
           s = self.detag(head)
-          if "<br" in s: # split into separate lines
-            s1 = re.sub(r"<br(\/)?>", "|", s)
-            t1 = s1.split("|")
-            for s2 in t1:
-              if s2 == "":
-                t.append('▹.rs 1')
-              else:
-                t.append('▹{:^72}'.format(s2))
-          else:
-            t.append('▹{:^72}'.format(s)) # all on one line
+          s1 = re.sub(r"<br(\/)?>", "|", s)
+          t1 = s1.split("|")
+          for s2 in t1:
+            if s2 == "":
+              t.append('▹.rs 1')
+            else:
+              result = alignLine(s2, 'center', config.LINE_WIDTH)
+              for l in result:
+                t.append('▹' + l)
           if level == 1:
             t.append("▹.rs 2")
           else:
@@ -4620,59 +4673,13 @@ class TableCell: #{
   # starts with getData(), and populates the lines[] variable with the results
   # After calling this method, you can use lineCount() and getLine()
   def format(self, w):
-    # Figure out what will fit in the current width and remove from the cell
-    remainder = self.getData()
-    self.lines = []
-
-    # Empty cell: always one line
-    if remainder == "":
-      remainder = " "
-
     # Figure out the alignment
     align = self.getAlignment()
+    if self.columnDescription.hang:
+      align = "hang"
 
-    indent = 0
-    first = True
+    self.lines = alignLine(self.getData(), align, w)
 
-    while remainder != "":
-      try:
-        if len(remainder) <= w:
-          # It all fits, done
-          fits = remainder
-          remainder = ""
-        else:
-          # Doesn't fit; find the last space in the
-          # allocated width, and break into this line, and
-          # subsequent lines
-          if remainder[w] == ' ':
-            # Exact fit?
-            fits = remainder[0:w].rstrip()
-            remainder = remainder[w:].strip()
-          else:
-            chopat = remainder.rindex(" ", 0, w)
-            fits = remainder[0:chopat+1].rstrip()
-            remainder = remainder[chopat+1:].strip()
-      except:
-        fits = remainder[0:w]
-        remainder = remainder[w:]
-
-      # Make sure we use the printable width
-      pad = w - textCellWidth(fits)
-      if align == 'left':
-        content = fits + ' ' * pad
-      elif align == 'center':
-        half = pad // 2
-        content = half * ' ' + fits + (pad-half) * ' '
-      elif align == 'right':
-        content = pad * ' ' + fits
-
-      self.lines.append(' ' * indent + content)
-
-      # For hang, change indent after first line
-      if first and self.columnDescription.hang:
-        indent = 2
-        w -= 2
-        first = False
 
   # Vertical align in N
   def valign(self, n):
@@ -5141,7 +5148,7 @@ class TestMakeTable(unittest.TestCase):
         "word longer test w1|B",
       "</table>"
     ])
-    assert len(u) == 5
+    self.assertEquals(len(u), 5)
     assert u[1].endswith("    word B")
     assert u[2].endswith("  longer")
     assert u[3].endswith(" test w1")
