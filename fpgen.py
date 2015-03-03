@@ -2086,7 +2086,7 @@ class HTML(Book):
 
         m = re.search("id=[\"'](.*?)[\"']", harg)
         if m:
-          htarget = m.group(1)
+          htarget = " id='" + m.group(1) + "'"
 
         m = re.search("level=[\"'](.*?)[\"']", harg)
         if m:
@@ -2107,82 +2107,41 @@ class HTML(Book):
           useclass = " class='nobreak'"
           self.css.addcss("[427] h1.nobreak { page-break-before: avoid; }")
 
-        if not showpage: # no visible page numbers
-
-          if hlevel == 1:
-            if not empty.match(htarget):
-              self.wb[i] = "<h1{}{} id='{}'>{}</h1>".format(style, useclass, htarget, htitle)
-            else:
-              self.wb[i] = "<h1{}{}>{}</h1>".format(style, useclass, htitle)
-            self.css.addcss("[250] h1 { text-align:center; font-weight:normal;")
-            if self.gentype != 'h':
-              self.css.addcss("[251]  page-break-before:always; ")
-            self.css.addcss("[252]      font-size:1.2em; margin:2em auto 1em auto}")
-
-          if hlevel == 2:
-            if not empty.match(htarget):
-              self.wb[i] = "<h2{}{} id='{}'>{}</h2>".format(style, useclass, htarget, htitle)
-            else:
-              self.wb[i] = "<h2{}{}>{}</h2>".format(style, useclass, htitle)
-            self.css.addcss("[254] h2 { text-align:center; font-weight:normal;")
-            self.css.addcss("[255]      font-size:1.1em; margin:1em auto 0.5em auto}")
-
-          if hlevel == 3:
-            if not empty.match(htarget):
-              self.wb[i] = "<h3{}{} id='{}'>{}</h3>".format(style, useclass, htarget, htitle)
-            else:
-              self.wb[i] = "<h3{}{}>{}</h3>".format(style, useclass, htitle)
-            self.css.addcss("[258] h3 { text-align:center; font-weight:normal;")
-            self.css.addcss("[259]      font-size:1.0em; margin:1em auto 0.5em auto}")
-
-          if hlevel == 4:
-            if not empty.match(htarget):
-              self.wb[i] = "<h4{}{} id='{}'>{}</h4>".format(style, useclass, htarget, htitle)
-            else:
-              self.wb[i] = "<h4{}{}>{}</h4>".format(style, useclass, htitle)
-            self.css.addcss("[260] h4 { text-align:center; font-weight:normal;")
-            self.css.addcss("[261]      font-size:1.0em; margin:1em auto 0.5em auto}")
-
-        if showpage:
-
+        if showpage: # visible page numbers
           if self.gentype != 'h': # other than browser HTML, just the link
             span = "<a name='Page_{0}' id='Page_{0}'></a>".format(self.cpn)
           else:
             span = "<span class='pageno' title='{0}' id='Page_{0}'></span>".format(self.cpn)
+        else:
+          span = ''
 
-          if hlevel == 1:
-            if not empty.match(htarget):
-             self.wb[i] = "<div>{}<h1{}{} id='{}'>{}</h1></div>".format(span, style, useclass, htarget, htitle)
-            else:
-             self.wb[i] = "<div>{}<h1{}{}>{}</h1></div>".format(span, style, useclass, htitle)
-            self.css.addcss("[250] h1 { text-align:center; font-weight:normal;")
-            if self.gentype != 'h':
-              self.css.addcss("[251]  page-break-before:always; ")
-            self.css.addcss("[252]      font-size:1.2em; margin:2em auto 1em auto}")
+        if hlevel == 1:
+          if self.gentype != 'h':
+            # There will be a page break before the header; if we emit the pn anchor
+            # before the <h1>, the TOC will link to the prior page
+            self.wb[i] = "<div><h1{}{}{}>{}{}</h1></div>".format(style, useclass, htarget, span, htitle)
+          else:
+            # I don't know why the div for only the <h1>!
+            self.wb[i] = "<div>{}<h1{}{}{}>{}</h1></div>".format(span, style, useclass, htarget, htitle)
+          self.css.addcss("[250] h1 { text-align:center; font-weight:normal;")
+          if self.gentype != 'h':
+            self.css.addcss("[251]  page-break-before:always; ")
+          self.css.addcss("[252]      font-size:1.2em; margin:2em auto 1em auto}")
 
-          if hlevel == 2:
-            if not empty.match(htarget):
-             self.wb[i] = "<h2{}{} id='{}'>{}{}</h2>".format(style, useclass, htarget, span, htitle)
-            else:
-             self.wb[i] = "<h2{}{}>{}{}</h2>".format(style, useclass, span, htitle)
-            self.css.addcss("[254] h2 { text-align:center; font-weight:normal;")
-            self.css.addcss("[255]      font-size:1.1em; margin:1em auto 0.5em auto}")
+        if hlevel == 2:
+          self.wb[i] = "<h2{}{}{}>{}{}</h2>".format(style, useclass, htarget, span, htitle)
+          self.css.addcss("[254] h2 { text-align:center; font-weight:normal;")
+          self.css.addcss("[255]      font-size:1.1em; margin:1em auto 0.5em auto}")
 
-          if hlevel == 3:
-            if not empty.match(htarget):
-             self.wb[i] = "<h3{}{} id='{}'>{}{}</h3>".format(style, useclass, htarget, span, htitle)
-            else:
-             self.wb[i] = "<h3{}{}>{}{}</h3>".format(style, useclass, span, htitle)
-            self.css.addcss("[258] h3 { text-align:center; font-weight:normal;")
-            self.css.addcss("[259]      font-size:1.0em; margin:1em auto 0.5em auto}")
+        if hlevel == 3:
+          self.wb[i] = "<h3{}{}{}>{}{}</h3>".format(style, useclass, htarget, span, htitle)
+          self.css.addcss("[258] h3 { text-align:center; font-weight:normal;")
+          self.css.addcss("[259]      font-size:1.0em; margin:1em auto 0.5em auto}")
 
-          if hlevel == 4:
-            if not empty.match(htarget):
-              self.wb[i] = "<h4{}{} id='{}'>{}{}</h4>".format(style, useclass, htarget, span, htitle)
-            else:
-              self.wb[i] = "<h4{}{}>{}{}</h4>".format(style, useclass, span, htitle)
-            self.css.addcss("[260] h4 { text-align:center; font-weight:normal;")
-            self.css.addcss("[261]      font-size:1.0em; margin:1em auto 0.5em auto}")
+        if hlevel == 4:
+          self.wb[i] = "<h4{}{}{}>{}{}</h4>".format(style, useclass, htarget, span, htitle)
+          self.css.addcss("[260] h4 { text-align:center; font-weight:normal;")
+          self.css.addcss("[261]      font-size:1.0em; margin:1em auto 0.5em auto}")
 
   def oneSummary(self, openTag, block):
     if openTag != "":

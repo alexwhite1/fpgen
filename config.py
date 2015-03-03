@@ -75,7 +75,8 @@ uopt = userOptions()
 # 4.31a    Fix more french-with-typo cases; extend lint to <l>&<heading>; fix trace at end of file
 # 4.31b    Proper error with unmatched <lg>
 # 4.31c    Break and center headers correctly in text output
-VERSION="4.31c"
+# 4.31d    Emit level 1 headers before page number in non-html
+VERSION="4.31d"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72
