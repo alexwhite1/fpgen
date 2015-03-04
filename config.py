@@ -76,7 +76,8 @@ uopt = userOptions()
 # 4.31b    Proper error with unmatched <lg>
 # 4.31c    Break and center headers correctly in text output
 # 4.31d    Emit level 1 headers before page number in non-html
-VERSION="4.31d"
+# 4.31e    Fix display title; duplicated generator & publisher
+VERSION="4.31e"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 LINE_WIDTH = 72

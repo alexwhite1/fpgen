@@ -1157,11 +1157,24 @@ class HTML(Book):
     def addmeta(self,s):
       self.meta.append(s)
 
+    def add(self, key, value):
+      self.addmeta("<meta name='" + key + "' content='" + value + "'/>")
+
     def show(self):
       t = []
       for s in self.meta:
         t.append("    " + s)
       return t
+
+    def get(self, tag):
+      for l in self.meta:
+        m = re.match("<meta name=['\"](.*?)['\"] *content=['\"](.*?)['\"]", l)
+        if m:
+          name = m.group(1)
+          value = m.group(2)
+          if name == tag:
+            return value
+      return None
 
   def shortHeading(self):
     # allow shortcut heading
@@ -1178,10 +1191,10 @@ class HTML(Book):
     dc_author = "Unknown"
     dc_language = "en"
     dc_created = ""
-    dc_subject = ""
+    dc_subject = None
     config.pn_cover = "images/cover.jpg"
     pn_displaytitle = ""
-    m_generator = "fpgen {}".format(config.VERSION)
+    m_generator = None
     i = 0
     where = 0
     shortused = False
@@ -1248,29 +1261,23 @@ class HTML(Book):
 
       i += 1
 
-    # if user hasn't specified display title, build it
-    if pn_displaytitle == "":
-      pn_displaytitle = "The Distributed Proofreaders Canada eBook of {}".format(dc_title)
-
     if shortused:
-      self.umeta.addmeta("<meta name='DC.Title' content='{}'/>".format(dc_title))
-      self.umeta.addmeta("<meta name='DC.Creator' content='{}'/>".format(dc_author))
-      self.umeta.addmeta("<meta name='DC.Language' content='{}'/>".format(dc_language))
+      self.umeta.add("DC.Title", dc_title)
+      self.umeta.add("DC.Creator", dc_author)
+      self.umeta.add("DC.Language", dc_language)
       if dc_created != "":
-        self.umeta.addmeta("<meta name='DC.Created' content='{}'/>".format(dc_created))
-        self.umeta.addmeta("<meta name='DC.date.issued' content='{}'/>".format(dc_created))
+        self.umeta.add("DC.Created", dc_created)
+        self.umeta.add("DC.date.issued", dc_created)
 
-    if dc_subject != "":
-      self.umeta.addmeta("<meta name='DC.Subject' content='{}'/>".format(dc_subject))
-      self.umeta.addmeta("<meta name='Tags' content='{}'/>".format(dc_subject))
+    if dc_subject != None:
+      self.umeta.add("DC.Subject", dc_subject)
+      self.umeta.add("Tags", dc_subject)
 
-    if m_generator != "":
-      self.umeta.addmeta("<meta name='generator' content='{}'/>".format(m_generator))
+    if m_generator != None:
+      self.umeta.addmeta("generator", m_generator)
 
     self.uprop.addprop("cover image", "{}".format(config.pn_cover))
     self.uprop.addprop("display title", "{}".format(pn_displaytitle))
-
-    self.umeta.addmeta("<meta name='DC.Publisher' content='{}'/>".format("Distributed Proofreaders Canada"))
 
 
   # translate marked-up line to HTML
@@ -1536,7 +1543,7 @@ class HTML(Book):
       m = re.match("<meta", self.wb[i])
       if m:
         if not re.search("\/>$", self.wb[i]):
-          self.wb[i] =re.sub(">$", "/>", self.wb[i])
+          self.wb[i] = re.sub(">$", "/>", self.wb[i])
         self.umeta.addmeta(self.wb[i])
         del self.wb[i]
         continue
@@ -1887,11 +1894,21 @@ class HTML(Book):
     t.append("  <head>")
     t.append("    <meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\" />")
 
+    # Figure out the display title.
+    # Either specified by <property name='display title'>
+    # or generate a default via .title; or via <meta name="DC.Title">
+    # If they didn't use .title, <meta>, or <property>, use the source
+    # filename
+    displayTitle = ""
     if "display title" in self.uprop.prop:
-      t.append("    <title>{}</title>".format(self.uprop.prop["display title"]))
-    else:
-      # use default title
-      t.append("    <title>{}</title>".format(re.sub("-src.txt", "", self.srcfile)))
+      displayTitle = self.uprop.prop["display title"]
+    if displayTitle == "":
+      dc_title = self.umeta.get("DC.Title")
+      if dc_title == None:
+        cprint("warning: no display title or title given")
+        dc_title = re.sub("-src.txt", "", self.srcfile)
+      displayTitle = "The Distributed Proofreaders Canada eBook of {}".format(dc_title)
+    t.append("    <title>{}</title>".format(displayTitle))
 
     if "cover image" in self.uprop.prop:
       t.append("    <link rel=\"coverpage\" href=\"{}\"/>".format(self.uprop.prop["cover image"]))
@@ -2024,6 +2041,13 @@ class HTML(Book):
 
   def placeMeta(self):
     self.dprint(1,"placeMeta")
+
+    # Generate default meta values: Always want a generator, and DC.Publisher
+    if self.umeta.get("generator") == None:
+      self.umeta.add("generator", "fpgen {}".format(config.VERSION))
+    if self.umeta.get("DC.Publisher") == None:
+      self.umeta.add("DC.Publisher", "Distributed Proofreaders Canada")
+
     i = 0
     while i < len(self.wb):
       if re.search("META PLACEHOLDER", self.wb[i]):
