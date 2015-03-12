@@ -2976,6 +2976,17 @@ class Text(Book):
         continue
       i += 1
 
+# Not used.  Used NO_WRAP_PREFIX instead
+#    lw = config.uopt.getopt("text-line-wrap")
+#    if lw != '':
+#      try:
+#        config.LINE_WRAP = int(lw)
+#      except Exception as e:
+#        fatal("<option> text-line-wrap must be an integer: " + lw)
+#      if config.LINE_WRAP < 40 or config.LINE_WRAP > 500:
+#        fatal("<option> text-line-wrap must be between 40 and 500: " + lw)
+#      cprint("Text line width overridden to " + str(config.LINE_WRAP))
+
   # save file to specified dstfile
   # overload to do special wrapping for text output only
   def saveFile(self, fn):
@@ -2989,10 +3000,13 @@ class Text(Book):
     else:
       self.dprint(1, "running on Mac/Linux machine")
       lineEnd = "\r\n"
-    lineWidth = 75
+    lineWidth = config.LINE_WRAP
     f1 = open(fn, "w", encoding='utf-8')
     for index,t in enumerate(self.wb):
-      if len(t) < lineWidth:
+      if t.startswith(config.NO_WRAP_PREFIX):
+        # No wrapping permitted
+        f1.write("{:s}{}".format(t[1:], lineEnd))
+      elif len(t) < lineWidth:
         f1.write( "{:s}{}".format(t,lineEnd) ) # no wrapping required
       else:
         # Strip leading spaces, and figure out indent first
@@ -3474,7 +3488,8 @@ class Text(Book):
         del(self.wb[i])
         continue
 
-      if re.match("▹", self.wb[i]): # already formatted
+      # Already formatted?
+      if self.wb[i].startswith(config.FORMATTED_PREFIX):
         i += 1
         continue
 
@@ -3705,7 +3720,8 @@ class Text(Book):
             self.wb[i] = self.qstack[-1] + thetext.strip()
 
         else:
-          self.wb[i] = "▹"
+          # Blank line, i.e. <l></l>
+          self.wb[i] = config.FORMATTED_PREFIX
 
         i += 1
         continue
@@ -3746,12 +3762,12 @@ class Text(Book):
             if m:
               if not empty.match(m.group(1)):
                 theline = self.detag(m.group(1))
-                if len(theline) > 75:
+                if len(theline) > config.LINE_WRAP:
                   s = re.sub("□", " ", theline)
                   cprint("warning (long line):\n{}".format(s))
                 self.wb[i] = "▹" + '{:^{width}}'.format(theline, width=config.LINE_WIDTH)
               else:
-                self.wb[i] = "▹"
+                self.wb[i] = config.FORMATTED_PREFIX
             i += 1
           self.wb[i] = ".rs 1" # overwrites the </lg>
           continue
@@ -3763,12 +3779,12 @@ class Text(Book):
             if m:
               if not empty.match(m.group(1)):
                 theline = self.detag(m.group(1))
-                if len(theline) > 75:
+                if len(theline) > config.LINE_WRAP:
                   s = re.sub("□", " ", theline)
                   cprint("warning (long line):\n{}".format(s))
                 self.wb[i] = "▹" + '{:>{width}}'.format(theline, width=config.LINE_WIDTH)
               else:
-                self.wb[i] = "▹"
+                self.wb[i] = config.FORMATTED_PREFIX
             i += 1
           self.wb[i] = ".rs 1" # overwrites the </lg>
           continue
@@ -3816,7 +3832,7 @@ class Text(Book):
                 itext = "□" * int(m.group(1)) + itext
               if not empty.match(itext):
                 theline = self.detag(itext)
-                if len(theline) > 75:
+                if len(theline) > config.LINE_WRAP:
                   s = re.sub("□", " ", theline)
                   self.dprint(1,"warning: long poetry line:\n{}".format(s))
                 if self.poetryindent == 'center':
@@ -3826,7 +3842,7 @@ class Text(Book):
                 self.wb[i] = "▹" + self.qstack[-1] + leader + "{:<}".format(theline)
 
               else:
-                self.wb[i] = "▹"
+                self.wb[i] = config.FORMATTED_PREFIX
 
             i += 1
           self.wb[i] = ".rs 1"  # overwrites the </lg>
@@ -3854,7 +3870,7 @@ class Text(Book):
                 thetext = self.detag(thetext) # handle markup
               textlen = len(thetext) # calculate length
               totlen = rendlen + textlen
-            elif self.wb[j].startswith("▹"):
+            elif self.wb[j].startswith(config.FORMATTED_PREFIX):
               pass
             else:
               self.fatal(self.wb[j])
@@ -3897,10 +3913,10 @@ class Text(Book):
 
               # if not specified,
               self.wb[i] = "▹" + leader + thetext
-            elif self.wb[i].startswith("▹"):
+            elif self.wb[i].startswith(config.FORMATTED_PREFIX):
               pass
             else:
-              self.wb[i] = "▹"
+              self.wb[i] = config.FORMATTED_PREFIX
             i += 1
           self.wb[i] = ".rs 1"
           continue
@@ -3910,10 +3926,10 @@ class Text(Book):
           m = re.match("<l.*?>(.*?)</l>", self.wb[i])
           if m:
             if empty.match(m.group(1)):
-              self.wb[i] = "▹"
+              self.wb[i] = config.FORMATTED_PREFIX
             else:
               theline = self.detag(m.group(1))
-              if len(theline) > 75:
+              if len(theline) > config.LINE_WRAP:
                 s = re.sub("□", " ", theline)
                 self.dprint(1,"warning: long line:\n{}".format(s))
               self.wb[i] = "▹" + '{:<72}'.format(theline)
@@ -4156,7 +4172,20 @@ class TableFormatter: #{
   LAST_LINECHARS = "─┴┸━┷┻"
   ISOLATED_LINECHARS = "───━━━"
 
+  rendOptions = [
+    # Text only
+    "pad", "textwidth",
+
+    # html only
+    "vp", "hp", "border", "left", "flushleft", "hang",
+
+    # ignored, but the default
+    "center",
+  ]
+
   def __init__(self, tableLine, lines):
+    self.maxTableWidth = config.LINE_WRAP
+    self.vpad = False
     self.tableLine = tableLine
     self.lines = lines
     self.parseFormat()
@@ -4174,8 +4203,15 @@ class TableFormatter: #{
     m = re.search(r"rend='(.*?)'", self.tableLine)
     if m:
       rend = m.group(1)
-      if re.search("pad", rend):
+      opts = parseOption("rend", rend, self.rendOptions)
+      if 'pad' in opts:
         self.vpad = True
+      if 'textwidth' in opts:
+        try:
+          self.maxTableWidth = int(opts['textwidth'])
+        except:
+          fatal("Table rend option textwidth must be an integer " + \
+            opts['textwidth'] + " in table line " + self.tableLine)
 
     # pattern must be specified
     self.columns = parseTablePattern(self.tableLine, False)
@@ -4217,7 +4253,7 @@ class TableFormatter: #{
     dprint(1, "Computed table widths: " + toWidthString(self.columns) +
       ", total: " + str(totalwidth))
 
-    maxTableWidth = 75  # this is the size that saveFile decides to wrap at
+    maxTableWidth = self.maxTableWidth
 
     # for text, may have to force narrower to keep totalwidth < maxTableWidth
     tooWide = False
@@ -4244,8 +4280,15 @@ class TableFormatter: #{
     if tooWide:
       cprint("; Resulting widths: " + toWidthString(self.columns))
 
-    # calculate tindent from max table width
-    self.tindent = (maxTableWidth - totalwidth) // 2
+    centreWidth = maxTableWidth
+    if totalwidth <= config.LINE_WRAP:
+      # calculate tindent from max table width
+      self.tindent = (config.LINE_WRAP - totalwidth) // 2
+    else:
+      cprint("Wide table: " + str(totalwidth) + ": " + self.tableLine)
+      self.tindent = 0
+
+
     dprint(1, "Table totalwidth: " + str(totalwidth) +
       ", indenting: " + str(self.tindent) + "; final widths: " +
       toWidthString(self.columns))
@@ -4254,7 +4297,7 @@ class TableFormatter: #{
   # Create a single horizontal line.
   #
   def drawLine(self, isSingle, lineno, lines):
-    line = "▹" + " " * self.tindent
+    line = " " * self.tindent
     for colno, col in enumerate(self.columns):
 
       # Did the last line do a span over the next column?
@@ -4310,9 +4353,14 @@ class TableFormatter: #{
 
   #
   # Add a line to this table's output
+  # Add the pre-formatted pass-through flag character; and add the
+  # bypass wrap pass-through character
   #
   def output(self, l):
-    self.u.append(l.rstrip())
+    l = l.rstrip()
+    if len(l) >= config.LINE_WRAP:
+      l = config.NO_WRAP_PREFIX + l
+    self.u.append(config.FORMATTED_PREFIX + l.rstrip())
 
   def format(self):
 
@@ -4391,7 +4439,7 @@ class TableFormatter: #{
       self.formatOneOutputLine(rowcells, i)
 
       if self.vpad:
-        self.output("▹" + ".rs 1")
+        self.output(".rs 1")
 
   #
   # Output one real line of output.  The cells in rowcells are adjusted
@@ -4428,7 +4476,7 @@ class TableFormatter: #{
         line += delimiter    # delimiter between cols; none on last or we'll wrap
 
     # Finally! Emit the line, indented appropriately
-    self.output("▹" + " " * self.tindent + line)
+    self.output(" " * self.tindent + line)
 
 #} End of class TableFormatter
 
@@ -4954,15 +5002,42 @@ class TestMakeTable(unittest.TestCase):
       u = self.t.makeTable([ "<table>", "</table>" ])
     self.assertEqual(cm.exception.code, 1)
 
+  def test_rendOptionError(self):
+    with self.assertRaises(SystemExit) as cm:
+      self.t.makeTable([ "<table rend='foo' pattern='r10'>", "</table>" ])
+    self.assertEqual(cm.exception.code, 1)
+
   def common_assertions(self, u, n, textN):
     assert len(u) == n
-    assert u[0] == '.rs 1' and u[n-1] == '.rs 1'
+    assert u[0] == '▹.rs 1' and u[n-1] == '▹.rs 1'
     #for l in u:
     #  t.uprint("Line: " + l)
     # 11 + 11 = 22, 75-22=53//2 = 26.
     # Should be 26 + 1 + 10 + 1 + 10 
     self.assertEquals(len(u[textN]), 48)
     self.assertEquals(u[textN][0], '▹')
+
+  def test_toowide(self):
+    l = 'x' * 74
+    # Column width truncated to 74
+    u = self.t.makeTable([ "<table pattern='r99'>", l, "</table>" ])
+    self.assertEquals(u[1], config.FORMATTED_PREFIX + l)
+
+  def test_toowide1(self):
+    l = 'x' * 80
+    # Column width truncated to 74
+    u = self.t.makeTable([ "<table pattern='r99'>", l, "</table>" ])
+    # Chop-wrap onto two lines
+    self.assertEquals(u[1], config.FORMATTED_PREFIX + 'x'*74)
+    self.assertEquals(u[2], config.FORMATTED_PREFIX + ' '*68 + 'x'*6)
+
+  def test_toowide2(self):
+    l = 'x' * 80
+    # Column width not truncated
+    u = self.t.makeTable([ "<table rend='textwidth:99' pattern='r99'>", l, "</table>" ])
+    # Right justified in 99 columns, with special no wrap
+    self.assertEquals(u[1], config.FORMATTED_PREFIX + config.NO_WRAP_PREFIX +
+      ' '*18 + 'x'*80)
 
   def test_t1(self):
     u = self.t.makeTable([ "<table pattern='r10 r10'>", "1|2", "</table>" ])

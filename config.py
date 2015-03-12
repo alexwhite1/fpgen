@@ -77,10 +77,19 @@ uopt = userOptions()
 # 4.31c    Break and center headers correctly in text output
 # 4.31d    Emit level 1 headers before page number in non-html
 # 4.31e    Fix display title; duplicated generator & publisher
-VERSION="4.31e"
+# 4.32     Allow text tables to be wider
+VERSION="4.32"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
+
+# TEXT: Lines are justified & centered within this number of columns
+# NOTE: Not a constant, can be set with a property
 LINE_WIDTH = 72
+
+# TEXT: Lines passed through are wrapped at this number of columns.
+LINE_WRAP = 75
+
 debug = 0
 FORMATTED_PREFIX = "▹"
+NO_WRAP_PREFIX = "\u2135"
 pn_cover = ""
