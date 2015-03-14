@@ -78,7 +78,8 @@ uopt = userOptions()
 # 4.31d    Emit level 1 headers before page number in non-html
 # 4.31e    Fix display title; duplicated generator & publisher
 # 4.32     Allow text tables to be wider
-VERSION="4.32"
+# 4.32a    Error on non-terminated caption & sidenote
+VERSION="4.32a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

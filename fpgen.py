@@ -503,9 +503,13 @@ class Book(object):
     i = 0
     while i < len(self.wb):
       if self.wb[i].startswith("<caption>") and not re.search("<\/caption>", self.wb[i]):
+        n = 0
         while not re.search("<\/caption>", self.wb[i]):
+          if i+1 == len(self.wb) or n > 10:
+            fatal("<caption> not terminated, or too long. Caption starts: " + self.wb[i])
           self.wb[i] = self.wb[i] + " " + self.wb[i+1]
           del self.wb[i+1]
+          n += 1
       i += 1
 
     # add id to unadorned heading lines
@@ -2708,14 +2712,6 @@ class HTML(Book):
   """
 
   def doSidenotes(self):
-    # Sidenotes only in html and pdf
-    if 'h' in self.gentype:
-      self.css.addcss(self.sidenote)
-    # Does not work
-    #elif 'p' in self.gentype:
-    #  self.css.addcss(self.sidenotePDF)
-    else:
-      self.css.addcss(self.sidenoteOff)
     sawSidenote = False
 
     # footnote targets and text
@@ -2725,6 +2721,7 @@ class HTML(Book):
       m = re.search("<sidenote>", self.wb[i])
       if m:
         sawSidenote = True
+        startSidenote = i
         self.wb[i] = self.wb[i][0:m.start(0)] + "<div class='sidenote'>" + self.wb[i][m.end(0):]
         while i < n:
           m = re.search("<\/sidenote>", self.wb[i])
@@ -2732,10 +2729,22 @@ class HTML(Book):
             self.wb[i] = self.wb[i][0:m.start(0)] + "</div>" + self.wb[i][m.end(0):]
             break
           i += 1
+        if i == n or i > startSidenote+10:
+          fatal("<sidenote> not terminated or excessively long")
       i += 1
 
-    if sawSidenote and config.uopt.getopt('pdf-margin-right') == "":
-      config.uopt.addopt('pdf-margin-right', '72')
+    if sawSidenote:
+      # Sidenotes only in html and pdf
+      if 'h' in self.gentype:
+        self.css.addcss(self.sidenote)
+      # Does not work
+      #elif 'p' in self.gentype:
+      #  self.css.addcss(self.sidenotePDF)
+      else:
+        self.css.addcss(self.sidenoteOff)
+
+      if config.uopt.getopt('pdf-margin-right') == "":
+        config.uopt.addopt('pdf-margin-right', '72')
 
   # setup the framework around the lines
   # if a rend option of mt or mb appears, it applies to the entire block
