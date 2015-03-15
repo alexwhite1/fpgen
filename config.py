@@ -79,7 +79,8 @@ uopt = userOptions()
 # 4.31e    Fix display title; duplicated generator & publisher
 # 4.32     Allow text tables to be wider
 # 4.32a    Error on non-terminated caption & sidenote
-VERSION="4.32a"
+# 4.33     <l rend='poetry'> adds new align-last option
+VERSION="4.33"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

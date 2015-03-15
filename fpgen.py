@@ -1317,6 +1317,7 @@ class HTML(Book):
     "sa", "sb",
     "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
     "under", "bold", "sc", "smallcaps", "i", "italic",
+    "align-last",
   ]
 
   def m2h(self, s, pf='False', lgr=''):
@@ -1331,6 +1332,8 @@ class HTML(Book):
     options.update(parseOption("<l>/rend=", rend, self.legalOptions))
     #t1 = m.group(1).strip() + " " + lgr
     t2 = m.group(2)
+
+    thisLineRaw = t2
 
     setid = attributes['id'] if id in attributes else ''
 
@@ -1360,6 +1363,16 @@ class HTML(Book):
 
     if 'left' in options:
       thestyle += "text-align:left;"
+
+    if 'align-last' in options:
+      if not pf:
+        fatal("align-last only legal inside poetry")
+      if self.lastLineRaw == None:
+        fatal("Use of rend='align-last' without a last line: " + thetext)
+      alignLast = True
+      self.css.addcss("[234] .poetry-align-last { visibility:hidden; }")
+    else:
+      alignLast = False
 
     # ----- margins -------------
     if 'mr' in options:
@@ -1410,6 +1423,8 @@ class HTML(Book):
 
     if pf: # poetry
       self.css.addcss("[511] div.lgp p.line0 { text-indent:-3em; margin:0 auto 0 3em; }")
+      if alignLast:
+        thetext = "<span class='poetry-align-last'>" + self.lastLineRaw + "</span>" + thetext
       s =  "<p class='line0' {} {}>".format(hstyle,hid) + thetext + "</p>"
     else:
       self.css.addcss("[510] p.line { text-indent:0; margin-top:0; margin-bottom:0; }")
@@ -1419,6 +1434,9 @@ class HTML(Book):
     # ensure content in blank lines
     if re.search("<p class='line[^>]*?><\/p>", s):
       s = re.sub("<p class='line[^>]*?><\/p>", "<p class='line'>&#160;</p>", s)
+
+    if thisLineRaw != "":
+      self.lastLineRaw = thisLineRaw
     return s
 
   # preprocess text
@@ -2862,6 +2880,7 @@ class HTML(Book):
 
       if re.search("poetry-container", self.wb[i]):
         inPoetry = True # poetry lines are different
+        self.lastLineRaw = None
       if re.search("<!-- end poetry block -->", self.wb[i]):
         inPoetry = False
 
@@ -3817,6 +3836,7 @@ class Text(Book):
           if maxwidth > 70:
             cprint("warning (long poetry line {} chars)".format(maxwidth))
             self.dprint(1,"  " + maxline) # shown in debug in internal form
+          lastLine = None
           while not regexEndLg.match(self.wb[i]):
             m = re.match("<l(.*?)>(.*?)</l>", self.wb[i])
             if m:
@@ -3834,6 +3854,10 @@ class Text(Book):
                 self.wb[i] = tstr.format(itext)
                 i += 1
                 continue
+              if re.search("align-last", irend):
+                if lastLine == None:
+                  fatal("Use of rend='align-last' without a last line: " + itext)
+                itext = " " * len(lastLine) + itext
 
               m = re.search("ml:(\d+)em", irend)
               if m:
@@ -3841,6 +3865,7 @@ class Text(Book):
                 itext = "□" * int(m.group(1)) + itext
               if not empty.match(itext):
                 theline = self.detag(itext)
+                lastLine = theline
                 if len(theline) > config.LINE_WRAP:
                   s = re.sub("□", " ", theline)
                   self.dprint(1,"warning: long poetry line:\n{}".format(s))
