@@ -505,7 +505,7 @@ class Book(object):
       if self.wb[i].startswith("<caption>") and not re.search("<\/caption>", self.wb[i]):
         n = 0
         while not re.search("<\/caption>", self.wb[i]):
-          if i+1 == len(self.wb) or n > 10:
+          if i+1 == len(self.wb) or n > 50:
             fatal("<caption> not terminated, or too long. Caption starts: " + self.wb[i])
           self.wb[i] = self.wb[i] + " " + self.wb[i+1]
           del self.wb[i+1]
