@@ -1026,8 +1026,12 @@ class Lint(Book):
             " tag at line number: {}\n{}".format(lineno, oLine))
         else:
           reports.append("error:unclosed " + open +
-            " tag in line group starting at line {}:\nline number: {}\n{}". \
-            format(lineGroupStartLine, lineno, oLine))
+              " tag on line " + str(lineno) +
+              ", in line group starting at line " + str(lineGroupStartLine) +
+              ".\n" +
+              "Font changes must be balanced on each line, within a line group.\n" +
+              "Check for a missing end line group tag (</lg>).\n" +
+              "Line: " + oLine)
       line = re.sub(close, "", line, 1)
 
     # Match all closes to an open
@@ -1043,8 +1047,12 @@ class Lint(Book):
             " tag at line number: {}\n{}".format(lineno, oLine))
         else:
           reports.append("error:unopened " + close +
-            " tag in line group starting at line {}:\nline number: {}\n{}". \
-            format(lineGroupStartLine, lineno, oLine))
+              " tag on line " + str(lineno) +
+              ", in line group starting at line " + str(lineGroupStartLine) +
+              ".\n" +
+              "Font changes must be balanced on each line, within a line group.\n" +
+              "Check for a missing end line group tag (</lg>).\n" +
+              "Line: " + oLine)
       line = re.sub(open, "", line, 1)
 
   def process(self):

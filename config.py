@@ -80,7 +80,8 @@ uopt = userOptions()
 # 4.32     Allow text tables to be wider
 # 4.32a    Error on non-terminated caption & sidenote
 # 4.33     <l rend='poetry'> adds new align-last option
-VERSION="4.33"
+# 4.33a    Enhance unbalanced msgs inside linegroup
+VERSION="4.33a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
