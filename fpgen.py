@@ -279,6 +279,7 @@ class Book(object):
     self.back1 = -1
     self.poetryindent = 'left'
     self.italicdef = 'emphasis'
+    self.uprop = self.userProperties()
 
   # display (fatal) error and exit
   def fatal(self, message):
@@ -290,6 +291,39 @@ class Book(object):
   def dprint(self, level, msg):
     if int(self.debug) >= level:
       cprint("{}: {}".format(self.__class__.__name__, msg))
+
+  # internal class to save user properties
+  class userProperties(object):
+    def __init__(self):
+      self.prop = {}
+
+    def addprop(self,k,v):
+      self.prop[k] = v
+
+    def show(self):
+      cprint(self.prop)
+
+  def addOptionsAndProperties(self):
+    self.dprint(1,"addOptionsAndProperties")
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<property name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
+      if m:
+        self.uprop.addprop(m.group(1), m.group(2))
+        # 22-Feb-2014 if it's a specified cover, need to put it in global variable
+        # so epub &c. can use it after instance is complete
+        if m.group(1) == "cover image":
+          config.pn_cover = m.group(2)
+          # print("cover image: {}".format(config.pn_cover))
+        del self.wb[i]
+        continue
+
+      m = re.match("<option name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
+      if m:
+        config.uopt.addopt(m.group(1), m.group(2))
+        del self.wb[i]
+        continue
+      i += 1
 
   numeral_map = tuple(zip(
       (1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1),
@@ -551,8 +585,8 @@ class Book(object):
 
     for i, line in enumerate(self.wb):
       # map drop caps requests
-      self.wb[i] = re.sub("<drop>", "☊", self.wb[i])
-      self.wb[i] = re.sub("<\/drop>", "☋", self.wb[i])
+      self.wb[i] = re.sub("<drop>", config.DROP_START, self.wb[i])
+      self.wb[i] = re.sub("<\/drop>", config.DROP_END, self.wb[i])
 
       # map <br> to be legal
       self.wb[i] = re.sub("<br>", "<br/>", self.wb[i])
@@ -1124,7 +1158,6 @@ class HTML(Book):
   def __init__(self, ifile, ofile, d, fmt):
     Book.__init__(self, ifile, ofile, d, fmt)
     self.css = self.CSS()
-    self.uprop = self.userProperties()
     self.umeta = self.userMeta()
     self.srcfile = ifile
     self.dstfile = ofile
@@ -1149,17 +1182,6 @@ class HTML(Book):
       for s in keys:
         t.append("      " + s[6:])
       return t
-
-  # internal class to save user properties
-  class userProperties(object):
-    def __init__(self):
-      self.prop = {}
-
-    def addprop(self,k,v):
-      self.prop[k] = v
-
-    def show(self):
-      cprint(self.prop)
 
   # internal class to save user meta information
   class userMeta(object):
@@ -1555,21 +1577,10 @@ class HTML(Book):
         del self.wb[i] # </lit
       i += 1
 
-  def userHeader(self):
+  def addMeta(self):
     self.dprint(1,"userHeader")
     i = 0
     while i < len(self.wb):
-      m = re.match("<property name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
-      if m:
-        self.uprop.addprop(m.group(1), m.group(2))
-        # 22-Feb-2014 if it's a specified cover, need to put it in global variable
-        # so epub &c. can use it after instance is complete
-        if m.group(1) == "cover image":
-          config.pn_cover = m.group(2)
-          # print("cover image: {}".format(config.pn_cover))
-        del self.wb[i]
-        continue
-
       m = re.match("<meta", self.wb[i])
       if m:
         if not re.search("\/>$", self.wb[i]):
@@ -1578,11 +1589,6 @@ class HTML(Book):
         del self.wb[i]
         continue
 
-      m = re.match("<option name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
-      if m:
-        config.uopt.addopt(m.group(1), m.group(2))
-        del self.wb[i]
-        continue
       i += 1
 
   # page numbers honored in HTML, if present
@@ -2007,8 +2013,8 @@ class HTML(Book):
           self.wb[i])
 
       # Drop-cap code for no image
-      self.wb[i] = re.sub("☊", "<span style='float:left; clear: left; margin:0 0.1em 0 0; padding:0; line-height: 1.0em; font-size: 200%;'>", self.wb[i])
-      self.wb[i] = re.sub("☋", "</span>", self.wb[i])
+      self.wb[i] = re.sub(config.DROP_START, "<span style='float:left; clear: left; margin:0 0.1em 0 0; padding:0; line-height: 1.0em; font-size: 200%;'>", self.wb[i])
+      self.wb[i] = re.sub(config.DROP_END, "</span>", self.wb[i])
 
       self.wb[i] = re.sub("①","<span class='it'>", self.wb[i])
       self.wb[i] = re.sub("②","</span>", self.wb[i])
@@ -2966,7 +2972,8 @@ class HTML(Book):
     self.processPageNum()
     self.protectMarkup()
     self.preprocess()
-    self.userHeader()
+    self.addOptionsAndProperties()
+    self.addMeta()
     self.tweakSpacing()
     self.userToc()
     self.processLinks()
@@ -3000,17 +3007,6 @@ class Text(Book):
     self.dstfile = ofile
 
     self.qstack = [] # quote level stack
-
-  def userHeader(self):
-    self.dprint(1,"userHeader")
-    i = 0
-    while i < len(self.wb):
-      m = re.match("<option name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
-      if m:
-        config.uopt.addopt(m.group(1), m.group(2))
-        del self.wb[i]
-        continue
-      i += 1
 
 # Not used.  Used NO_WRAP_PREFIX instead
 #    lw = config.uopt.getopt("text-line-wrap")
@@ -4108,6 +4104,7 @@ class Text(Book):
     regexU = re.compile("\[\[\/?u\]\]")
     regexSC = re.compile("\[\[\/?sc\]\]")
     regexRS = re.compile(".rs (\d+)")
+    regexDrop = re.compile(config.DROP_START + "(.*)" + config.DROP_END)
 
     i = 0
     while i < len(self.wb):
@@ -4121,7 +4118,8 @@ class Text(Book):
       if False:
         line = []
         for c in l:
-          if c == "▹" or c == "☊" or c == "☋": # ?? or start or end dropcap
+          # ?? or start or end dropcap
+          if c == "▹" or c == config.DROP_START or c == config.DROP_END:
             continue
           elif c == "□":
             c = " "
@@ -4152,8 +4150,14 @@ class Text(Book):
         l = re.sub("⨭", "<", l) # literal <
         l = re.sub("⨮", ">", l) # literal >
 
-        l = re.sub("☊", "", l) # start dropcap
-        l = re.sub("☋", "", l) # end dropcap
+        m = regexDrop.search(l)
+        if m:
+          letter = m.group(1)
+          if "drop-text-"+letter in self.uprop.prop:
+            repl = self.uprop.prop["drop-text-"+letter]
+          else:
+            repl = letter
+          l = l[0:m.start(0)] + repl + l[m.end(0):]
 
       l = l.rstrip()
       m = regexRS.match(l)
@@ -4169,7 +4173,7 @@ class Text(Book):
       i += 1
 
   def process(self):
-    self.userHeader()
+    self.addOptionsAndProperties()
     self.processInline()
     self.processLiterals()
     self.processPageNum()

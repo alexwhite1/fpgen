@@ -81,7 +81,8 @@ uopt = userOptions()
 # 4.32a    Error on non-terminated caption & sidenote
 # 4.33     <l rend='poetry'> adds new align-last option
 # 4.33a    Enhance unbalanced msgs inside linegroup
-VERSION="4.33a"
+# 4.33b    Add drop-text-X property for text drop-cap substitution
+VERSION="4.33b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -95,4 +96,6 @@ LINE_WRAP = 75
 debug = 0
 FORMATTED_PREFIX = "▹"
 NO_WRAP_PREFIX = "\u2135"
+DROP_START = "☊"
+DROP_END = "☋"
 pn_cover = ""
