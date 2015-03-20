@@ -1347,7 +1347,7 @@ class HTML(Book):
     "sa", "sb",
     "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
     "under", "bold", "sc", "smallcaps", "i", "italic",
-    "align-last",
+    "align-last", "triple"
   ]
 
   def m2h(self, s, pf='False', lgr=''):
@@ -1365,7 +1365,7 @@ class HTML(Book):
 
     thisLineRaw = t2
 
-    setid = attributes['id'] if id in attributes else ''
+    setid = attributes['id'] if 'id' in attributes else ''
 
     if re.match("(◻+)", t2) and 'center' in options:
       self.fatal("indent requested on centered line. exiting")
@@ -1403,6 +1403,18 @@ class HTML(Book):
       self.css.addcss("[234] .poetry-align-last { visibility:hidden; }")
     else:
       alignLast = False
+
+    alignTriple = 'triple' in options
+
+    alignCount = \
+      (1 if alignTriple else 0) + \
+      (1 if alignLast else 0) + \
+      (1 if 'center' in options else 0) + \
+      (1 if 'right' in options else 0) + \
+      (1 if 'left' in options else 0)
+
+    if alignCount > 1:
+      fatal("Multiple alignment options given in: " + rend + "; " + thetext)
 
     # ----- margins -------------
     if 'mr' in options:
@@ -1451,7 +1463,22 @@ class HTML(Book):
     if not empty.match(setid):
       hid = "id='{}'".format(setid)
 
-    if pf: # poetry
+    if alignTriple:
+      pieces = thetext.split('|')
+      if len(pieces) != 3:
+        fatal("<l> triple alignment does not have three pieces: " + thetext)
+      s = """
+        <div class='center' {} {}>
+          <table border="0" cellpadding="4" cellspacing="0" summary="triple" width="100%">
+          <tr>
+            <td align='left'>{}</td>
+            <td align='center'>{}</td>
+            <td align='right'>{}</td>
+          </tr>
+          </table>
+        </div>
+      """.format(hstyle, hid, pieces[0], pieces[1], pieces[2])
+    elif pf: # poetry
       self.css.addcss("[511] div.lgp p.line0 { text-indent:-3em; margin:0 auto 0 3em; }")
       if alignLast:
         thetext = "<span class='poetry-align-last'>" + self.lastLineRaw + "</span>" + thetext
@@ -3624,10 +3651,20 @@ class Text(Book):
       # ----- thought breaks and hr/footnotemark ------------------------------
 
       # any thought break in text is just centered asterisks
+      # but the text:hidden rend option makes it just go away in text
       if self.wb[i].startswith("<tb"):
-        t = ["▹.rs 1"]
-        t.append("▹                 *        *        *        *        *")
-        t.append("▹.rs 1")
+        hidden = False
+        m = re.search(r"rend='(.*?)'", self.wb[i])
+        if m:
+          rend = m.group(1)
+          if re.search("text:hidden", rend):
+            hidden = True
+        if hidden:
+          t = []
+        else:
+          t = ["▹.rs 1"]
+          t.append("▹                 *        *        *        *        *")
+          t.append("▹.rs 1")
         self.wb[i:i+1] = t
         i += 1
         continue
@@ -3746,6 +3783,25 @@ class Text(Book):
             replacements = self.centerL(thetext.strip())
             self.wb[i:i+1] = replacements
             i += len(replacements)-1
+            handled = True
+
+          m = re.search("triple", therend)
+          if m:
+            pieces = thetext.split("|")
+            if len(pieces) != 3:
+              fatal("<l> triple alignment does not have three pieces: " + thetext)
+            left = pieces[0]
+            center = pieces[1]
+            right = pieces[2]
+            extra = config.LINE_WIDTH - len(left) - len(right) - len(center)
+            if extra <= 0:
+              fatal("Triple alignment doesn't fit: " + str(extra) + "; Line:" + thetext)
+
+            # This makes it have even spacing on both sides.
+            # Alternatively, we could try to center the middle with different spacing
+            gap = extra // 2
+            gap1 = gap + extra % 2      # Make sure we add up to LINE_WIDTH
+            self.wb[i] = left + gap * ' ' + center + gap1 * ' ' + right
             handled = True
 
           if not handled:
