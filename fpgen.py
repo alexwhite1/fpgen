@@ -2536,7 +2536,10 @@ class HTML(Book):
 
         userClass = cell.getUserClass()
         if userClass != None:
-          class2 = class2 + ' ' + userClass
+          if class2 != "":
+            class2 = class2 + ' ' + userClass
+          else:
+            class2 = userClass
 
         # Check both hang and align: hang can be set, but <align=c> override
         if col.hang and align == 'left':
@@ -2559,7 +2562,11 @@ class HTML(Book):
         else:
           styleClass = self.styleClasses[style]
 
-        line += "<td class='" + class1 + " " + class2 + " " + styleClass + "' " +\
+        if class2 != '':
+          class2 = class2 + ' '
+        if colspan != '':
+          colspan = ' ' + colspan
+        line += "<td class='" + class1 + " " + class2 + styleClass + "'" +\
           colspan + ">" + data + "</td>"
       # End of column for loop
 
@@ -3793,15 +3800,23 @@ class Text(Book):
             left = pieces[0]
             center = pieces[1]
             right = pieces[2]
-            extra = config.LINE_WIDTH - len(left) - len(right) - len(center)
-            if extra <= 0:
-              fatal("Triple alignment doesn't fit: " + str(extra) + "; Line:" + thetext)
 
             # This makes it have even spacing on both sides.
             # Alternatively, we could try to center the middle with different spacing
-            gap = extra // 2
-            gap1 = gap + extra % 2      # Make sure we add up to LINE_WIDTH
-            self.wb[i] = left + gap * ' ' + center + gap1 * ' ' + right
+            if False:
+              extra = config.LINE_WIDTH - len(left) - len(right) - len(center)
+              if extra <= 0:
+                fatal("Triple alignment doesn't fit: " + str(extra) + "; Line:" + thetext)
+              gapl = extra // 2
+              gapr = gap + extra % 2      # Make sure we add up to LINE_WIDTH
+            else:
+              gapl = (config.LINE_WIDTH - len(center))//2 - len(left)
+              gapr = (config.LINE_WIDTH - len(center))//2 - len(right)
+              if gapl <= 0 or gapr <= 0:
+                fatal("Triple alignment doesn't fit: left=" + str(gapl) + \
+                  ", right=" + str(gapr) + "; Line:" + thetext)
+
+            self.wb[i] = left + gapl * ' ' + center + gapr * ' ' + right
             handled = True
 
           if not handled:
