@@ -83,7 +83,8 @@ uopt = userOptions()
 # 4.33a    Enhance unbalanced msgs inside linegroup
 # 4.33b    Add drop-text-X property for text drop-cap substitution
 # 4.34     triple alignment option; text:hidden rend option to tb
-VERSION="4.34"
+# 4.35     Add occupy: option to rend in <illustration>
+VERSION="4.35"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

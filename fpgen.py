@@ -2582,6 +2582,27 @@ class HTML(Book):
     self.dprint(1,"doTables")
     parseStandaloneTagBlock(self.wb, "table", self.oneTableBlock)
 
+  illustrationRendOptions = [
+    "w", "h",
+    "left", "right", "center",
+    "occupy",
+    "link",
+  ]
+
+  def dimension(self, opts, name):
+    if not name in opts:
+      return None
+
+    opt = opts[name]
+    if opt != "auto" and not opt.endswith("px") and not opt.endswith("%"):
+      # A simple number is treated as pixels
+      if re.match(r"^\d+$", opt):
+        opt += "px"
+      else:
+        fatal("Illustration option " + name + \
+          " must be auto, or a number ending in px or %: " + opt)
+    return opt
+
   def doIllustrations(self):
     self.dprint(1,"doIllustrations")
     idcnt = 0 # auto id counter
@@ -2612,6 +2633,7 @@ class HTML(Book):
         m = re.search("rend=[\"'](.*?)[\"']", self.wb[i])
         if m:
           i_rend = m.group(1)
+        opts = parseOption("rend", i_rend, self.illustrationRendOptions)
 
         # --------------------------------------------------------------------
         # set i_id
@@ -2625,9 +2647,9 @@ class HTML(Book):
         # --------------------------------------------------------------------
         # set i_posn placement
         i_posn = "center" # default
-        if re.search("left", i_rend):
+        if "left" in opts:
           i_posn = "left"
-        if re.search("right", i_rend):
+        if "right" in opts:
           i_posn = "right"
 
         if i_posn == "right":
@@ -2643,26 +2665,24 @@ class HTML(Book):
 
         # --------------------------------------------------------------------
         # set i_w, i_h width and height
-        i_w = "none"
-        m = re.search(r"w:(\d+)(px)?[;'\"]", i_rend)
-        if m:
-          i_w = m.group(1) + "px"
-        m = re.search(r"w:(\d+)%[;'\"]", i_rend)
-        if m:
-          i_w = m.group(1) + "%"
-        i_h = "auto"
-        m = re.search(r"h:(\d+)(px)?[;'\"]", i_rend)
-        if m:
-          i_h = m.group(1)+"px"
-        if i_w == "none":
+        i_w = self.dimension(opts, 'w')
+        i_h = self.dimension(opts, 'h')
+        i_occupy = self.dimension(opts, 'occupy')
+
+        if i_w == None:
           self.fatal("must specify image width\n{}".format(self.wb[i]))
+        if i_h == None:
+          i_h = "auto"
+        if i_occupy != None:
+          i_occupy = " style='width:" + i_occupy + "'"
+        else:
+          i_occupy = ""
 
         # --------------------------------------------------------------------
         # determine if link to larger image is requested.
         # if so, link is to filename+f in images folder.
         i_link = "" # assume no link
-        m = re.search(r"link", i_rend)
-        if m:
+        if "link" in opts:
           i_link = re.sub(r"\.", "f.", i_filename)
 
         # --------------------------------------------------------------------
@@ -2680,7 +2700,7 @@ class HTML(Book):
         #
         t = []
         style="width:{};height:{};".format(i_w,i_h)
-        t.append("<div class='fig{}'>".format(i_posn, i_w))
+        t.append("<div class='fig{}'{}>".format(i_posn, i_occupy))
 
         # handle link to larger images in HTML only
         s0 = ""
