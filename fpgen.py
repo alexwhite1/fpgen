@@ -2584,6 +2584,7 @@ class HTML(Book):
 
   illustrationRendOptions = [
     "w", "h",
+    "align",
     "left", "right", "center",
     "occupy",
     "link",
@@ -2646,11 +2647,16 @@ class HTML(Book):
 
         # --------------------------------------------------------------------
         # set i_posn placement
+        # Either left, right, or center; or align:left, align:right, or
+        # align:center.
+        #
         i_posn = "center" # default
         if "left" in opts:
           i_posn = "left"
         if "right" in opts:
           i_posn = "right"
+        if "align" in opts:
+          i_posn = opts['align']
 
         if i_posn == "right":
           self.css.addcss("[380] .figright { float:right; clear:right; margin-left:1em;")
