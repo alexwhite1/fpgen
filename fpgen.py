@@ -73,6 +73,13 @@ class userOptions(object):
 
 empty = re.compile("^$")
 
+class TextWrapperDash(textwrap.TextWrapper):
+  dashre = re.compile(r'(\s+|◠◠|—)')
+  def _split(self, text):
+    chunks = self.dashre.split(text)
+    chunks = [c for c in chunks if c]
+    return chunks
+
 # wrap string s, returns wrapped list
 # parameters
 #   lm left margin default=0
@@ -85,9 +92,9 @@ empty = re.compile("^$")
 #   subsequent lines indent is lm + li
 #   gesperrt comes in with ◮ in for spaces.
 
-def wrap2h(s, lm, rm, li, l0):  # 22-Feb-2014
+def wrap2h(s, lm, rm, li, l0, breakOnEmDash):  # 22-Feb-2014
   lines = []
-  wrapper = textwrap.TextWrapper()
+  wrapper = TextWrapperDash() if breakOnEmDash else textwrap.TextWrapper()
   wrapper.width = config.LINE_WIDTH - lm - rm
   wrapper.break_long_words = False
   wrapper.break_on_hyphens = False
@@ -101,14 +108,14 @@ def wrap2h(s, lm, rm, li, l0):  # 22-Feb-2014
       lines[i] = " " * lm + lines[i]
   return lines
 
-def wrap2(s, lm=0, rm=0, li=0, ti=0):  # 22-Feb-2014
+def wrap2(s, lm=0, rm=0, li=0, ti=0, breakOnEmDash=False):  # 22-Feb-2014
   lines = []
   while re.search("<br\/>", s):
     m = re.search("(.*?)<br\/>(.*)", s)
     if m:
-      lines += wrap2h(m.group(1).strip(), lm, rm, li, ti)
+      lines += wrap2h(m.group(1).strip(), lm, rm, li, ti, breakOnEmDash)
       s = m.group(2)
-  lines += wrap2h(s.strip(), lm, rm, li, ti) # last or only piece to wrap
+  lines += wrap2h(s.strip(), lm, rm, li, ti, breakOnEmDash) # last or only piece to wrap
   return lines
 
 def alignLine(line, align, w):
@@ -3539,7 +3546,7 @@ class Text(Book):
     else:
       lm = 0
       ti = 0
-    result = wrap2(" ".join(block), 3, 3, lm, ti)
+    result = wrap2(" ".join(block), 3, 3, lm, ti, breakOnEmDash=True)
     for i in range(0, len(result)):
       result[i] = config.FORMATTED_PREFIX + result[i]
     return result
