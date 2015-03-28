@@ -2806,8 +2806,10 @@ class HTML(Book):
     }
   """
 
+  # Note: use display:none so it doesn't cause extra white-space between
+  # paragraphs.  visibility:hidden creates white-space
   sidenoteOff = """[990]
-    .sidenote { visibility: hidden; }
+    .sidenote { display: none; }
   """
 
   def doSidenotes(self):
@@ -3203,6 +3205,7 @@ class Text(Book):
       n = len(sub)
       replace = ""
       off = 0
+      lowerSeen = False
       while off < n:
         c = sub[off]
         if c == '<':
@@ -3217,8 +3220,12 @@ class Text(Book):
               break
         else:
           replace += c.upper()
+          if c.isalpha() and not c.isupper():
+            lowerSeen = True
         off += 1
 
+      if not lowerSeen:
+        cprint("warning: small-caps font does not have any lower-case letters. Small-caps of upper-case characters are unchanged; typically this warning means you need to lower-case the characters.  Line: " + line)
       line = line[:m.start()] + replace + line[m.end():]
 
     return line

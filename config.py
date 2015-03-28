@@ -85,7 +85,8 @@ uopt = userOptions()
 # 4.34     triple alignment option; text:hidden rend option to tb
 # 4.35     Add occupy: option to rend in <illustration>
 # 4.35a    Break summary lines on em-dash
-VERSION="4.35a"
+# 4.35b    Warning on <sc> of uppercase; Fix sidenote visibility
+VERSION="4.35b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
