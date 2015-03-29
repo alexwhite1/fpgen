@@ -1331,12 +1331,12 @@ class HTML(Book):
   # the same order as they used to, which is only required for tests,
   # to not show changes.
   marginMap = collections.OrderedDict(
-    {
-      "ml" : 'margin-left',
-      "mr" : 'margin-right',
-      "mt" : 'margin-top',
-      "mb" : 'margin-bottom',
-    }
+    [
+      ("ml", 'margin-left'),
+      ("mr", 'margin-right'),
+      ("mt", 'margin-top'),
+      ("mb", 'margin-bottom'),
+    ]
   )
 
   sizeMap = {
@@ -4865,7 +4865,7 @@ class TableCell: #{
   def format(self, w):
     # Figure out the alignment
     align = self.getAlignment()
-    if self.columnDescription.hang:
+    if self.isDefaultAlignment() and self.columnDescription.hang:
       align = "hang"
 
     self.lines = alignLine(self.getData(), align, w)
