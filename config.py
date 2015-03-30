@@ -88,7 +88,8 @@ uopt = userOptions()
 # 4.35b    Warning on <sc> of uppercase; Fix sidenote visibility
 # 4.35c    Fix alignment override on hang column in text output
 # 4.35d    Table css generation interaction with calibre fix
-VERSION="4.35d"
+# 4.36     Add <index> tag
+VERSION="4.36"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

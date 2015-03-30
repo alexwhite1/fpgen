@@ -365,6 +365,10 @@ class Book(object):
         fatal("option summary-style must be either hang or block, not: " + style)
     parseStandaloneTagBlock(self.wb, "summary", self.oneSummary)
 
+  def doIndex(self):
+    self.dprint(1,"doIndex")
+    parseStandaloneTagBlock(self.wb, "index", self.oneIndex)
+
   # validate file as UTF-8
   def checkFile(self, fn):
     fileOk = True
@@ -2251,6 +2255,39 @@ class HTML(Book):
       self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; }")
     return [ "<div class='summary'>" ] + block + [ "</div>" ]
 
+  indexN = 0
+  def oneIndex(self, openTag, block):
+    self.indexN += 1
+    nCol = 2
+
+    attributes = parseTagAttributes("index", openTag, [ "rend" ])
+    if "rend" in attributes:
+      rend = attributes["rend"]
+      options = parseOption("index", rend, [ "ncol" ])
+      if "ncol" in options:
+        try:
+          nCol = int(options["ncol"])
+        except:
+          fatal("<index>: rend option ncol requires a number: " + options["ncol"])
+
+    self.css.addcss("""[1235] .index{} {{
+      -moz-column-count: {nCol};
+      -moz-column-gap: 20px;
+      -webkit-column-count: {nCol};
+      -webkit-column-gap: 20px;
+      column-count: {nCol};
+      column-gap: 20px;
+    }}""".format(self.indexN, nCol=nCol))
+    b = [ \
+      '<div class="index{}">'.format(self.indexN), \
+      '<lg rend="left">' \
+    ]
+    for i, l in enumerate(block):
+      b.append("<l>" + l + "</l>")
+    b.append('</div>')
+    b.append('</lg>')
+    return b
+
   def doBlockq(self):
     self.dprint(1,"doBlockq")
     regex = re.compile("<quote(.*?)>")
@@ -3032,6 +3069,7 @@ class HTML(Book):
     # self.doDrama()
     self.doBlockq()
     self.doSummary()
+    self.doIndex()
     self.doBreaks()
     self.doTables()
     self.doIllustrations()
@@ -3563,6 +3601,25 @@ class Text(Book):
     for i in range(0, len(result)):
       result[i] = config.FORMATTED_PREFIX + result[i]
     return result
+
+  def oneIndex(self, openTag, block):
+
+#    attributes = parseTagAttributes("index", openTag, [ "rend" ])
+#    nCol = 2
+#    if "rend" in attributes:
+#      rend = attributes["rend"]
+#      options = parseOption("index", rend, [ "ncol" ])
+#      if "ncol" in options:
+#        try:
+#          nCol = int(options["ncol"])
+#        except:
+#          fatal("<index>: rend option ncol requires a number: " + options["ncol"])
+
+    b = [ '<lg rend="left">' ]
+    for i, l in enumerate(block):
+      b.append("<l>" + l + "</l>")
+    b.append('</lg>')
+    return b
 
   # rewrap
   # doesn't touch lines that are already formatted
@@ -4304,6 +4361,7 @@ class Text(Book):
     DramaText(self.wb).doDrama()
     self.markLines()
     self.doSummary()
+    self.doIndex()
     self.rewrap()
     self.finalSpacing()
     self.finalRend()
