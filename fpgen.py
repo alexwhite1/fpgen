@@ -2279,13 +2279,19 @@ class HTML(Book):
       column-gap: 20px;
     }}""".format(self.indexN, nCol=nCol))
     b = [ \
+      '', \
       '<div class="index{}">'.format(self.indexN), \
       '<lg rend="left">' \
     ]
     for i, l in enumerate(block):
-      b.append("<l>" + l + "</l>")
-    b.append('</div>')
+      l = "<l>" + l.rstrip() + "</l>"
+      m = re.match(r"(<l.*?>)(\s+)(.*?)<\/l>", l)
+      if m:
+        l = m.group(1) + "◻"*len(m.group(2)) + m.group(3) + "</l>"
+      b.append(l)
     b.append('</lg>')
+    b.append('')
+    b.append('</div>')
     return b
 
   def doBlockq(self):
@@ -3069,7 +3075,6 @@ class HTML(Book):
     # self.doDrama()
     self.doBlockq()
     self.doSummary()
-    self.doIndex()
     self.doBreaks()
     self.doTables()
     self.doIllustrations()
@@ -3089,6 +3094,7 @@ class HTML(Book):
     self.addMeta()
     self.tweakSpacing()
     self.userToc()
+    self.doIndex()
     self.processLinks()
     self.processTargets()
     from drama import DramaHTML
