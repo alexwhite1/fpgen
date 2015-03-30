@@ -2445,8 +2445,12 @@ class HTML(Book):
         property = "border-right"
         linetype = "solid" if col.lineBeforeStyle == '|' else "double"
         value = str(col.lineAfter) + "px"
-        self.css.addcss("[563] ." + tableID + colID + 
+        self.css.addcss("[562] ." + tableID + colID + 
           " { " + property + ": " + value + " " + linetype + " black; }");
+      # Generate empty CSS if no border, since we generate the class below.
+      # Calibre doesn't convert non-existing classes correctly
+      if col.lineAfter == 0 and col.lineBefore == 0:
+        self.css.addcss("[562] ." + tableID + colID + " { }");
       colIndex += 1
 
     # build the table header
