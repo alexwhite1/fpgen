@@ -708,9 +708,9 @@ class Book(object):
     # format footnotes to standard form 08-Sep-2013
     i = 0
     fnc = 1 # footnote counter to autonumber if user has used '#'
-    reOneLine = re.compile("(<footnote id=[\"'].*?[\"']>)(.+?)(<\/footnote>)")
-    reStart = re.compile("(<footnote id=[\"'].*?[\"']>)(.+?)$")
-    reStartWOText = re.compile("<footnote id=[\"'].*?[\"']>$")
+    reOneLine = re.compile("(<footnote\s+id=[\"'].*?[\"']>)(.+?)(<\/footnote>)")
+    reStart = re.compile("(<footnote\s+id=[\"'].*?[\"']>)(.+?)$")
+    reStartWOText = re.compile("<footnote\s+id=[\"'].*?[\"']>$")
     reEnd = re.compile("^(.+?)(<\/footnote>)")
     while i < len(self.wb):
 
@@ -722,7 +722,7 @@ class Book(object):
         mg3 = m.group(3).strip()
         m = re.search("id=[\"']#[\"']", mg1)
         if m:
-          mg1 = "<footnote id='{}'>".format(fnc)
+          mg1 = "<footnote\s+id='{}'>".format(fnc)
           fnc += 1
         self.wb[i:i+1] = [mg1, mg2, mg3]
         i += 2
@@ -734,7 +734,7 @@ class Book(object):
         mg2 = m.group(2).strip()
         m = re.search("id=[\"']#[\"']", mg1)
         if m:
-          mg1 = "<footnote id='{}'>".format(fnc)
+          mg1 = "<footnote\s+id='{}'>".format(fnc)
           fnc += 1
         self.wb[i:i+1] = [mg1, mg2]
         i += 1
@@ -744,7 +744,7 @@ class Book(object):
       if m:
         m = re.search("id=[\"']#[\"']", self.wb[i])
         if m:
-          self.wb[i] = "<footnote id='{}'>".format(fnc)
+          self.wb[i] = "<footnote\s+id='{}'>".format(fnc)
           fnc += 1
         i += 1
 
@@ -1582,12 +1582,12 @@ class HTML(Book):
     # single-line or split-line format footnotes to multi
     i = 0
     while i < len(self.wb):
-      m = re.match("(<footnote id=[\"'].*?[\"']>)(.*?)(<\/footnote>)", self.wb[i])
+      m = re.match("(<footnote\s+id=[\"'].*?[\"']>)(.*?)(<\/footnote>)", self.wb[i])
       if m:
         self.wb[i:i+1] = [m.group(1),m.group(2).strip(),m.group(3)]
         i += 2
         continue
-      m = re.match("(<footnote id=[\"'].*?[\"']>)(.*?)$", self.wb[i]) # closing tag on separate line
+      m = re.match("(<footnote\s+id=[\"'].*?[\"']>)(.*?)$", self.wb[i]) # closing tag on separate line
       if m:
         self.wb[i:i+1] = [m.group(1),m.group(2).strip()]
         i += 1
@@ -1717,9 +1717,9 @@ class HTML(Book):
     self.dprint(1,"processLinks")
     for i,line in enumerate(self.wb):
       while True:
-        m = re.search("<link target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
+        m = re.search("<link\s+target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
         if m:
-          self.wb[i] = re.sub("<link target=[\"'].*?[\"']>","⩤a href='#{}'⩥".format(m.group(1)), self.wb[i], 1)
+          self.wb[i] = re.sub("<link\s+target=[\"'].*?[\"']>","⩤a href='#{}'⩥".format(m.group(1)), self.wb[i], 1)
           self.wb[i] = re.sub("<\/link>","⩤/a⩥",self.wb[i], 1)
         else:
           break
@@ -1728,9 +1728,9 @@ class HTML(Book):
     self.dprint(1,"processTargets")
     for i,line in enumerate(self.wb):
       while True:
-        m = re.search("<target id=[\"'](.*?)[\"']\/?>", self.wb[i])
+        m = re.search("<target\s+id=[\"'](.*?)[\"']\/?>", self.wb[i])
         if m:
-          self.wb[i] = re.sub("<target id=[\"'].*?[\"']\/?>","⩤a id='{}'⩥⩤/a⩥".format(m.group(1)), self.wb[i], 1)
+          self.wb[i] = re.sub("<target\s+id=[\"'].*?[\"']\/?>","⩤a id='{}'⩥⩤/a⩥".format(m.group(1)), self.wb[i], 1)
         else:
           break
 
@@ -2782,16 +2782,16 @@ class HTML(Book):
   def doLinks(self):
     self.dprint(1,"doLinks")
     for i,line in enumerate(self.wb):
-      m = re.search("<link target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
+      m = re.search("<link\s+target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
       if m:
         tgt = m.group(1)
-        self.wb[i] = re.sub("<link target=[\"'].*?[\"']>","<a href='#{}'>".format(tgt),self.wb[i])
+        self.wb[i] = re.sub("<link\s+target=[\"'].*?[\"']>","<a href='#{}'>".format(tgt),self.wb[i])
         self.wb[i] = re.sub("<\/link>","</a>",self.wb[i])
 
   def doFootnotes(self):
     self.dprint(1,"doFootnotes")
 
-    regex = re.compile("<fn id=[\"'](.*?)[\"']\/?>")
+    regex = re.compile("<fn\s+id=[\"'](.*?)[\"']\/?>")
     footnotes = []
 
     # footnote marks in text
@@ -2802,12 +2802,12 @@ class HTML(Book):
         fmid = m.group(1)
         if fmid in footnotes:
           cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
-          self.wb[i] = re.sub("<fn id=[\"'](.*?)[\"']\/?>",
+          self.wb[i] = re.sub("<fn\s+id=[\"'](.*?)[\"']\/?>",
             "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
             self.wb[i], 1)
         else:
           footnotes.append(fmid)
-          self.wb[i] = re.sub("<fn id=[\"'](.*?)[\"']\/?>",
+          self.wb[i] = re.sub("<fn\s+id=[\"'](.*?)[\"']\/?>",
             "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
             self.wb[i], 1)
         m = regex.search(self.wb[i])
@@ -2816,7 +2816,7 @@ class HTML(Book):
     # footnote targets and text
     i = 0
     while i < len(self.wb):
-      m = re.match("<footnote id=[\"'](.*?)[\"']>", self.wb[i])
+      m = re.match("<footnote\s+id=[\"'](.*?)[\"']>", self.wb[i])
       if m:
         fnid = m.group(1)
         self.wb[i] = "<div id='f{0}'><a href='#r{0}'>[{0}]</a></div>".format(fnid)
@@ -3471,11 +3471,11 @@ class Text(Book):
         self.wb[i] = re.sub("fn id=['\"]#['\"]", "fn id='{}'".format(fnc), self.wb[i], 1)
         fnc += 1
 
-      m = re.search(r"<fn id=['\"](.*?)['\"]\/?>", self.wb[i])
+      m = re.search(r"<fn\s+id=['\"](.*?)['\"]\/?>", self.wb[i])
       if m:
         while m:
-          self.wb[i] = re.sub(r"<fn id=['\"](.*?)['\"]\/?>", r'[\1]', self.wb[i], 1)
-          m = re.search(r"<fn id=['\"](.*?)['\"]\/?>", self.wb[i])
+          self.wb[i] = re.sub(r"<fn\s+id=['\"](.*?)['\"]\/?>", r'[\1]', self.wb[i], 1)
+          m = re.search(r"<fn\s+id=['\"](.*?)['\"]\/?>", self.wb[i])
 
       m = re.match("\s+(<l.*)$", self.wb[i])
       if m:
@@ -3638,7 +3638,7 @@ class Text(Book):
     regexLg = re.compile("<lg(.*?)>")
     regexEndLg = re.compile("<\/lg>")
     regexL = re.compile("<l(.*?)>(.*?)<\/l>")
-    regexFootnote = re.compile(r"<footnote id=['\"](.*?)['\"]>")
+    regexFootnote = re.compile(r"<footnote\s+id=['\"](.*?)['\"]>")
     regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
     regexSidenote = re.compile("<sidenote>")
     while i < len(self.wb):
