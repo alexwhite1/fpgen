@@ -6,10 +6,6 @@ import zipfile
 
 import config
 from fpgen import Lint, Text, HTML
-from fpgen import TestParseTableColumn, TestMakeTable, TestParsing, TestTableCellFormat
-from parse import TestParseTagAttributes
-from drama import TestDrama, TestOneDramaBlockMethod
-from testtext import TestTextInline, TestTextRewrap
 import msgs
 
 def main():
@@ -40,10 +36,15 @@ def main():
     sys.argv = sys.argv[:1]
     l = unittest.TestLoader();
     tests = []
+    from fpgen import TestParseTableColumn, TestMakeTable, TestTableCellFormat
+    from parse import TestParseTagAttributes, TestParsing
+    from drama import TestDrama, TestOneDramaBlockMethod
+    from testtext import TestTextInline, TestTextRewrap
+    from template import TestTemplate
     for cl in [
       TestParseTableColumn, TestMakeTable, TestDrama, TestParsing,
       TestParseTagAttributes, TestOneDramaBlockMethod, TestTextRewrap,
-      TestTextInline, TestTableCellFormat
+      TestTextInline, TestTableCellFormat, TestTemplate
     ]:
       tests.append(l.loadTestsFromTestCase(cl))
     tests = l.suiteClass(tests)

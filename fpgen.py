@@ -3,17 +3,17 @@
 
 from optparse import OptionParser
 from subprocess import call
-from parse import parseTagAttributes, parseOption
-from msgs import cprint, uprint, dprint, fatal
 import re, sys, string, os, shutil
 import textwrap
 import codecs
 import platform
 import unittest
 import collections
-from unittest.mock import MagicMock, Mock, call
 
+from parse import parseTagAttributes, parseOption, parseLineEntry, parseStandaloneTagBlock
+from msgs import cprint, uprint, dprint, fatal
 import config
+import template
 
 """
 
@@ -172,106 +172,6 @@ def alignLine(line, align, w):
 
   return lines
 
-# Look for <tag> ... </tag> where the tags are on standalone lines.
-# As we find each such block, invoke the function against it
-def parseStandaloneTagBlock(lines, tag, function):
-  i = 0
-  startTag = "<" + tag
-  endTag = "</" + tag + ">"
-  regex = re.compile(startTag + "(.*?)>")
-  while i < len(lines):
-    m = regex.match(lines[i])
-    if not m:
-      i += 1
-      continue
-
-    openLine = lines[i]
-    openArgs = m.group(1)
-    block = []
-
-    j = i+1
-    while j < len(lines):
-      line = lines[j]
-      if line.startswith(endTag):
-        break
-      if line.startswith(startTag):
-        fatal("No closing tag found for " + tag + "; open line: " + openLine +
-          "; found another open tag: " + line)
-      block.append(line)
-      j += 1
-
-    if j == len(lines):
-      fatal("No closing tag found for " + tag + "; open line: " + openLine)
-    
-    replacement = function(openArgs, block)
-
-    lines[i:j+1] = replacement
-    i += len(replacement)
-
-  return lines
-
-class TestParsing(unittest.TestCase):
-  def setUp(self):
-    self.book = Book(None, None, None, None)
-
-  def verify(self, lines, expectedResult, expectedBlocks, replacementBlocks, open=""):
-    self.callbackN = -1
-    def f(l0, block):
-      self.callbackN += 1
-      self.assertEquals(l0, open)
-      self.assertSequenceEqual(block, expectedBlocks[self.callbackN])
-      return replacementBlocks[self.callbackN] if replacementBlocks != None else []
-
-    parseStandaloneTagBlock(lines, "tag", f)
-    self.assertSequenceEqual(lines, expectedResult)
-
-  def test_parse0(self):
-    lines = [ "<tag>", "</tag>", ]
-    expectedResult = [ ]
-    expectedBlock = [ [ ] ]
-    self.verify(lines, expectedResult, expectedBlock, None)
-
-  def test_parse_no_close(self):
-    lines = [ "<tag>", "l1", ]
-    with self.assertRaises(SystemExit) as cm:
-      parseStandaloneTagBlock(lines, "tag", None)
-    self.assertEqual(cm.exception.code, 1)
-
-  def test_parse_no_close2(self):
-    lines = [ "<tag>", "l1", "<tag>", "l3", "</tag>" ]
-    with self.assertRaises(SystemExit) as cm:
-      parseStandaloneTagBlock(lines, "tag", None)
-    self.assertEqual(cm.exception.code, 1)
-
-  def test_parse1(self):
-    lines = [ "l0", "<tag>", "l2", "l3", "</tag>", "l4", ]
-    expectedResult = [ "l0", "l4" ]
-    expectedBlock = [ [ "l2", "l3" ] ]
-    self.verify(lines, expectedResult, expectedBlock, None)
-
-  def test_parse1_with_args(self):
-    lines = [ "l0", "<tag rend='xxx'>", "l2", "l3", "</tag>", "l4", ]
-    expectedResult = [ "l0", "l4" ]
-    expectedBlock = [ [ "l2", "l3" ] ]
-    self.verify(lines, expectedResult, expectedBlock, None, open=" rend='xxx'")
-
-  def test_parse2(self):
-    lines = [
-      "l0", "<tag>", "l2", "l3", "</tag>", "l4", "<tag>", "l6", "</tag>", "l7"
-    ]
-    expectedResult = [ "l0", "l4", "l7" ]
-    expectedBlocks = [ [ "l2", "l3" ], [ "l6" ] ]
-    self.verify(lines, expectedResult, expectedBlocks, None)
-
-  def test_parse2_replace(self):
-    lines = [
-      "l0", "<tag>", "l2", "l3", "</tag>", "l4", "<tag>", "l6", "</tag>", "l7"
-    ]
-    expectedResult = [ "l0", "R1", "R2", "R3", "l4", "R4", "l7" ]
-    expectedBlocks = [ [ "l2", "l3" ], [ "l6" ] ]
-    replacementBlocks = [ [ "R1", "R2", "R3" ], [ "R4" ] ]
-    self.verify(lines, expectedResult, expectedBlocks, replacementBlocks)
-
 class Book(object):
   wb = []
   supphd =[] # user's supplemental header lines
@@ -287,6 +187,8 @@ class Book(object):
     self.poetryindent = 'left'
     self.italicdef = 'emphasis'
     self.uprop = self.userProperties()
+    self.umeta = self.userMeta()
+    self.templates = template.createTemplates(fmt)
 
   # display (fatal) error and exit
   def fatal(self, message):
@@ -309,6 +211,161 @@ class Book(object):
 
     def show(self):
       cprint(self.prop)
+
+  # internal class to save user meta information
+  class userMeta(object):
+    def __init__(self):
+      self.meta = []
+
+    def addmeta(self,s):
+      self.meta.append(s)
+
+    def add(self, key, value):
+      self.addmeta("<meta name='" + key + "' content='" + value + "'/>")
+
+    def show(self):
+      t = []
+      for s in self.meta:
+        t.append("    " + s)
+      return t
+
+    def get(self, tag):
+      for l in self.meta:
+        m = re.match("<meta name=['\"](.*?)['\"] *content=['\"](.*?)['\"]", l)
+        if m:
+          name = m.group(1)
+          value = m.group(2)
+          if name == tag:
+            return value
+      return None
+
+    def getAsDict(self):
+      d = {}
+      for l in self.meta:
+        m = re.match("<meta name=['\"](.*?)['\"] *content=['\"](.*?)['\"]", l)
+        if m:
+          name = m.group(1)
+          value = m.group(2)
+          d[name] = value
+      return d
+
+  def shortHeading(self):
+    dprint(1, "shortHeadings")
+    # allow shortcut heading
+    #
+    # .title (default "Unknown")
+    # .author (default "Unknown")
+    # .language (default "en")
+    # .created (no default) alternate: "date"
+    # .cover (default "images/cover.jpg")
+    # .display title (default "{.title}, by {.author}")
+    #
+    h = []
+    dc_title = "Unknown"
+    dc_author = "Unknown"
+    dc_language = "en"
+    dc_created = ""
+    dc_subject = None
+    config.pn_cover = "images/cover.jpg"
+    pn_displaytitle = ""
+    m_generator = None
+    i = 0
+    where = 0
+    shortused = False
+    while i < len(self.wb):
+
+      m = re.match(r"\.title (.*)", self.wb[i])
+      if m:
+        dc_title = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.author (.*)", self.wb[i])
+      if m:
+        dc_author = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.language (.*)", self.wb[i])
+      if m:
+        dc_language = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.created (.*)", self.wb[i])
+      if m:
+        dc_created = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r"\.date (.*)", self.wb[i])
+      if m:
+        dc_created = m.group(1)
+        where = i
+        del(self.wb[i])
+        shortused = True
+
+      m = re.match(r".cover (.*)", self.wb[i])
+      if m:
+        config.pn_cover = m.group(1)
+        where = i
+        del(self.wb[i])
+
+      m = re.match(r".displaytitle (.*)", self.wb[i])
+      if m:
+        pn_displaytitle = m.group(1)
+        where = i
+        del(self.wb[i])
+
+      m = re.match(r".generator (.*)", self.wb[i])
+      if m:
+        m_generator = m.group(1)
+        where = i
+        del(self.wb[i])
+
+      m = re.match(r".tags (.*)", self.wb[i])
+      if m:
+        dc_subject = m.group(1)
+        where = i
+        del(self.wb[i])
+
+      i += 1
+
+    if shortused:
+      self.umeta.add("DC.Title", dc_title)
+      self.umeta.add("DC.Creator", dc_author)
+      self.umeta.add("DC.Language", dc_language)
+      if dc_created != "":
+        self.umeta.add("DC.Created", dc_created)
+        self.umeta.add("DC.date.issued", dc_created)
+
+    if dc_subject != None:
+      self.umeta.add("DC.Subject", dc_subject)
+      self.umeta.add("Tags", dc_subject)
+
+    if m_generator != None:
+      self.umeta.addmeta("generator", m_generator)
+
+    self.uprop.addprop("cover image", "{}".format(config.pn_cover))
+    self.uprop.addprop("display title", "{}".format(pn_displaytitle))
+
+  def addMeta(self):
+    self.dprint(1,"userHeader")
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<meta", self.wb[i])
+      if m:
+        if not re.search("\/>$", self.wb[i]):
+          self.wb[i] = re.sub(">$", "/>", self.wb[i])
+        self.umeta.addmeta(self.wb[i])
+        del self.wb[i]
+        continue
+
+      i += 1
 
   def addOptionsAndProperties(self):
     self.dprint(1,"addOptionsAndProperties")
@@ -408,23 +465,7 @@ class Book(object):
             i += 1
       i += 1
 
-  # load file from specified source file
-  def loadFile(self, fn):
-    self.dprint(1, "loadFile")
-    self.checkFile(fn)
-    try:
-      wbuf = open(fn, "r", encoding='UTF-8').read()
-      self.wb = wbuf.split("\n")
-      t = ":".join("{0:x}".format(ord(c)) for c in self.wb[0])
-      if t[0:4] == 'feff':
-        self.wb[0] = self.wb[0][1:]
-    except UnicodeDecodeError:
-      self.fatal("loadFile: source file {} not UTF-8".format(fn))
-    except:
-      self.fatal("loadFile: cannot open source file {}".format(fn))
-    self.wb.insert(0,"")
-    self.wb = [s.rstrip() for s in self.wb]
-
+  def stripComments(self):
     i = 0
     while i < len(self.wb):
       if self.wb[i].startswith("//"): # line starts with "//"
@@ -456,6 +497,60 @@ class Book(object):
         del self.wb[i] # closing comment line
       i += 1
 
+  def applyMacros(self):
+    # process macros
+    self.dprint(1, "define macros")
+    macro = {}
+
+    # define macros and save
+    i = 0
+    regex = re.compile("<macro (.*?)=\"(.*?)\"\/?>")
+    while i < len(self.wb):
+      m = regex.match(self.wb[i])
+      if m:
+        macroName = m.group(1)
+        macroDef = m.group(2)
+        macro[macroName] = macroDef
+        del self.wb[i] # macro has been stored
+        i -= 1
+      i += 1
+
+    # apply macros to text
+    self.dprint(1, "apply macros")
+    i = 0
+    regex = re.compile("%([^;].*?)%")
+    for i, line in enumerate(self.wb):
+      while True:
+        m = regex.search(line)
+        if not m:
+          break
+        macroName = m.group(1)
+        if not macroName in macro: # is this in our list of macros already defined?
+          self.fatal("macro %{}% undefined in line\n{}".format(macroName, self.wb[i]))
+        line = line[0:m.start(0)] + macro[macroName] + line[m.end(0):]
+        self.wb[i] = line
+      i += 1
+
+  def applyConditionals(self):
+    # process conditional source directives
+    self.dprint(1,"conditionals")
+
+    def oneIfBlock(openTag, block):
+      m = re.match(" *type=['\"](.*?)['\"]", openTag)
+      if not m:
+        fatal("Badly formatted <if> conditional")
+
+      conditional_type = m.group(1)
+      if conditional_type == "!t": # 08-Sep-2013
+        conditional_type = 'hepk' # 26-Mar-2014
+      if self.gentype in conditional_type:
+        return block
+      else:
+        return []
+
+    parseStandaloneTagBlock(self.wb, "if", oneIfBlock)
+
+  def fixPageNumberTags(self):
     # page number tags
     # force page numbers to separate line and to single-quote version
     i = 0
@@ -478,7 +573,29 @@ class Book(object):
           self.wb[i:i+1] = t
           i += 1
       i += 1
-      
+
+  # load file from specified source file
+  def loadFile(self, fn):
+    self.dprint(1, "loadFile")
+    self.checkFile(fn)
+    try:
+      wbuf = open(fn, "r", encoding='UTF-8').read()
+      self.wb = wbuf.split("\n")
+      t = ":".join("{0:x}".format(ord(c)) for c in self.wb[0])
+      if t[0:4] == 'feff':
+        self.wb[0] = self.wb[0][1:]
+    except UnicodeDecodeError:
+      self.fatal("loadFile: source file {} not UTF-8".format(fn))
+    except:
+      self.fatal("loadFile: cannot open source file {}".format(fn))
+    self.wb.insert(0,"")
+    self.wb = [s.rstrip() for s in self.wb]
+
+    self.stripComments()
+
+    # Before or after conditions & macros?
+    self.fixPageNumberTags()
+
     # process optional formatting (DEPRECATED)
     # <I>..</I> will be italics only in media that can render it natively.
     # <B>..</B> will be bold only in media that can render it natively.
@@ -496,22 +613,11 @@ class Book(object):
         self.wb[i] = re.sub("<\/B>", "</b>", self.wb[i])
       i += 1
 
-    # process conditional source directives
-    self.dprint(1,"conditionals")
-    def oneIfBlock(openTag, block):
-      m = re.match(" *type=['\"](.*?)['\"]", openTag)
-      if not m:
-        fatal("Badly formatted <if> conditional")
+    self.applyConditionals()
 
-      conditional_type = m.group(1)
-      if conditional_type == "!t": # 08-Sep-2013
-        conditional_type = 'hepk' # 26-Mar-2014
-      if self.gentype in conditional_type:
-        return block
-      else:
-        return []
+    self.applyMacros()
 
-    parseStandaloneTagBlock(self.wb, "if", oneIfBlock)
+    self.createUserDefinedTemplates()
 
     # 19-Nov-2013
     i = 0
@@ -557,16 +663,6 @@ class Book(object):
           n += 1
       i += 1
 
-    # add id to unadorned heading lines
-    self.dprint(1,"headings+id")
-    i = 0
-    while i < len(self.wb):
-      if self.wb[i].startswith("<heading"):
-        if not re.search("id=", self.wb[i]):
-          genid = "t{}".format(i)
-          self.wb[i] = re.sub("<heading", "<heading id='{}'".format(genid), self.wb[i])
-      i += 1
-
     # ensure heading has a blank line before
     self.blankLines("<heading", True, False)
 
@@ -603,7 +699,9 @@ class Book(object):
       self.wb[i] = re.sub("<br>", "<br/>", self.wb[i])
 
     # normalize rend format to have trailing semicolons
-    # honor <lit>...</lit> blocks
+    # honour <lit>...</lit> blocks
+    # FIX ME! This changes rend='...' when it is not inside <...>
+    # TODO: Make all users of rend= use parseOption, and then remove this!
     in_pre = False
     for i,line in enumerate(self.wb):
       if "<lit" in line:
@@ -620,57 +718,6 @@ class Book(object):
         therend += ";"
         therend = re.sub(";;", ";", therend)
         self.wb[i] = re.sub("rend='.*?'", "rend='{}'".format(therend), self.wb[i])
-
-    # isolate <pn to separate lines
-    i = 0
-    regex1 = re.compile("^<pn=[\"'].*?[\"']>$")
-    regex2 = re.compile("^(.*?)(<pn=[\"'].*?[\"']>)(.*?)$")
-    while i < len(self.wb):
-      # standalone pn
-      if regex1.match(self.wb[i]):
-        i += 1
-        continue
-      m = regex1.match(self.wb[i])
-      if m:
-        t = []
-        if not empty.match(m.group(1)):
-          t.append(m.group(1))
-        t.append(m.group(2))
-        if not empty.match(m.group(3)):
-          t.append(m.group(3))
-        self.wb[i:i+1] = t
-        i += 2
-      i += 1
-
-    # process macros
-    self.dprint(1,"macros")
-    macro = {}
-
-    # define macros and save
-    i = 0
-    regex = re.compile("<macro (.*?)=\"(.*?)\"\/?>")
-    while i < len(self.wb):
-      m = regex.match(self.wb[i])
-      if m:
-        macroName = m.group(1)
-        macroDef = m.group(2)
-        macro[macroName] = macroDef
-        del self.wb[i] # macro has been stored
-        i -= 1
-      i += 1
-
-    # apply macros to text
-    i = 0
-    regex = re.compile("%([^;].*?)%")
-    while i < len(self.wb):
-      m = regex.search(self.wb[i])
-      while m: # found a macro
-        if m.group(1) in macro: # is this in our list of macros already defined?
-          self.wb[i] = re.sub("%{}%".format(m.group(1)), macro[m.group(1)], self.wb[i], 1)
-          m = re.search("%(.*?)%", self.wb[i])
-        else:
-          self.fatal("macro %{}% undefined in line\n{}".format(m.group(1), self.wb[i]))
-      i += 1
 
     # ensure spacing around standalone <l> or <l/> elements that are not in a line group
     i = 0
@@ -755,7 +802,7 @@ class Book(object):
         i += 1
 
       i += 1
-
+  ## End of loadFile method
 
   # save file to specified dstfile
   def saveFile(self, fn):
@@ -782,21 +829,35 @@ class Book(object):
         f1.write( "{:s}\r\n".format(t) )
     f1.close()
 
-  # bailout after saving working buffer
-  def bailout(self):
-    self.dprint(1,"bailout")
-    f1 = open("bailout.txt", "w", encoding='utf-8')
-    for index,t in enumerate(self.wb):
-      f1.write( "{:s}\n".format(t) )
-    f1.close()
-    exit(1)
-
   # loop detector
   def checkLoop(self, i, c):
     if i == self.back1 and i == self.back2:
       self.fatal("loop detected at line {}: {} (referrer: {})".format(i, self.wb[i], c))
     self.back2 = self.back1
     self.back1 = i
+
+  def createUserDefinedTemplates(self):
+    self.dprint(1, "user-defined templates")
+
+    parseStandaloneTagBlock(self.wb, "template", self.templates.defineTemplate)
+
+  def chapterTemplates(self):
+    self.dprint(1, "applying chapter templates")
+    self.templates.chapterTemplates(self.wb, self.uprop.prop, self.umeta.getAsDict())
+
+  def run(self):
+    self.loadFile(self.srcfile)
+    self.process()
+    self.saveFile(self.dstfile)
+
+  # Common processing output independent code.
+  # Invoked as super() followed by output dependent code in the subclasses
+  def process(self):
+    self.shortHeading()
+    self.processLiterals()
+    self.addOptionsAndProperties()
+    self.addMeta()
+    self.chapterTemplates()
 
   def __str__(self):
     return "fpgen"
@@ -1100,7 +1161,9 @@ class Lint(Book):
               "Line: " + oLine)
       line = re.sub(open, "", line, 1)
 
+  # Lint: Main logic: Override Book.processCommon
   def process(self):
+    #### Do NOT call super()
     inLineGroup = False
     reports = []
     for i,line in enumerate(self.wb):
@@ -1155,9 +1218,9 @@ class Lint(Book):
       if os.path.exists(logfile):
         os.remove(logfile)
 
-  def run(self):
-    self.loadFile(self.srcfile)
-    self.process()
+  # Lint does not save the file
+  def saveFile(self, fn):
+    pass
 
   def __str__(self):
     return "fpgen lint"
@@ -1169,7 +1232,6 @@ class HTML(Book):
   def __init__(self, ifile, ofile, d, fmt):
     Book.__init__(self, ifile, ofile, d, fmt)
     self.css = self.CSS()
-    self.umeta = self.userMeta()
     self.srcfile = ifile
     self.dstfile = ofile
     self.cpn = 0
@@ -1193,137 +1255,6 @@ class HTML(Book):
       for s in keys:
         t.append("      " + s[6:])
       return t
-
-  # internal class to save user meta information
-  class userMeta(object):
-    def __init__(self):
-      self.meta = []
-
-    def addmeta(self,s):
-      self.meta.append(s)
-
-    def add(self, key, value):
-      self.addmeta("<meta name='" + key + "' content='" + value + "'/>")
-
-    def show(self):
-      t = []
-      for s in self.meta:
-        t.append("    " + s)
-      return t
-
-    def get(self, tag):
-      for l in self.meta:
-        m = re.match("<meta name=['\"](.*?)['\"] *content=['\"](.*?)['\"]", l)
-        if m:
-          name = m.group(1)
-          value = m.group(2)
-          if name == tag:
-            return value
-      return None
-
-  def shortHeading(self):
-    # allow shortcut heading
-    #
-    # .title (default "Unknown")
-    # .author (default "Unknown")
-    # .language (default "en")
-    # .created (no default) alternate: "date"
-    # .cover (default "images/cover.jpg")
-    # .display title (default "{.title}, by {.author}")
-    #
-    h = []
-    dc_title = "Unknown"
-    dc_author = "Unknown"
-    dc_language = "en"
-    dc_created = ""
-    dc_subject = None
-    config.pn_cover = "images/cover.jpg"
-    pn_displaytitle = ""
-    m_generator = None
-    i = 0
-    where = 0
-    shortused = False
-    while i < len(self.wb):
-
-      m = re.match(r"\.title (.*)", self.wb[i])
-      if m:
-        dc_title = m.group(1)
-        where = i
-        del(self.wb[i])
-        shortused = True
-
-      m = re.match(r"\.author (.*)", self.wb[i])
-      if m:
-        dc_author = m.group(1)
-        where = i
-        del(self.wb[i])
-        shortused = True
-
-      m = re.match(r"\.language (.*)", self.wb[i])
-      if m:
-        dc_language = m.group(1)
-        where = i
-        del(self.wb[i])
-        shortused = True
-
-      m = re.match(r"\.created (.*)", self.wb[i])
-      if m:
-        dc_created = m.group(1)
-        where = i
-        del(self.wb[i])
-        shortused = True
-
-      m = re.match(r"\.date (.*)", self.wb[i])
-      if m:
-        dc_created = m.group(1)
-        where = i
-        del(self.wb[i])
-        shortused = True
-
-      m = re.match(r".cover (.*)", self.wb[i])
-      if m:
-        config.pn_cover = m.group(1)
-        where = i
-        del(self.wb[i])
-
-      m = re.match(r".displaytitle (.*)", self.wb[i])
-      if m:
-        pn_displaytitle = m.group(1)
-        where = i
-        del(self.wb[i])
-
-      m = re.match(r".generator (.*)", self.wb[i])
-      if m:
-        m_generator = m.group(1)
-        where = i
-        del(self.wb[i])
-
-      m = re.match(r".tags (.*)", self.wb[i])
-      if m:
-        dc_subject = m.group(1)
-        where = i
-        del(self.wb[i])
-
-      i += 1
-
-    if shortused:
-      self.umeta.add("DC.Title", dc_title)
-      self.umeta.add("DC.Creator", dc_author)
-      self.umeta.add("DC.Language", dc_language)
-      if dc_created != "":
-        self.umeta.add("DC.Created", dc_created)
-        self.umeta.add("DC.date.issued", dc_created)
-
-    if dc_subject != None:
-      self.umeta.add("DC.Subject", dc_subject)
-      self.umeta.add("Tags", dc_subject)
-
-    if m_generator != None:
-      self.umeta.addmeta("generator", m_generator)
-
-    self.uprop.addprop("cover image", "{}".format(config.pn_cover))
-    self.uprop.addprop("display title", "{}".format(pn_displaytitle))
-
 
   # translate marked-up line to HTML
   # input:
@@ -1371,8 +1302,11 @@ class HTML(Book):
     # combine rend specified on line with rend specified for line group
     attributes = parseTagAttributes("l", m.group(1), [ 'rend', 'id' ])
     rend = attributes['rend'] if 'rend' in attributes else ""
-    options = parseOption("<lg>/rend=", lgr, self.legalOptions) if lgr != '' else {}
-    options.update(parseOption("<l>/rend=", rend, self.legalOptions))
+    optionsLG = parseOption("<lg>/rend=", lgr, self.legalOptions) if lgr != '' else {}
+    optionsL = parseOption("<l>/rend=", rend, self.legalOptions)
+    options = optionsLG.copy()
+    options.update(optionsL)
+    dprint(1, "Options: " + str(options))
     #t1 = m.group(1).strip() + " " + lgr
     t2 = m.group(2)
 
@@ -1447,9 +1381,19 @@ class HTML(Book):
         thestyle += self.marginMap[key] + ":" + value + ";"
 
     # ----- font size -----------
+    # This is based on keys, not values; so the <l> options don't overwrite the
+    # <lg> options, i.e. <lg rend='lg'>...<l rend='xlg'>...</l>...</lg>
+    # would end up with both lg and xlg as keys.  So check the <l> options first,
+    # and only look at the <lg> options if there were no size options there
+    found = False
     for key in self.sizeMap:
-      if key in options:
+      if key in optionsL:
         thestyle += "font-size:" + self.sizeMap[key] + ";"
+        found = True
+    if not found:
+      for key in self.sizeMap:
+        if key in optionsLG:
+          thestyle += "font-size:" + self.sizeMap[key] + ";"
 
     if "fs" in options:
       value = options['fs']
@@ -1509,7 +1453,7 @@ class HTML(Book):
       self.lastLineRaw = thisLineRaw
     return s
 
-  # preprocess text
+  # HTML: preprocess text
   def preprocess(self):
     self.dprint(1,"preprocess")
 
@@ -1617,20 +1561,6 @@ class HTML(Book):
         del self.wb[i] # </lit
       i += 1
 
-  def addMeta(self):
-    self.dprint(1,"userHeader")
-    i = 0
-    while i < len(self.wb):
-      m = re.match("<meta", self.wb[i])
-      if m:
-        if not re.search("\/>$", self.wb[i]):
-          self.wb[i] = re.sub(">$", "/>", self.wb[i])
-        self.umeta.addmeta(self.wb[i])
-        del self.wb[i]
-        continue
-
-      i += 1
-
   # page numbers honored in HTML, if present
   # convert all page numbers to absolute
   def processPageNum(self):
@@ -1670,6 +1600,7 @@ class HTML(Book):
         break
 
     if needToc:
+      headingNumber = 1
       m = re.match("<tocloc(.*?)>", line)
       if m:
           attrib = m.group(1)
@@ -1697,9 +1628,16 @@ class HTML(Book):
           htoc = ""
           if m3:
             htoc = m3.group(1) # optional toc contents
-          hid = ""
+
+          # id for the link from the TOC
           if m4:
-            hid = m4.group(1) # optional id for toc link
+            hid = m4.group(1)
+          else:
+            # id is not optional.  Generate one, and add it into the <heading>
+            hid = '_h_' + str(headingNumber)
+            headingNumber += 1
+            self.wb[i] = re.sub("<heading", "<heading id='" + hid + "'", line)
+
           indent = 2*(int(m2.group(1))-1) # indent based on heading level
           if indent > 0:
             t.append("<p class='toc' style='margin-left: {0}em'><a href='#{1}'>{2}</a></p>".format(indent,hid,htoc))
@@ -2184,6 +2122,8 @@ class HTML(Book):
         hlevel = 0
         showpage = False
 
+        # Note: Earlier, we have ensured that all headers have ids, just
+        # in case <tocloc> is in use.
         m = re.search("id=[\"'](.*?)[\"']", harg)
         if m:
           htarget = " id='" + m.group(1) + "'"
@@ -3066,6 +3006,7 @@ class HTML(Book):
           else:
             self.wb[i]=re.sub("⪦.+?⪧","<div class='pageno' title='{0}' id='Page_{0}'></div>".format(cpn), self.wb[i])
         else:
+          # Not HTML: No visible page numbers; however, still need anchor tags for index/toc
           self.wb[i]=re.sub("⪦.+?⪧","<a name='Page_{0}' id='Page_{0}'></a>".format(cpn), self.wb[i])
       if re.search("<\/p", line):
         inBlockElement = False
@@ -3084,14 +3025,12 @@ class HTML(Book):
     self.doLineGroups()
     self.doLines()
 
+  # HTML: Main logic
   def process(self):
-    self.shortHeading()
-    self.processLiterals()
+    super().process()
     self.processPageNum()
     self.protectMarkup()
     self.preprocess()
-    self.addOptionsAndProperties()
-    self.addMeta()
     self.tweakSpacing()
     self.userToc()
     self.doIndex()
@@ -3111,10 +3050,6 @@ class HTML(Book):
     self.endHTML()
     self.mediaTweak()
 
-  def run(self):
-    self.loadFile(self.srcfile)
-    self.process()
-    self.saveFile(self.dstfile)
 # END OF CLASS HTML
 
 # ===== class Text ============================================================
@@ -3281,6 +3216,7 @@ class Text(Book):
     return line
 
   # convert all inline markup to text equivalent at start of run
+  # Text version
   def processInline(self):
     if self.italicdef == "decorative":
         replacewith = "" # decorative. ignore
@@ -3427,19 +3363,6 @@ class Text(Book):
     i = 0
     while i < len(self.wb):
       if re.match("<pn", self.wb[i]):
-        del self.wb[i]
-        continue
-      i += 1
-
-  #
-  def stripHeader(self):
-    self.dprint(1,"stripHeader")
-    i = 0
-    while i < len(self.wb):
-      if (self.wb[i].startswith("<option")
-          or self.wb[i].startswith("<property")
-          or self.wb[i].startswith("<meta")
-          or re.match("\.[a-z]", self.wb[i])):
         del self.wb[i]
         continue
       i += 1
@@ -4352,12 +4275,11 @@ class Text(Book):
         self.wb[i] = l
       i += 1
 
+  # TEXT: Main Logic
   def process(self):
-    self.addOptionsAndProperties()
+    super().process()
     self.processInline()
-    self.processLiterals()
     self.processPageNum()
-    self.stripHeader()
     self.stripLinks()
     self.preProcess()
     self.protectInline() # should be superfluous as of 19-Sep-13
@@ -4372,10 +4294,6 @@ class Text(Book):
     self.finalSpacing()
     self.finalRend()
 
-  def run(self):
-    self.loadFile(self.srcfile)
-    self.process()
-    self.saveFile(self.dstfile)
 # END OF CLASS Text
 
 def textCellWidth(cell):

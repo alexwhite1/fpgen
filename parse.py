@@ -7,6 +7,115 @@ import sys
 import collections
 from msgs import fatal
 
+# Extract the text on a line which looks like <tag>XXXX</tag>
+def parseLineEntry(tag, line):
+  pattern = "^<" + tag + "\s*(.*?)>(.*)</" + tag + ">$"
+  m = re.match(pattern, line)
+  if not m:
+    fatal("Incorrect line: " + line)
+  return m.group(1), m.group(2)
+
+# Look for <tag> ... </tag> where the tags are on standalone lines.
+# As we find each such block, invoke the function against it
+def parseStandaloneTagBlock(lines, tag, function):
+  i = 0
+  startTag = "<" + tag
+  endTag = "</" + tag + ">"
+  regex = re.compile(startTag + "(.*?)>")
+  while i < len(lines):
+    m = regex.match(lines[i])
+    if not m:
+      i += 1
+      continue
+
+    openLine = lines[i]
+    openArgs = m.group(1)
+    block = []
+
+    j = i+1
+    while j < len(lines):
+      line = lines[j]
+      if line.startswith(endTag):
+        break
+      if line.startswith(startTag):
+        fatal("No closing tag found for " + tag + "; open line: " + openLine +
+          "; found another open tag: " + line)
+      block.append(line)
+      j += 1
+
+    if j == len(lines):
+      fatal("No closing tag found for " + tag + "; open line: " + openLine)
+    
+    replacement = function(openArgs, block)
+
+    lines[i:j+1] = replacement
+    i += len(replacement)
+
+  return lines
+
+class TestParsing(unittest.TestCase):
+  def setUp(self):
+    from fpgen import Book
+    self.book = Book(None, None, None, None)
+
+  def verify(self, lines, expectedResult, expectedBlocks, replacementBlocks, open=""):
+    self.callbackN = -1
+    def f(l0, block):
+      self.callbackN += 1
+      self.assertEquals(l0, open)
+      self.assertSequenceEqual(block, expectedBlocks[self.callbackN])
+      return replacementBlocks[self.callbackN] if replacementBlocks != None else []
+
+    parseStandaloneTagBlock(lines, "tag", f)
+    self.assertSequenceEqual(lines, expectedResult)
+
+  def test_parse0(self):
+    lines = [ "<tag>", "</tag>", ]
+    expectedResult = [ ]
+    expectedBlock = [ [ ] ]
+    self.verify(lines, expectedResult, expectedBlock, None)
+
+  def test_parse_no_close(self):
+    lines = [ "<tag>", "l1", ]
+    with self.assertRaises(SystemExit) as cm:
+      parseStandaloneTagBlock(lines, "tag", None)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_parse_no_close2(self):
+    lines = [ "<tag>", "l1", "<tag>", "l3", "</tag>" ]
+    with self.assertRaises(SystemExit) as cm:
+      parseStandaloneTagBlock(lines, "tag", None)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_parse1(self):
+    lines = [ "l0", "<tag>", "l2", "l3", "</tag>", "l4", ]
+    expectedResult = [ "l0", "l4" ]
+    expectedBlock = [ [ "l2", "l3" ] ]
+    self.verify(lines, expectedResult, expectedBlock, None)
+
+  def test_parse1_with_args(self):
+    lines = [ "l0", "<tag rend='xxx'>", "l2", "l3", "</tag>", "l4", ]
+    expectedResult = [ "l0", "l4" ]
+    expectedBlock = [ [ "l2", "l3" ] ]
+    self.verify(lines, expectedResult, expectedBlock, None, open=" rend='xxx'")
+
+  def test_parse2(self):
+    lines = [
+      "l0", "<tag>", "l2", "l3", "</tag>", "l4", "<tag>", "l6", "</tag>", "l7"
+    ]
+    expectedResult = [ "l0", "l4", "l7" ]
+    expectedBlocks = [ [ "l2", "l3" ], [ "l6" ] ]
+    self.verify(lines, expectedResult, expectedBlocks, None)
+
+  def test_parse2_replace(self):
+    lines = [
+      "l0", "<tag>", "l2", "l3", "</tag>", "l4", "<tag>", "l6", "</tag>", "l7"
+    ]
+    expectedResult = [ "l0", "R1", "R2", "R3", "l4", "R4", "l7" ]
+    expectedBlocks = [ [ "l2", "l3" ], [ "l6" ] ]
+    replacementBlocks = [ [ "R1", "R2", "R3" ], [ "R4" ] ]
+    self.verify(lines, expectedResult, expectedBlocks, replacementBlocks)
+
 def parseTagAttributes(tag, arg, legalAttributes = None):
   try:  # TODO: Move this up
     attributes = parseTagAttributes1(arg)
