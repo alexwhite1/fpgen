@@ -174,7 +174,6 @@ def alignLine(line, align, w):
 
 class Book(object):
   wb = []
-  supphd =[] # user's supplemental header lines
 
   def __init__(self, ifile, ofile, d, fmt):
     config.debug = d # numeric, 0=no debug, 1=function level, 2=line level
@@ -189,6 +188,7 @@ class Book(object):
     self.uprop = self.userProperties()
     self.umeta = self.userMeta()
     self.templates = template.createTemplates(fmt)
+    self.supphd = [] # user's supplemental header lines
 
   # display (fatal) error and exit
   def fatal(self, message):
@@ -250,7 +250,7 @@ class Book(object):
       return d
 
   def shortHeading(self):
-    dprint(1, "shortHeadings")
+    self.dprint(1, "shortHeadings")
     # allow shortcut heading
     #
     # .title (default "Unknown")
@@ -574,6 +574,28 @@ class Book(object):
           i += 1
       i += 1
 
+  def literals(self):
+    self.dprint(1, "protecting literals")
+
+    def oneLitBlock(openTag, block):
+      attributes = parseTagAttributes("lit", openTag, [ "section" ])
+      if "section" in attributes:
+        value = attributes["section"]
+        opts = parseOption("lit/section", value, [ "head" ])
+        if "head" in opts:
+          # Entire block is simply appended to supphd, which will be emitted
+          # with the rest of the css later
+          self.supphd += block
+          return []
+
+      # No section='head'; so just protect the block.
+      for i, line in enumerate(block):
+        block[i] = re.sub(r"<",'≼', line) # literal open tag marks
+        block[i] = re.sub(r">",'≽', line) # literal close tag marks
+      return [ "<lit>" ] + block + [ "</lit>" ]
+
+    parseStandaloneTagBlock(self.wb, "lit", oneLitBlock)
+
   # load file from specified source file
   def loadFile(self, fn):
     self.dprint(1, "loadFile")
@@ -619,36 +641,7 @@ class Book(object):
 
     self.createUserDefinedTemplates()
 
-    # 19-Nov-2013
-    i = 0
-    self.supphd = []
-    regex = re.compile("<lit section=['\"]head['\"]>")
-    while i < len(self.wb):
-      if regex.match(self.wb[i]):
-        del(self.wb[i])
-        while not re.match(r"<\/lit>", self.wb[i]):
-          self.supphd.append(self.wb[i])
-          del(self.wb[i])
-        del(self.wb[i])
-        i -= 1
-      i += 1
-
-    # 29-Oct-2013 literals after conditionals
-    i = 0
-    inliteral = False
-    while i < len(self.wb):
-      if self.wb[i].startswith("<lit"):
-        inliteral = True
-        i += 1
-        continue
-      if self.wb[i].startswith("</lit>"):
-        inliteral = False
-        i += 1
-        continue
-      if inliteral:
-        self.wb[i] = re.sub(r"<",'≼', self.wb[i]) # literal open tag marks
-        self.wb[i] = re.sub(r">",'≽', self.wb[i]) # literal close tag marks
-      i += 1
+    self.literals()
 
     # combine multi-line <caption>...</caption> lines into one.
     i = 0
@@ -1306,7 +1299,8 @@ class HTML(Book):
     optionsL = parseOption("<l>/rend=", rend, self.legalOptions)
     options = optionsLG.copy()
     options.update(optionsL)
-    dprint(1, "Options: " + str(options))
+    if len(options) > 0:
+      dprint(1, "Options: " + str(options))
     #t1 = m.group(1).strip() + " " + lgr
     t2 = m.group(2)
 
