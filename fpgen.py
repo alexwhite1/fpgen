@@ -172,7 +172,7 @@ def alignLine(line, align, w):
 
   return lines
 
-class Book(object):
+class Book(object): #{
   wb = []
 
   def __init__(self, ifile, ofile, d, fmt):
@@ -590,9 +590,10 @@ class Book(object):
 
       # No section='head'; so just protect the block.
       for i, line in enumerate(block):
-        block[i] = re.sub(r"<",'≼', line) # literal open tag marks
-        block[i] = re.sub(r">",'≽', line) # literal close tag marks
-      return [ "<lit>" ] + block + [ "</lit>" ]
+        line = re.sub(r"<", '⨭', line) # literal open tag marks
+        line = re.sub(r">", '⨮', line) # literal close tag marks
+        block[i] = config.FORMATTED_PREFIX + line
+      return block
 
     parseStandaloneTagBlock(self.wb, "lit", oneLitBlock)
 
@@ -847,7 +848,6 @@ class Book(object):
   # Invoked as super() followed by output dependent code in the subclasses
   def process(self):
     self.shortHeading()
-    self.processLiterals()
     self.addOptionsAndProperties()
     self.addMeta()
     self.chapterTemplates()
@@ -855,6 +855,7 @@ class Book(object):
   def __str__(self):
     return "fpgen"
 
+#}
 # end of class Book
 
 def parseTablePattern(line, isHTML):
@@ -1099,7 +1100,7 @@ class TestParseTableColumn(unittest.TestCase):
 
 # ===== class Lint ============================================================
 
-class Lint(Book):
+class Lint(Book): #{
 
   def __init__(self, ifile, ofile, d, fmt):
     Book.__init__(self, ifile, ofile, d, fmt)
@@ -1217,10 +1218,12 @@ class Lint(Book):
 
   def __str__(self):
     return "fpgen lint"
+#}
+# END OF CLASS Lint
 
 # ===== class HTML ============================================================
 
-class HTML(Book):
+class HTML(Book): #{
 
   def __init__(self, ifile, ofile, d, fmt):
     Book.__init__(self, ifile, ofile, d, fmt)
@@ -1538,21 +1541,6 @@ class HTML(Book):
       if re.match("<\/?footnote", self.wb[i]):
         self.wb[i:i+1] = ["", self.wb[i], ""]
         i += 2
-      i += 1
-
-  #
-  def processLiterals(self):
-    self.dprint(1,"processLiterals")
-    i = 0
-    while i < len(self.wb):
-      if re.match("<lit>", self.wb[i]):
-        del self.wb[i] # <lit
-        while not re.match("<\/lit>", self.wb[i]):
-          self.wb[i] = re.sub('≼', "⨭", self.wb[i]) # literal open tag marks
-          self.wb[i] = re.sub('≽', '⨮', self.wb[i]) # literal close tag marks
-          self.wb[i] = "▹"+self.wb[i]
-          i += 1
-        del self.wb[i] # </lit
       i += 1
 
   # page numbers honored in HTML, if present
@@ -3044,11 +3032,12 @@ class HTML(Book):
     self.endHTML()
     self.mediaTweak()
 
+#}
 # END OF CLASS HTML
 
 # ===== class Text ============================================================
 
-class Text(Book):
+class Text(Book): #{
   def __init__(self, ifile, ofile, d, fmt):
     Book.__init__(self, ifile, ofile, d, fmt)
     self.srcfile = ifile
@@ -3279,22 +3268,6 @@ class Text(Book):
         self.wb[i] = re.sub('_\{\}', '', self.wb[i])
 
         i += 1
-
-  # literals are marked as preformatted
-  # tag delimeters are protected
-  def processLiterals(self):
-    self.dprint(1,"processLiterals")
-    i = 0
-    while i < len(self.wb):
-      if re.match("<lit>", self.wb[i]):
-        del self.wb[i] # <lit
-        while not re.match("<\/lit>", self.wb[i]):
-          self.wb[i] = re.sub(r"<",'⨭', self.wb[i])
-          self.wb[i] = re.sub(r">",'⨮', self.wb[i])
-          self.wb[i] = "▹"+self.wb[i]
-          i += 1
-        del self.wb[i] # </lit
-      i += 1
 
   #
   def genToc(self):
@@ -4287,7 +4260,7 @@ class Text(Book):
     self.rewrap()
     self.finalSpacing()
     self.finalRend()
-
+#}
 # END OF CLASS Text
 
 def textCellWidth(cell):
