@@ -5,7 +5,7 @@ import re, sys, string
 import config
 import unittest
 
-from parse import parseTagAttributes, parseOption, parseLineEntry
+from parse import parseTagAttributes, parseOption, parseLineEntry, parseEmbeddedTagBlock
 from msgs import dprint, fatal, cprint
 
 # The Template class represents a single template.
@@ -29,20 +29,14 @@ class Template(object):
     return lines
 
   def expandConditions(self, keys, lines):
-    regExpand = re.compile("<expand-if\s+(.*?)>(.*?)</expand-if>")
-    for i, l in enumerate(lines):
-      while True:
-        m = regExpand.search(l)
-        if not m:
-          break
-        keyword = m.group(1)
-        if keyword in keys:
-          # Yes, defined, include
-          code = m.group(2)
-        else:
-          code = ''
-        l = l[0:m.start(0)] + code + l[m.end(0):]
-        lines[i] = l
+    def expandCondition(args, block):
+      dprint(1, "Expanding: " + args)
+      keyword = args.strip()
+      if keyword in keys:
+        return block
+      return [ ]
+
+    parseEmbeddedTagBlock(lines, "expand-if", expandCondition)
 
   def expandExpand(self, keys, lines):
     regExpand = re.compile("<expand\s+(.*?)/?>")
@@ -326,6 +320,15 @@ class TestTemplate(unittest.TestCase):
       "abc<expand-if xx>abc<expand xx></expand-if><expand-if zz><expand zz></expand-if>def"
     ]).expand({"xx":"xxxyyy", "zz":"ZedZed"})
     self.assertEqual(result, [ "abcabcxxxyyyZedZeddef"])
+
+  def test_if_multiline(self):
+    result = Template([
+      "abc<expand-if xx>",
+      "abc<expand xx>",
+      "</expand-if><expand-if zz>",
+      "<expand zz></expand-if>def"
+    ]).expand({"xx":"xxxyyy", "zz":"ZedZed"})
+    self.assertEqual(result, [ "abc", "abcxxxyyy", "ZedZed", "def"])
 
   def test_t(self):
     templates = Templates()

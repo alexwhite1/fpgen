@@ -15,6 +15,106 @@ def parseLineEntry(tag, line):
     fatal("Incorrect line: " + line)
   return m.group(1), m.group(2)
 
+# Look for <tag> ... </tag> where the tags can be embedded,
+# i.e.   text<tag>...\n...</tag>text
+# If there is no text following <tag>, no line is added
+# and if there is no text following </tag>, no line is added
+# Unlike parseStandaloneTagBlock, which almost always gets the
+# whole file as the lines arg; this would probably get the set
+# of lines from parseStandaloneTagBlock.
+def parseEmbeddedTagBlock(lines, tag, function):
+  i = 0
+  startTag = "<" + tag
+  endTag = "</" + tag + ">"
+  regex = re.compile(startTag + "(.*?)>")
+  regexEnd = re.compile(endTag)
+  while i < len(lines):
+    m = regex.search(lines[i])
+    if not m:
+      i += 1
+      continue
+
+    openLine = lines[i]
+    openArgs = m.group(1)
+    block = []
+    startLineStart = openLine[:m.start(0)]
+    startLineTrailer = openLine[m.end(0):]
+    line = startLineTrailer
+    startLineNumber = i
+
+    j = i
+    while True:
+      m = regexEnd.search(line)
+      if m:
+        endLineStart = line[:m.start(0)]
+        endLineTrailer = line[m.end(0):]
+        if endLineStart != "":
+          block.append(endLineStart)
+        endLineNumber = j
+        if len(block) == 0 and startLineNumber != endLineNumber:
+          block.append("")
+        break
+      if j == startLineNumber:
+        if startLineTrailer != "":
+          block.append(startLineTrailer)
+      else:
+        block.append(line)
+      j += 1
+      if j == len(lines):
+        fatal("No closing tag found for " + tag + "; open line: " + openLine)
+      line = lines[j]
+
+    replacement = function(openArgs, block)
+
+    # put startLine at the beginning of the first line,
+    # put endLineTrailer at the end of the last line.
+    n = len(replacement)
+    if n == 0:
+      if startLineNumber == endLineNumber:
+        # <tag>xxx</tag> => ""
+        # b4<tag>xxx</tag> => b4
+        # b4<tag>xxx</tag>after => b4after
+        # <tag>xxx</tag>after => after
+        replacement.append(startLineStart + endLineTrailer)
+      else:
+        # <tag>x\nx</tag> => "", ""
+        # b4<tag>x\nx</tag> => b4, ""
+        # b4<tag>x\nx</tag>after => b4, after
+        # <tag>x\nx</tag>after => "", after
+        replacement.append(startLineStart)
+        replacement.append(endLineTrailer)
+    else:
+      # <tag></tag>; repl=R => block=[], R
+      # <tag></tag>after; repl=R => block=[], Rafter
+      # b4<tag></tag>; repl=R => block=[], b4R
+      # b4<tag></tag>after; repl=R => block=[], b4Rafter
+      # <tag>\n</tag>; repl=R => block=[""], R
+      # <tag>\n</tag>after; repl=R => block=[""], R\nafter
+      # b4<tag>\n</tag>; repl=R => block=[""], b4\nR
+      # b4<tag>\n</tag>after; repl=R => block=[""], b4\nR\nafter
+      # b4<tag>x\n</tag>after; repl=R => block=["x"], b4\nR\nafter
+      # b4<tag>x\ny</tag>after; repl=R => block=["x","y"], b4\nR\nafter
+      if startLineNumber == endLineNumber:
+        # On the same line, prefix & suffix on same line
+        replacement[0] = startLineStart + replacement[0]
+        replacement[-1] = replacement[-1] + endLineTrailer
+      else:
+        # On different lines, prefix & suffix on different lines
+        if startLineStart != "":
+          replacement.insert(0, startLineStart)
+        if endLineTrailer != "":
+          replacement.append(endLineTrailer)
+
+    lines[i:j+1] = replacement
+
+    # Keep going, in case there are more tags on the same line.
+    # Danger! One consequence is recursion, we will expand an
+    # expanded tag.  Would be nice to keep going, but only on the
+    # end of the current line...
+    #i += len(replacement)
+
+  return lines
+
 # Look for <tag> ... </tag> where the tags are on standalone lines.
 # As we find each such block, invoke the function against it
 def parseStandaloneTagBlock(lines, tag, function):
@@ -115,6 +215,197 @@ class TestParsing(unittest.TestCase):
     expectedBlocks = [ [ "l2", "l3" ], [ "l6" ] ]
     replacementBlocks = [ [ "R1", "R2", "R3" ], [ "R4" ] ]
     self.verify(lines, expectedResult, expectedBlocks, replacementBlocks)
+
+  def verifyEmbedded(self, lines, expectedResult, expectedBlocks, replacementBlocks, open=""):
+    self.callbackN = -1
+    def f(l0, block):
+      self.callbackN += 1
+      self.assertEquals(l0, open)
+      self.assertSequenceEqual(block, expectedBlocks[self.callbackN])
+      return replacementBlocks[self.callbackN] if replacementBlocks != None else []
+
+    parseEmbeddedTagBlock(lines, "tag", f)
+    self.assertSequenceEqual(lines, expectedResult)
+
+  def test_embedded_sameline(self):
+    lines = [ "<tag></tag>", ]
+    expectedResult = [ "" ]
+    expectedBlock = [ [ ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_sameline_leading(self):
+    lines = [ "b4<tag></tag>", ]
+    expectedResult = [ "b4" ]
+    expectedBlock = [ [ ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_sameline_trailing(self):
+    lines = [ "<tag></tag>after", ]
+    expectedResult = [ "after" ]
+    expectedBlock = [ [ ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_sameline_both(self):
+    lines = [ "b4<tag></tag>after", ]
+    expectedResult = [ "b4after" ]
+    expectedBlock = [ [ ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_sameline_both_content(self):
+    lines = [ "b4<tag>blah</tag>after", ]
+    expectedResult = [ "b4after" ]
+    expectedBlock = [ [ "blah" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_sameline_twice(self):
+    lines = [ "b4<tag>tc1</tag>after<tag>tc2</tag>", ]
+    expectedResult = [ "b4after" ]
+    expectedBlock = [ [ "tc1" ], [ "tc2" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_sameline_twice_trail(self):
+    lines = [ "b4<tag>tc1</tag>after<tag>tc2</tag>aftermath", ]
+    expectedResult = [ "b4afteraftermath" ]
+    expectedBlock = [ [ "tc1" ], [ "tc2" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_sameline_twice_repl(self):
+    lines = [ "b4<tag>tc1</tag>after<tag>tc2</tag>aftermath", ]
+    expectedResult = [ "b4R1afterR2aftermath" ]
+    expectedBlock = [ [ "tc1" ], [ "tc2" ] ]
+    replacementBlocks = [ [ "R1" ], [ "R2" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_twoline_empty(self):
+    lines = [ "<tag>", "</tag>", ]
+    expectedResult = [ "", "" ]
+    expectedBlock = [ [ "" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_twoline_empty_leading(self):
+    lines = [ "b4<tag>", "</tag>", ]
+    expectedResult = [ "b4", "" ]
+    expectedBlock = [ [ "" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_twoline_empty_trailing(self):
+    lines = [ "l0", "b4<tag>", "</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "after", "l4" ]
+    expectedBlock = [ [ "" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_twoline_l1trail_trailing(self):
+    lines = [ "l0", "b4<tag>xx", "</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "after", "l4" ]
+    expectedBlock = [ [ "xx" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_twoline_l2trail_trailing(self):
+    lines = [ "l0", "b4<tag>", "yy</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "after", "l4" ]
+    expectedBlock = [ [ "yy" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_twoline_l1_l2trail_trailing(self):
+    lines = [ "l0", "b4<tag>xx", "yy</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "after", "l4" ]
+    expectedBlock = [ [ "xx", "yy" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  def test_embedded_multiline_trailing(self):
+    lines = [ "l0", "b4<tag>", "l2", "</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "after", "l4" ]
+    expectedBlock = [ [ "l2" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, None)
+
+  # <tag></tag>; repl=R => block=[], R
+  # <tag></tag>after; repl=R => block=[], Rafter
+  # b4<tag></tag>; repl=R => block=[], b4R
+  # b4<tag></tag>after; repl=R => block=[], b4Rafter
+
+  def test_embedded_empty_empty_repl(self):
+    lines = [ "l0", "<tag></tag>", "l4" ]
+    expectedResult = [ "l0", "R1", "l4" ]
+    expectedBlock = [ [ ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_empty_after_repl(self):
+    lines = [ "l0", "<tag></tag>after", "l4" ]
+    expectedResult = [ "l0", "R1after", "l4" ]
+    expectedBlock = [ [ ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_empty_b4_repl(self):
+    lines = [ "l0", "b4<tag></tag>", "l4" ]
+    expectedResult = [ "l0", "b4R1", "l4" ]
+    expectedBlock = [ [ ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_empty_b4_after_repl(self):
+    lines = [ "l0", "b4<tag></tag>after", "l4" ]
+    expectedResult = [ "l0", "b4R1after", "l4" ]
+    expectedBlock = [ [ ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  # <tag>\n</tag>; repl=R => block=[""], R
+  # <tag>\n</tag>after; repl=R => block=[""], R\nafter
+  # b4<tag>\n</tag>; repl=R => block=[""], b4\nR
+  # b4<tag>\n</tag>after; repl=R => block=[""], b4\nR\nafter
+  # b4<tag>x\n</tag>after; repl=R => block=["x"], b4\nR\nafter
+  # b4<tag>x\ny</tag>after; repl=R => block=["x","y"], b4\nR\nafter
+
+  def test_embedded_twoline_empty_empty_repl(self):
+    lines = [ "l0", "<tag>", "l2", "</tag>", "l4" ]
+    expectedResult = [ "l0", "R1", "l4" ]
+    expectedBlock = [ [ "l2" ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_twoline_b4_empty_repl(self):
+    lines = [ "l0", "b4<tag>", "l2", "</tag>", "l4" ]
+    expectedResult = [ "l0", "b4", "R1", "l4" ]
+    expectedBlock = [ [ "l2" ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_twoline_empty_after_repl(self):
+    lines = [ "l0", "<tag>", "l2", "</tag>after", "l4" ]
+    expectedResult = [ "l0", "R1", "after", "l4" ]
+    expectedBlock = [ [ "l2" ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_twoline_b4_after_repl(self):
+    lines = [ "l0", "b4<tag>", "l2", "</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "R1", "after", "l4" ]
+    expectedBlock = [ [ "l2" ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_twoline_b4_after_repl_x(self):
+    lines = [ "l0", "b4<tag>x", "l2", "</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "R1", "after", "l4" ]
+    expectedBlock = [ [ "x", "l2" ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_twoline_b4_after_repl_y(self):
+    lines = [ "l0", "b4<tag>", "l2", "y</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "R1", "after", "l4" ]
+    expectedBlock = [ [ "l2", "y" ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
+
+  def test_embedded_twoline_b4_after_repl_xy(self):
+    lines = [ "l0", "b4<tag>x", "l2", "y</tag>after", "l4" ]
+    expectedResult = [ "l0", "b4", "R1", "after", "l4" ]
+    expectedBlock = [ [ "x", "l2", "y" ] ]
+    replacementBlocks = [ [ "R1" ] ]
+    self.verifyEmbedded(lines, expectedResult, expectedBlock, replacementBlocks)
 
 def parseTagAttributes(tag, arg, legalAttributes = None):
   try:  # TODO: Move this up
