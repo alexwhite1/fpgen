@@ -835,9 +835,41 @@ class Book(object): #{
 
     parseStandaloneTagBlock(self.wb, "template", self.templates.defineTemplate)
 
-  def chapterTemplates(self):
-    self.dprint(1, "applying chapter templates")
-    self.templates.chapterTemplates(self.wb, self.uprop.prop, self.umeta.getAsDict())
+  def macroTemplates(self):
+    self.dprint(1, "applying macro templates")
+
+    # Now we can set the globals, since we have now extracted all the metadata
+    self.templates.setGlobals(self.umeta.getAsDict())
+
+    regexMacro = re.compile("<expand-macro\s+(.*?)/?>")
+    i = 0
+    while i < len(self.wb):
+      line = self.wb[i]
+
+      # What about multiple macro expansions on a line?  Or recursion?
+      # Make it simpler for now by just punting: if you expand, then we move on
+      # to the next line.
+      m = regexMacro.search(line)
+      if m:
+        opts = m.group(1)
+        replacement = self.templates.expandMacro(opts)
+        prefix = line[:m.start(0)]
+        suffix = line[m.end(0):]
+
+        if len(replacement) == 0:
+          # If the template returns nothing, then you end up with a single line of
+          # the prefix and suffix around the <expand-macro>
+          replacement = [ prefix + suffix ]
+        else:
+          # Otherwise the prefix goes on the first line; and the suffix at the end of
+          # the last; which might be the same single line.
+          replacement[0] = prefix + replacement[0]
+          replacement[-1] = replacement[-1] + suffix
+        self.wb[i:i+1] = replacement
+        i += len(replacement)
+        continue
+
+      i += 1
 
   def run(self):
     self.loadFile(self.srcfile)
@@ -850,10 +882,61 @@ class Book(object): #{
     self.shortHeading()
     self.addOptionsAndProperties()
     self.addMeta()
-    self.chapterTemplates()
+    self.macroTemplates()
+    self.chapterHeaders()
 
   def __str__(self):
     return "fpgen"
+
+  # Process <chap-head> and <sub-head> tags.
+  # Calls into output-specific method `headers'.
+  def chapterHeaders(self):
+    self.dprint(1, "chapter headers")
+    i = 0
+    first = True
+    while i < len(self.wb):
+      line = self.wb[i]
+      if line.startswith("<chap-head"):
+        keys = {}
+        opts, chapHead = parseLineEntry("chap-head", line)
+        j = i+1
+        while j < len(self.wb) and re.match(self.wb[j], "^\s*$"):
+          j += 1
+        if j == len(self.wb):
+          fatal("End of file after <chap-head>")
+        attributes = parseTagAttributes("chap-head", opts, [ "pn", "id", "emittitle" ])
+        pn = attributes["pn"] if "pn" in attributes else None
+        id = attributes["id"] if "id" in attributes else None
+
+        # Override first, with emittitle tag
+        if "emittitle" in attributes:
+          v = attributes["emittitle"] 
+          if v == "yes":
+            first = True
+          elif v == "no":
+            first = False
+          else:
+            fatal("<chap-head> emittitle must be yes or no, not " + v)
+
+        line = self.wb[j]
+        if line.startswith("<sub-head"):
+          opts, subHead = parseLineEntry("sub-head", line)
+          # No opts for now
+        else:
+          # Do not eat this line!
+          subHead = None
+          j -= 1
+
+        replacement = self.headers(chapHead, subHead, pn, id, first)
+        self.wb[i:j+1] = replacement
+        i += len(replacement)
+        first = False
+        continue
+
+      if line.startswith("<sub-head>"):
+        fatal("Found <sub-head> not after a <chap-head>: " + line)
+
+      i += 1
 
 #}
 # end of class Book
@@ -2993,6 +3076,30 @@ class HTML(Book): #{
       if re.search("<\/p", line):
         inBlockElement = False
 
+  # Emit html specific output for <chap-head> and <sub-head> tags
+  def headers(self, chapHead, subHead, pn, id, first):
+    result = []
+    if first:
+      title = self.umeta.get("DC.Title")
+      result.append("<l rend='center mt:3em mb:2em fs:2.5em'>" + title + "</l>")
+      result.append("")
+    h = "<heading level='1'"
+    if first:
+      h += " nobreak"
+    if pn != None:
+      h += " pn='" + pn + "'"
+    if id != None:
+      h += " id='" + id + "'"
+    h += ">" + chapHead 
+    if subHead != None:
+      h += "<br/> <span class='sub-head'>" + subHead + "</span>"
+      self.css.addcss("[250] .sub-head { font-size: smaller; }")
+    h += "</heading>"
+    result.append(h)
+    result.append("")
+
+    return result
+
   def processMarkup(self):
     self.doHeadings()
     # self.doDrama()
@@ -4241,6 +4348,19 @@ class Text(Book): #{
       else:
         self.wb[i] = l
       i += 1
+
+  def headers(self, chapHead, subHead, pn, id, first):
+    result = []
+    if first:
+      title = self.umeta.get("DC.Title")
+      result.append("<l rend='center'>" + title + "</l>")
+    h = "<heading level='1'>" + chapHead 
+    if subHead != None:
+      h += "<br/>" + subHead
+    h += "</heading>"
+    result.append(h)
+
+    return result
 
   # TEXT: Main Logic
   def process(self):

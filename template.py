@@ -132,6 +132,7 @@ class Templates(object):
   # The list is modified in-place.
   # Use properties to decide which template to use.
   # Use meta as global variables.
+  # *****NOT USED*****
   def chapterTemplates(self, lines, properties, meta):
 
     # Figure out what template name to use.
@@ -232,6 +233,17 @@ class Templates(object):
 
       i += 1
 
+  def expandMacro(self, opts):
+      attributes = parseTagAttributes("expand-macro", opts, [ "name", "vars" ])
+      if not "name" in attributes:
+        fatal("expand-macro: No macro name given: " + line)
+      template = self.get([ "macro" ], attributes["name"])
+      if "vars" in attributes:
+        keys = parseOption("expand-macro", attributes["vars"])
+      else:
+        keys = {}
+      return template.expand(keys)
+
 templateTypes = [ "chapter", "macro" ]
 
 builtinText = {
@@ -247,10 +259,28 @@ builtinText = {
 builtinHTML = {
     "default-first": [
       "<l rend='center mt:3em mb:2em fs:2.5em'><expand DC.Title/></l>",
-      "<heading nobreak <expand-if id>id='<expand id>' </expand-if><expand-if pn>pn='<expand pn>' </expand-if>level='1'><expand chap-head><expand-if sub-head><br/> <fs:s><expand sub-head></fs></expand-if></heading>"
+      "<heading nobreak <expand-if id>id='<expand id>' </expand-if><expand-if pn>pn='<expand pn>' </expand-if>level='1'><expand chap-head><expand-if sub-head><br/> <fs:s><expand sub-head></fs></expand-if></heading>",
+      "",
     ],
     "default": [
-      "<heading <expand-if id>id='<expand id>' </expand-if><expand-if pn>pn='<expand pn>' </expand-if>level='1'><expand chap-head><expand-if sub-head><br/> <fs:s><expand sub-head></fs></expand-if></heading>",
+#      "<heading <expand-if id>id='<expand id>' </expand-if><expand-if pn>pn='<expand pn>' </expand-if>level='1'><expand chap-head><expand-if sub-head><br/> <fs:s><expand sub-head></fs></expand-if></heading>",
+
+      "<lit>",
+      "<h1 class='chap-head' <expand-if id>id='<expand id>'</expand-if>>",
+      "  <expand chap-head>",
+      "  <expand-if sub-head>",
+      "    <br/>",
+      "    <span class='sub-head'>",
+      "    <expand sub-head>",
+      "    </span>",
+      "  </expand-if>",
+      "</h1>",
+      "</lit>",
+      "<expand-if pn>",
+      "",
+      "<pn='<expand pn>'>"
+      "</expand-if>",
+      "",
     ],
 }
 
@@ -360,30 +390,35 @@ class TestTemplate(unittest.TestCase):
     templates.add("chapter", "default", source)
     return templates
 
+  @unittest.skip("na")
   def test_apply(self):
     templates = self.createTemplates([ "t1", "t2", "t3" ])
     lines = [ "l1", "<chap-head>ch</chap-head>", "", "<sub-head>sub</sub-head>", "l2" ]
     templates.chapterTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "t1", "t2", "t3", "l2" ])
 
+  @unittest.skip("na")
   def test_apply_no_sub(self):
     templates = self.createTemplates([ "t1", "t2", "t3" ])
     lines = [ "l1", "<chap-head>ch</chap-head>", "l2" ]
     templates.chapterTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "t1", "t2", "t3", "l2" ])
 
+  @unittest.skip("na")
   def test_apply_ex(self):
     templates = self.createTemplates(["t1", "<expand chap-head>", "<expand sub-head>", "t3"])
     lines = [ "l1", "<chap-head>ch</chap-head>", "", "<sub-head>sub</sub-head>", "l2" ]
     templates.chapterTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "t1", "ch", "sub", "t3", "l2" ])
 
+  @unittest.skip("na")
   def test_apply_ex_global(self):
     templates = self.createTemplates(["t1", "<expand DC.Title>", "<expand sub-head>", "t3"])
     lines = [ "l1", "<chap-head>ch</chap-head>", "", "<sub-head>sub</sub-head>", "l2" ]
     templates.chapterTemplates(lines, {}, {"DC.Title":"title"})
     self.assertEqual(lines, [ "l1", "t1", "title", "sub", "t3", "l2" ])
 
+  @unittest.skip("na")
   def test_apply_no_sub(self):
     templates = self.createTemplates(["t1", "<expand sub-head>", "t3"])
     lines = [ "l1", "<sub-head>sub</sub-head>", "l2" ]
@@ -391,6 +426,7 @@ class TestTemplate(unittest.TestCase):
       # Found <sub-head> not after <chap-head>
       templates.chapterTemplates(lines, {}, {})
 
+  @unittest.skip("na")
   def test_apply_bad_head(self):
     templates = self.createTemplates(["t1", "<expand chap-head>", "<expand sub-head>", "t3"])
     lines = [ "l1", "<chap-head>ch</chap-head", "", "<sub-head>sub</sub-head>", "l2" ]
@@ -398,6 +434,7 @@ class TestTemplate(unittest.TestCase):
       # Incorrect line
       templates.chapterTemplates(lines, {}, {})
 
+  @unittest.skip("na")
   def test_apply_vars(self):
     templates = self.createTemplates([
       "t1", "<expand chap-head><expand v1>", "<expand v2><expand sub-head>", "t3"
@@ -412,6 +449,7 @@ class TestTemplate(unittest.TestCase):
     templates.chapterTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "t1", "cha", "bsub", "t3", "l2" ])
 
+  @unittest.skip("na")
   def test_define(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='default-first' type='chapter'", [ "template1", "template2" ])
@@ -437,63 +475,72 @@ class TestTemplate(unittest.TestCase):
       # Template definition requires both name and type attributes
       templates.defineTemplate("name='default-first'", [ "template1" ])
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_bad1(self):
     templates = self.createTemplates([])
     with self.assertRaises(SystemExit):
       # No macro name given
-      templates.chapterTemplates([ "<expand-macro >" ], {}, {})
+      templates.macroTemplates([ "<expand-macro >" ], {}, {})
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_bad2(self):
     templates = self.createTemplates([])
     with self.assertRaises(Exception):
       # No template of types ['macro'] with name abc
-      templates.chapterTemplates([ "<expand-macro name='abc'>" ], {}, {})
+      templates.macroTemplates([ "<expand-macro name='abc'>" ], {}, {})
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_1(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='m1' type='macro'", [ "template1", "template2" ])
     lines = [ "l1", "<expand-macro name='m1'>", "l2" ]
-    templates.chapterTemplates(lines, {}, {})
+    templates.macroTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "template1", "template2", "l2" ])
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_prefix(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='m1' type='macro'", [ "template1", "template2" ])
     lines = [ "l1", "prefix<expand-macro name='m1'>", "l2" ]
-    templates.chapterTemplates(lines, {}, {})
+    templates.macroTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "prefixtemplate1", "template2", "l2" ])
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_suffix(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='m1' type='macro'", [ "template1", "template2" ])
     lines = [ "l1", "<expand-macro name='m1'>suffix", "l2" ]
-    templates.chapterTemplates(lines, {}, {})
+    templates.macroTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "template1", "template2suffix", "l2" ])
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_both(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='m1' type='macro'", [ "template1", "template2" ])
     lines = [ "l1", "prefix<expand-macro name='m1'>suffix", "l2" ]
-    templates.chapterTemplates(lines, {}, {})
+    templates.macroTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "prefixtemplate1", "template2suffix", "l2" ])
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_empty(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='m1' type='macro'", [ ])
     lines = [ "l1", "prefix<expand-macro name='m1'>suffix", "l2" ]
-    templates.chapterTemplates(lines, {}, {})
+    templates.macroTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "prefixsuffix", "l2" ])
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_vars(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='m1' type='macro'", [ "temp<expand v1>", "template2" ])
     lines = [ "l1", "<expand-macro name='m1' vars='v1:vee-one'>", "l2" ]
-    templates.chapterTemplates(lines, {}, {})
+    templates.macroTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "tempvee-one", "template2", "l2" ])
 
+  @unittest.skip("move to fpgen")
   def test_define_macro_vars_if(self):
     templates = self.createTemplates([])
     templates.defineTemplate("name='m1' type='macro'", [ "temp<expand-if v1><expand v1></expand-if>", "tem<expand-if v2>vee-two</expand-if>plate2" ])
     lines = [ "l1", "<expand-macro name='m1' vars='v1:vee-one'>", "l2" ]
-    templates.chapterTemplates(lines, {}, {})
+    templates.macroTemplates(lines, {}, {})
     self.assertEqual(lines, [ "l1", "tempvee-one", "template2", "l2" ])
