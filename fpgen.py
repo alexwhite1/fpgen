@@ -426,6 +426,19 @@ class Book(object): #{
     self.dprint(1,"doIndex")
     parseStandaloneTagBlock(self.wb, "index", self.oneIndex)
 
+  def getCaption(self, block):
+    if len(block) == 0:
+      return ""
+    caption = " ".join(block).strip()
+    if not caption.startswith("<caption>"):
+      fatal("Illustration block does not start with <caption>: " + str(block))
+    caption = caption[9:]
+    if not caption.endswith("</caption>"):
+      fatal("Illustration block does not end with </caption>: " + str(block))
+    caption = caption[0:-10]
+
+    return caption
+
   # validate file as UTF-8
   def checkFile(self, fn):
     fileOk = True
@@ -643,19 +656,6 @@ class Book(object): #{
     self.createUserDefinedTemplates()
 
     self.literals()
-
-    # combine multi-line <caption>...</caption> lines into one.
-    i = 0
-    while i < len(self.wb):
-      if self.wb[i].startswith("<caption>") and not re.search("<\/caption>", self.wb[i]):
-        n = 0
-        while not re.search("<\/caption>", self.wb[i]):
-          if i+1 == len(self.wb) or n > 50:
-            fatal("<caption> not terminated, or too long. Caption starts: " + self.wb[i])
-          self.wb[i] = self.wb[i] + " " + self.wb[i+1]
-          del self.wb[i+1]
-          n += 1
-      i += 1
 
     # ensure heading has a blank line before
     self.blankLines("<heading", True, False)
@@ -1571,14 +1571,29 @@ class HTML(Book): #{
         self.wb[i] = re.sub("<l\/>","<l></l>", self.wb[i]) # allow user shortcut <l/> -> </l></l>
       i += 1
 
+    # TODO: Get rid of this silly method
     def lgBlock(lgopts, block):
+      ##### THIS DOES NOT WORK! has been changed to rend='center;' so never matches!
       if re.search("rend='center'",lgopts): # it's a centered line group
         for i, line in enumerate(block):
           # already marked? <l or <ill..
           if not re.match("^\s*<", line) or re.match("<link", line):
             block[i] = "<l>" + line + "</l>" # no, mark it now.
       else: # not a centered line group so honor leading spaces
+        illustration = False
         for i, line in enumerate(block):
+          # Ignore illustration within the <lg>
+          if line.startswith("</illustration"):
+            illustration = False
+            continue
+          if illustration:
+            continue
+          if line.startswith("<illustration"):
+            if not re.search("/>", line):
+              illustration = True
+            # Illustrations are aligned based on their own rend, not
+            # an enclosing <lg>, so don't tag with <l>...</l>
+            continue
           if not re.match("^\s*<l", line) or re.match("<link", line): # already marked?
             line = "<l>" + line.rstrip() + "</l>"
             m = re.match(r"(<l.*?>)(\s+)(.*?)<\/l>", line)
@@ -2339,6 +2354,29 @@ class HTML(Book): #{
       if re.match("<\/quote>",line):
         self.wb[i] = "</div>"
 
+  def marginSize(self, opts, name, default):
+    if not name in opts:
+      return default
+
+    opt = opts[name]
+    m = re.match("^(.*)(px|%|em)$", opt)
+    if m:
+      number = m.group(1)
+      try:
+        v = float(number)
+        return opt
+      except:
+        pass
+
+    # Standalone number?  If so, its in ems
+    try:
+      v = float(opt)
+      return opt + "em"
+    except:
+      pass
+
+    fatal("<tb>: malformed " + name + " option in rend tag: " + opt)
+
   def doBreaks(self): # 02-Apr-2014 rewrite
     self.dprint(1,"doBreaks")
     cssc = 100
@@ -2357,52 +2395,54 @@ class HTML(Book): #{
         tb_mb = "0.5em"
         tb_align = "text-align:center"
 
-        m = re.search(r"rend='(.*?)'", self.wb[i])
-        if m:
-          style = ""
-          border = ""
-          tbrend = m.group(1)
+        attr = parseTagAttributes("tb", m.group(1), tbAttributes)
+        if "rend" in attr:
+          rend = attr["rend"]
+          opts = parseOption("rend", rend, tbRendOptions)
 
-          m = re.search("mt:(\-?\d+\.?\d*)+(px|%|em)", tbrend)
-          if m:
-            tb_mt = "{}{}".format(m.group(1),m.group(2))
-
-          m = re.search("mb:(\-?\d+\.?\d*)+(px|em)", tbrend)
-          if m:
-            tb_mb = "{}{}".format(m.group(1),m.group(2))
+          tb_mt = self.marginSize(opts, "mt", tb_mt)
+          tb_mb = self.marginSize(opts, "mb", tb_mb)
 
           # line style:
-          m = re.search("ls:(\w+?);", tbrend)
-          if m:
-            tb_linestyle = m.group(1)
+          if "ls" in opts:
+            tb_linestyle = opts["ls"]
 
           # line color
-          m = re.search("lc:(\w+?)[;']", tbrend)
-          if m:
-            tb_color = m.group(1)
+          if "lc" in opts:
+            tb_color = opts["lc"]
 
-          m = re.search("thickness:(\w+?)[;']", tbrend)
-          if m:
-            tb_thick = m.group(1)
+          if "thickness" in opts:
+            tb_thick = opts["thickness"]
 
-          m = re.search("w:(\d+)%", tbrend)
-          if m:
-            tb_width = "{}".format(m.group(1))
+          # Only in %, so we can calculate margin-left and margin-right!
+          if "w" in opts:
+            m = re.search("(\d+)%", opts["w"])
+            if m:
+              tb_width = "{}".format(m.group(1))
+            else:
+              fatal("<tb>: malformed w option in rend tag: " + opts["w"])
 
           tb_marginl = str((100 - int(tb_width))//2) + "%" # default if centered
           tb_marginr = tb_marginl
 
-          m = re.search("right", tbrend)
-          if m:
+          # Accept either align:left, or just left
+          align = "center"
+          if "align" in opts:
+            align = opts["align"]
+          elif "right" in opts:
+            align = "right"
+          elif "left" in opts:
+            align = "left"
+
+          if align == "right":
             tb_align = "text-align:right"
             tb_marginl = "auto"
             tb_marginr = "0"
-
-          m = re.search("left", tbrend)
-          if m:
+          elif align == "left":
             tb_align = "text-align:left"
             tb_marginl = "0"
             tb_marginr = "auto"
+          # else center
 
           # m = re.search("s:([\d\.]+?)em", tbrend) # special form: invisible, for spacing
           # if m:
@@ -2643,14 +2683,6 @@ class HTML(Book): #{
     self.dprint(1,"doTables")
     parseStandaloneTagBlock(self.wb, "table", self.oneTableBlock)
 
-  illustrationRendOptions = [
-    "w", "h",
-    "align",
-    "left", "right", "center",
-    "occupy",
-    "link",
-  ]
-
   def dimension(self, opts, name):
     if not name in opts:
       return None
@@ -2667,122 +2699,104 @@ class HTML(Book): #{
 
   def doIllustrations(self):
     self.dprint(1,"doIllustrations")
-    idcnt = 0 # auto id counter
-    i_w = 0 # image width
-    i_h = 0 # image height
-    i_caption = "" # image caption or "" if no caption
-    i_posn = "" # placement, left, center, right
-    i_filename ="" # filename
-    i_rend = "" # rend string
-    i_clear = 0 # how many lines of source to replace
-    i_link = "" # name of file to be linked-to or "" if no link
+    self.idcnt = 0 # auto id counter
 
-    i = 0
-    while i < len(self.wb):
-      m = re.search("<illustration(.*?)", self.wb[i])
-      if m:
+    def oneIllustration(args, block):
+      attr = parseTagAttributes("illustration", args, illustrationAttributes)
 
-        # --------------------------------------------------------------------
-        # set i_filename ("content" or "src")
-        m = re.search("(content|src)=[\"'](.*?)[\"']", self.wb[i])
-        if m:
-          i_filename = m.group(2)
-        if i_filename == "":
-          self.fatal("no image filename specified in {}".format(self.wb[i]))
+      # set i_filename ("content" or "src")
+      i_filename = ""
+      if "content" in attr:
+        i_filename = attr["content"]
+      elif "src" in attr:
+        i_filename = attr["src"]
+      if i_filename == "":
+        self.fatal("no image filename specified in {}".format(args))
 
-        # --------------------------------------------------------------------
-        # pull rend string, if any
-        m = re.search("rend=[\"'](.*?)[\"']", self.wb[i])
-        if m:
-          i_rend = m.group(1)
-        opts = parseOption("rend", i_rend, self.illustrationRendOptions)
+      # --------------------------------------------------------------------
+      # pull rend string, if any
+      i_rend = attr["rend"] if "rend" in attr else ""
+      opts = parseOption("rend", i_rend, illustrationRendOptions)
 
-        # --------------------------------------------------------------------
-        # set i_id
-        m = re.search("id=[\"'](.*?)[\"']", self.wb[i])
-        if m:
-          i_id = m.group(1)
-        else:
-          i_id = "iid-{:04}".format(idcnt)
-          idcnt += 1
+      # --------------------------------------------------------------------
+      # set i_id
+      if "id" in attr:
+        i_id = attr["id"]
+      else:
+        i_id = "iid-{:04}".format(self.idcnt)
+        self.idcnt += 1
 
-        # --------------------------------------------------------------------
-        # set i_posn placement
-        # Either left, right, or center; or align:left, align:right, or
-        # align:center.
-        #
-        i_posn = "center" # default
-        if "left" in opts:
-          i_posn = "left"
-        if "right" in opts:
-          i_posn = "right"
-        if "align" in opts:
-          i_posn = opts['align']
+      # --------------------------------------------------------------------
+      # set i_posn placement
+      # Either left, right, or center; or align:left, align:right, or
+      # align:center.
+      #
+      i_posn = "center" # default
+      if "left" in opts:
+        i_posn = "left"
+      if "right" in opts:
+        i_posn = "right"
+      if "align" in opts:
+        i_posn = opts['align']
 
-        if i_posn == "right":
-          self.css.addcss("[380] .figright { float:right; clear:right; margin-left:1em;")
-          self.css.addcss("[381]             margin-bottom:1em; margin-top:1em; margin-right:0;")
-          self.css.addcss("[382]             padding:0; text-align:center; }")
-        if i_posn == "left":
-          self.css.addcss("[383] .figleft  { float:left; clear:left; margin-right:1em;")
-          self.css.addcss("[384]             margin-bottom:1em; margin-top:1em; margin-left:0;")
-          self.css.addcss("[385]             padding:0; text-align:center; }")
-        if i_posn == "center":
-          self.css.addcss("[386] .figcenter { text-align:center; margin:1em auto;}")
+      if i_posn == "right":
+        self.css.addcss("[380] .figright { float:right; clear:right; margin-left:1em;")
+        self.css.addcss("[381]             margin-bottom:1em; margin-top:1em; margin-right:0;")
+        self.css.addcss("[382]             padding:0; text-align:center; }")
+      if i_posn == "left":
+        self.css.addcss("[383] .figleft  { float:left; clear:left; margin-right:1em;")
+        self.css.addcss("[384]             margin-bottom:1em; margin-top:1em; margin-left:0;")
+        self.css.addcss("[385]             padding:0; text-align:center; }")
+      if i_posn == "center":
+        self.css.addcss("[386] .figcenter { text-align:center; margin:1em auto;}")
 
-        # --------------------------------------------------------------------
-        # set i_w, i_h width and height
-        i_w = self.dimension(opts, 'w')
-        i_h = self.dimension(opts, 'h')
-        i_occupy = self.dimension(opts, 'occupy')
+      # --------------------------------------------------------------------
+      # set i_w, i_h width and height
+      i_w = self.dimension(opts, 'w')
+      i_h = self.dimension(opts, 'h')
+      i_occupy = self.dimension(opts, 'occupy')
 
-        if i_w == None:
-          self.fatal("must specify image width\n{}".format(self.wb[i]))
-        if i_h == None:
-          i_h = "auto"
-        if i_occupy != None:
-          i_occupy = " style='width:" + i_occupy + "'"
-        else:
-          i_occupy = ""
+      if i_w == None:
+        self.fatal("must specify image width\n{}".format(args))
+      if i_h == None:
+        i_h = "auto"
+      if i_occupy != None:
+        i_occupy = " style='width:" + i_occupy + "'"
+      else:
+        i_occupy = ""
 
-        # --------------------------------------------------------------------
-        # determine if link to larger image is requested.
-        # if so, link is to filename+f in images folder.
-        i_link = "" # assume no link
-        if "link" in opts:
-          i_link = re.sub(r"\.", "f.", i_filename)
+      # --------------------------------------------------------------------
+      # determine if link to larger image is requested.
+      # if so, link is to filename+f in images folder.
+      i_link = "" # assume no link
+      if "link" in opts:
+        i_link = re.sub(r"\.", "f.", i_filename)
 
-        # --------------------------------------------------------------------
-        # illustration may be on one line (/>) or three (>)
-        if re.search("\/>", self.wb[i]): # one line, no caption
-          i_caption = ""
-          i_clear = 1
-        else:
-          i_caption = self.wb[i+1]
-          i_caption = re.sub(r"<\/?caption>", "", i_caption)
-          i_caption = re.sub("<br>","<br/>", i_caption) # honor hard breaks in captions
-          i_clear = 3
+      # --------------------------------------------------------------------
+      # illustration may be on one line (/>) or three (>)
+      i_caption = self.getCaption(block)
+      i_caption = re.sub("<br>", "<br/>", i_caption) # honor hard breaks in captions
 
-        # --------------------------------------------------------------------
-        #
-        t = []
-        style="width:{};height:{};".format(i_w,i_h)
-        t.append("<div class='fig{}'{}>".format(i_posn, i_occupy))
+      # --------------------------------------------------------------------
+      #
+      t = []
+      style="width:{};height:{};".format(i_w, i_h)
+      t.append("<div class='fig{}'{}>".format(i_posn, i_occupy))
 
-        # handle link to larger images in HTML only
-        s0 = ""
-        s1 = ""
-        if 'h' == self.gentype and i_link != "":
-          s0 = "<a href='{}'>".format(i_link)
-          s1 = "</a>"
-        t.append("{}<img src='{}' alt='' id='{}' style='{}'/>{}".format(s0, i_filename, i_id, style, s1))
-        if i_caption != "":
-          self.css.addcss("[392] p.caption { text-align:center; margin:0 auto; width:100%; }")
-          t.append("<p class='caption'>{}</p>".format(i_caption))
-        t.append("</div>")
-        self.wb[i:i+i_clear] = t
+      # handle link to larger images in HTML only
+      s0 = ""
+      s1 = ""
+      if 'h' == self.gentype and i_link != "":
+        s0 = "<a href='{}'>".format(i_link)
+        s1 = "</a>"
+      t.append("{}<img src='{}' alt='' id='{}' style='{}'/>{}".format(s0, i_filename, i_id, style, s1))
+      if i_caption != "":
+        self.css.addcss("[392] p.caption { text-align:center; margin:0 auto; width:100%; }")
+        t.append("<p class='caption'>{}</p>".format(i_caption))
+      t.append("</div>")
+      return t
 
-      i += 1
+    parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)
 
   def doLinks(self):
     self.dprint(1,"doLinks")
@@ -3548,48 +3562,36 @@ class Text(Book): #{
   # illustrations
   def illustrations(self):
     self.dprint(1,"illustrations")
-    i = 0
-    while i < len(self.wb):
-      m = re.search("<illustration", self.wb[i])
-      if m:
-        # process with and without caption
-        m = re.search("<illustration.*?\/>", self.wb[i])
-        if m:
-          self.wb[i] = "<l>[Illustration]</l>" # 19-Oct-2013
-          i += 1
-          continue
-        m = re.search("<illustration.*?>", self.wb[i])
-        if m:
-          m = re.match("<caption>(.*?)</caption>", self.wb[i+1])
-          if m:
-            caption = m.group(1)
-            # if there is a <br> in the caption, then user wants
-            # control of line breaks. otherwise, wrap
-            m = re.search("<br\/?>", caption)
-            if m: # user control
-              s = "[Illustration: " + caption + "]"
-              s = re.sub("<br\/?>", "\n", s)
-              t = []
-              t.append("▹.rs 1")
-              u = s.split('\n')
-              for x in u:
-                t.append("▹"+x) # may be multiple lines
-              t.append("▹.rs 1")
-              self.wb[i:i+3] = t
-              i += len(t)
-              continue
-            else: # fpgen wraps illustration line
-              s = "[Illustration: " + caption + "]"
-              t = []
-              t.append("▹.rs 1")
-              u = wrap2(s)
-              for x in u:
-                t.append("▹"+x) # may be multiple lines
-              t.append("▹.rs 1")
-              self.wb[i:i+3] = t
-              i += len(t)
-              continue
-      i += 1
+    def oneIllustration(args, block):
+      attr = parseTagAttributes("illustration", args, illustrationAttributes)
+      t = []
+      if len(block) == 0:
+        t.append("<l>[Illustration]</l>")
+      else:
+        caption = self.getCaption(block)
+
+        # if there is a <br> in the caption, then user wants
+        # control of line breaks. otherwise, wrap
+        m = re.search("<br\/?>", caption)
+        if m: # user control
+          s = "[Illustration: " + caption + "]"
+          s = re.sub("<br\/?>", "\n", s)
+          t.append("▹.rs 1")
+          u = s.split('\n')
+          for x in u:
+            t.append("▹"+x) # may be multiple lines
+          t.append("▹.rs 1")
+        else: # fpgen wraps illustration line
+          # TODO: In this form, if we are wrapped in an <lg>, the .rs comes out centered!
+          s = "[Illustration: " + caption + "]"
+          t.append("▹.rs 1")
+          u = wrap2(s)
+          for x in u:
+            t.append("▹"+x) # may be multiple lines
+          t.append("▹.rs 1")
+      return t
+
+    parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)
 
   def oneSummary(self, openTag, block):
     if openTag != "":
@@ -3623,6 +3625,19 @@ class Text(Book): #{
       b.append("<l>" + l + "</l>")
     b.append('</lg>')
     return b
+
+  # Look inside the <tb> tag for a rend='text:hidden'
+  def isTbHidden(self, line):
+    m = re.match("<tb\s+(.*?)\/?>", line)
+    if m:
+      args = m.group(1)
+      attr = parseTagAttributes("tb", args, tbAttributes)
+      if "rend" in attr:
+        rend = attr["rend"]
+        opts = parseOption("rend", rend, tbRendOptions)
+        if "text" in opts and opts["text"] == "hidden":
+          return True
+    return False
 
   # rewrap
   # doesn't touch lines that are already formatted
@@ -3766,13 +3781,7 @@ class Text(Book): #{
       # any thought break in text is just centered asterisks
       # but the text:hidden rend option makes it just go away in text
       if self.wb[i].startswith("<tb"):
-        hidden = False
-        m = re.search(r"rend='(.*?)'", self.wb[i])
-        if m:
-          rend = m.group(1)
-          if re.search("text:hidden", rend):
-            hidden = True
-        if hidden:
+        if self.isTbHidden(self.wb[i]):
           t = []
         else:
           t = ["▹.rs 1"]
@@ -3957,7 +3966,11 @@ class Text(Book): #{
         while not regexEndLg.match(self.wb[j]):
           # Only do a prefix match, we ignore potential the rend=
           if re.match("<tb", self.wb[j]):
-            self.wb[j] = "▹                 *        *        *        *        *"
+            if not self.isTbHidden(self.wb[j]):
+              self.wb[j] = "▹                 *        *        *        *        *"
+            else:
+              del self.wb[j]
+              continue
           j += 1
 
         # Isolate the attribute, and process the different styles: center, left, right, poetry,
@@ -5473,6 +5486,27 @@ class TestMakeTable(unittest.TestCase):
 
   # TODO: Tests for computing widths
   # TODO: Tests for computing some widths
+
+illustrationAttributes = [
+  "content", "src", "rend", "id",
+]
+
+tbAttributes = [
+  "rend",
+]
+
+tbRendOptions = [
+  "text",       # text:hidden
+  "mt", "mb", "ls", "lc", "thickness", "w", "right", "left", "align",
+]
+
+illustrationRendOptions = [
+  "w", "h",
+  "align",
+  "left", "right", "center",
+  "occupy",
+  "link",
+]
 
 if __name__ == '__main__':
   from main import main

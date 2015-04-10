@@ -91,7 +91,9 @@ uopt = userOptions()
 # 4.36     Add <index> tag
 # 4.36a    Allow arbitrary spaces in <fn and <footnote
 # 4.37     Templates; macro/lit ordering bug fix; lg/l fontsize ordering bug fix
-VERSION="4.37"
+# 4.37a    <illustration>&<tb>: use common parsing; <chap-head>&<sub-head>
+
+VERSION="4.37a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

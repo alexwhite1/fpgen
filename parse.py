@@ -5,7 +5,7 @@ import unittest
 import re
 import sys
 import collections
-from msgs import fatal
+from msgs import fatal, cprint
 
 # Extract the text on a line which looks like <tag>XXXX</tag>
 def parseLineEntry(tag, line):
@@ -117,11 +117,11 @@ def parseEmbeddedTagBlock(lines, tag, function):
 
 # Look for <tag> ... </tag> where the tags are on standalone lines.
 # As we find each such block, invoke the function against it
-def parseStandaloneTagBlock(lines, tag, function):
+def parseStandaloneTagBlock(lines, tag, function, allowClose = False):
   i = 0
   startTag = "<" + tag
   endTag = "</" + tag + ">"
-  regex = re.compile(startTag + "(.*?)>")
+  regex = re.compile(startTag + "(.*?)(/)?>")
   while i < len(lines):
     m = regex.match(lines[i])
     if not m:
@@ -130,21 +130,27 @@ def parseStandaloneTagBlock(lines, tag, function):
 
     openLine = lines[i]
     openArgs = m.group(1)
+
     block = []
+    close = m.group(2)
+    if close != None:
+      if not allowClose:
+        fatal("Open tag " + tag + " marked for close. " + openLine)
+      j = i
+    else:
+      j = i+1
+      while j < len(lines):
+        line = lines[j]
+        if line.startswith(endTag):
+          break
+        if line.startswith(startTag):
+          fatal("No closing tag found for " + tag + "; open line: " + openLine +
+            "; found another open tag: " + line)
+        block.append(line)
+        j += 1
 
-    j = i+1
-    while j < len(lines):
-      line = lines[j]
-      if line.startswith(endTag):
-        break
-      if line.startswith(startTag):
-        fatal("No closing tag found for " + tag + "; open line: " + openLine +
-          "; found another open tag: " + line)
-      block.append(line)
-      j += 1
-
-    if j == len(lines):
-      fatal("No closing tag found for " + tag + "; open line: " + openLine)
+      if j == len(lines):
+        fatal("No closing tag found for " + tag + "; open line: " + openLine)
     
     replacement = function(openArgs, block)
 
@@ -158,7 +164,7 @@ class TestParsing(unittest.TestCase):
     from fpgen import Book
     self.book = Book(None, None, None, None)
 
-  def verify(self, lines, expectedResult, expectedBlocks, replacementBlocks, open=""):
+  def verify(self, lines, expectedResult, expectedBlocks, replacementBlocks, open="", allowClose = False):
     self.callbackN = -1
     def f(l0, block):
       self.callbackN += 1
@@ -166,7 +172,7 @@ class TestParsing(unittest.TestCase):
       self.assertSequenceEqual(block, expectedBlocks[self.callbackN])
       return replacementBlocks[self.callbackN] if replacementBlocks != None else []
 
-    parseStandaloneTagBlock(lines, "tag", f)
+    parseStandaloneTagBlock(lines, "tag", f, allowClose = allowClose)
     self.assertSequenceEqual(lines, expectedResult)
 
   def test_parse0(self):
@@ -180,6 +186,32 @@ class TestParsing(unittest.TestCase):
     with self.assertRaises(SystemExit) as cm:
       parseStandaloneTagBlock(lines, "tag", None)
     self.assertEqual(cm.exception.code, 1)
+
+  def test_parse_bad_close(self):
+    lines = [ "<tag/>", "l1", ]
+    with self.assertRaises(SystemExit) as cm:
+      parseStandaloneTagBlock(lines, "tag", None)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_parse_close(self):
+    lines = [ "<tag/>", "l1", ]
+    expectedResult = [ "l1" ]
+    expectedBlock = [ [ ] ]
+    self.verify(lines, expectedResult, expectedBlock, None, allowClose = True)
+
+  def test_parse_close_repl(self):
+    lines = [ "<tag/>", ]
+    expectedResult = [ "r1" ]
+    expectedBlock = [ [ ] ]
+    replacementBlocks = [ [ "r1" ] ]
+    self.verify(lines, expectedResult, expectedBlock, replacementBlocks, allowClose = True)
+
+  def test_parse_mixed(self):
+    lines = [ "<tag/>", "<tag>", "l1", "l2", "</tag>", "l3" ]
+    expectedResult = [ "r1", "r2", "r3", "l3" ]
+    expectedBlock = [ [ ], [ "l1", "l2" ] ]
+    replacementBlocks = [ [ "r1" ], [ "r2", "r3" ] ]
+    self.verify(lines, expectedResult, expectedBlock, replacementBlocks, allowClose = True)
 
   def test_parse_no_close2(self):
     lines = [ "<tag>", "l1", "<tag>", "l3", "</tag>" ]
@@ -198,6 +230,20 @@ class TestParsing(unittest.TestCase):
     expectedResult = [ "l0", "l4" ]
     expectedBlock = [ [ "l2", "l3" ] ]
     self.verify(lines, expectedResult, expectedBlock, None, open=" rend='xxx'")
+
+  def test_parse_close_with_args(self):
+    lines = [ "l0", "<tag rend='xxx'/>", "l1", ]
+    expectedResult = [ "l0", "l1" ]
+    expectedBlock = [ [ ] ]
+    self.verify(lines, expectedResult, expectedBlock, None, open=" rend='xxx'", allowClose = True)
+
+  def test_parse_close_with_args_repl(self):
+    lines = [ "l0", "<tag rend='xxx'/>", "l1", ]
+    expectedResult = [ "l0", "r1", "r2", "l1" ]
+    expectedBlock = [ [ ] ]
+    replacementBlocks = [ [ "r1", "r2" ] ]
+    self.verify(lines, expectedResult, expectedBlock, replacementBlocks,
+        open=" rend='xxx'", allowClose = True)
 
   def test_parse2(self):
     lines = [
