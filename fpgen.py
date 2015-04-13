@@ -226,7 +226,9 @@ class Book(object): #{
     def show(self):
       t = []
       for s in self.meta:
-        t.append("    " + s)
+        # Hack to convert &, because we now steal the meta before
+        # we run the html preprocess code
+        t.append("    " + re.sub("&", "&amp;", s))
       return t
 
     def get(self, tag):
@@ -1364,15 +1366,6 @@ class HTML(Book): #{
     "small" : "small",
   }
 
-  legalOptions = [
-    "center", "right", "left",
-    "mr", "ml", "mt", "mb",
-    "sa", "sb",
-    "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
-    "under", "bold", "sc", "smallcaps", "i", "italic",
-    "align-last", "triple"
-  ]
-
   def m2h(self, s, pf='False', lgr=''):
     incoming = s
     m = re.match("<l(.*?)>(.*?)<\/l>",s)
@@ -1381,8 +1374,8 @@ class HTML(Book): #{
     # combine rend specified on line with rend specified for line group
     attributes = parseTagAttributes("l", m.group(1), [ 'rend', 'id' ])
     rend = attributes['rend'] if 'rend' in attributes else ""
-    optionsLG = parseOption("<lg>/rend=", lgr, self.legalOptions) if lgr != '' else {}
-    optionsL = parseOption("<l>/rend=", rend, self.legalOptions)
+    optionsLG = parseOption("<lg>/rend=", lgr, lLgRendOptions) if lgr != '' else {}
+    optionsL = parseOption("<l>/rend=", rend, lLgRendOptions)
     options = optionsLG.copy()
     options.update(optionsL)
     if len(options) > 0:
@@ -1714,7 +1707,7 @@ class HTML(Book): #{
             hid = m4.group(1)
           else:
             # id is not optional.  Generate one, and add it into the <heading>
-            hid = '_h_' + str(headingNumber)
+            hid = 'h_' + str(headingNumber)
             headingNumber += 1
             self.wb[i] = re.sub("<heading", "<heading id='" + hid + "'", line)
 
@@ -5506,6 +5499,15 @@ illustrationRendOptions = [
   "left", "right", "center",
   "occupy",
   "link",
+]
+
+lLgRendOptions = [
+  "center", "right", "left",
+  "mr", "ml", "mt", "mb",
+  "sa", "sb",
+  "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
+  "under", "bold", "sc", "smallcaps", "i", "italic",
+  "align-last", "triple"
 ]
 
 if __name__ == '__main__':
