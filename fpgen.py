@@ -3665,6 +3665,8 @@ class Text(Book): #{
 
       if re.match("<\/quote>", self.wb[i]):
         self.qstack.pop()
+        if len(self.qstack) == 0:
+          fatal("</quote> encounted without matching open <quote>")
         del(self.wb[i])
         continue
 

@@ -93,8 +93,9 @@ uopt = userOptions()
 # 4.37     Templates; macro/lit ordering bug fix; lg/l fontsize ordering bug fix
 # 4.37a    <illustration>&<tb>: use common parsing; <chap-head>&<sub-head>
 # 4.37b    &amp; in meta; change syntax for id in headers to fix warning
+# 4.37c    text: give error when extra </quote>
 
-VERSION="4.37b"
+VERSION="4.37c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
