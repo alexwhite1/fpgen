@@ -94,8 +94,9 @@ uopt = userOptions()
 # 4.37a    <illustration>&<tb>: use common parsing; <chap-head>&<sub-head>
 # 4.37b    &amp; in meta; change syntax for id in headers to fix warning
 # 4.37c    text: give error when extra </quote>
+# 4.37d    text: Fix <lit> to not convert backslash-space
 
-VERSION="4.37c"
+VERSION="4.37d"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

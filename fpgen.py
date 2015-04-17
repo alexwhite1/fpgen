@@ -3514,6 +3514,10 @@ class Text(Book): #{
     i = 0
     while i < len(self.wb):
       s = self.wb[i]
+      if len(s) > 0 and s[0] == config.FORMATTED_PREFIX:
+        # Do not touch <lit>!
+        i += 1
+        continue
       s = re.sub("<(\/?i)>", r"[[\1]]", s) # italics
       s = re.sub("<(\/?b)>", r"[[\1]]", s) # bold
       s = re.sub("<(\/?sc)>", r"[[\1]]", s) # small caps
