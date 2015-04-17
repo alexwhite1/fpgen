@@ -533,7 +533,7 @@ class Book(object): #{
     # apply macros to text
     self.dprint(1, "apply macros")
     i = 0
-    regex = re.compile("%([^;].*?)%")
+    regex = re.compile("%([^; ].*?)%")
     for i, line in enumerate(self.wb):
       while True:
         m = regex.search(line)

@@ -95,8 +95,9 @@ uopt = userOptions()
 # 4.37b    &amp; in meta; change syntax for id in headers to fix warning
 # 4.37c    text: give error when extra </quote>
 # 4.37d    text: Fix <lit> to not convert backslash-space
+# 4.37e    Fix 4.37: Don't try to expand a macro starting with space
 
-VERSION="4.37d"
+VERSION="4.37e"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
