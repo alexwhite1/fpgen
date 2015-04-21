@@ -765,7 +765,7 @@ class Book(object): #{
         mg3 = m.group(3).strip()
         m = re.search("id=[\"']#[\"']", mg1)
         if m:
-          mg1 = "<footnote\s+id='{}'>".format(fnc)
+          mg1 = "<footnote id='{}'>".format(fnc)
           fnc += 1
         self.wb[i:i+1] = [mg1, mg2, mg3]
         i += 2
@@ -777,7 +777,7 @@ class Book(object): #{
         mg2 = m.group(2).strip()
         m = re.search("id=[\"']#[\"']", mg1)
         if m:
-          mg1 = "<footnote\s+id='{}'>".format(fnc)
+          mg1 = "<footnote id='{}'>".format(fnc)
           fnc += 1
         self.wb[i:i+1] = [mg1, mg2]
         i += 1
