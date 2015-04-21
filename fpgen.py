@@ -787,7 +787,7 @@ class Book(object): #{
       if m:
         m = re.search("id=[\"']#[\"']", self.wb[i])
         if m:
-          self.wb[i] = "<footnote\s+id='{}'>".format(fnc)
+          self.wb[i] = "<footnote id='{}'>".format(fnc)
           fnc += 1
         i += 1
 
