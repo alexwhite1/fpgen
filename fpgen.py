@@ -10,7 +10,8 @@ import platform
 import unittest
 import collections
 
-from parse import parseTagAttributes, parseOption, parseLineEntry, parseStandaloneTagBlock
+from parse import parseTagAttributes, parseOption, parseLineEntry, parseStandaloneTagBlock, \
+  parseEmbeddedSingleLineTagWithContent, parseEmbeddedTagWithoutContent
 from msgs import cprint, uprint, dprint, fatal
 import config
 import template
@@ -1726,24 +1727,29 @@ class HTML(Book): #{
 
   def processLinks(self):
     self.dprint(1,"processLinks")
+
+    def oneLink(arg, content, orig):
+      attributes = parseTagAttributes("link", arg, [ "target" ])
+      if "target" not in attributes:
+        fatal("<link> must always have a target attribute: " + orig)
+      target = attributes["target"]
+      return "⩤a href='#" + target + "'⩥" + content + "⩤/a⩥"
+
     for i,line in enumerate(self.wb):
-      while True:
-        m = re.search("<link\s+target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
-        if m:
-          self.wb[i] = re.sub("<link\s+target=[\"'].*?[\"']>","⩤a href='#{}'⩥".format(m.group(1)), self.wb[i], 1)
-          self.wb[i] = re.sub("<\/link>","⩤/a⩥",self.wb[i], 1)
-        else:
-          break
+      self.wb[i] = parseEmbeddedSingleLineTagWithContent(line, "link", oneLink)
 
   def processTargets(self):
     self.dprint(1,"processTargets")
+
+    def oneTarget(arg, orig):
+      attributes = parseTagAttributes("target", arg, [ "id" ])
+      if "id" not in attributes:
+        fatal("<target> must always have an id attribute: " + orig)
+      id = attributes["id"]
+      return "⩤a id='" + id + "'⩥⩤/a⩥"
+
     for i,line in enumerate(self.wb):
-      while True:
-        m = re.search("<target\s+id=[\"'](.*?)[\"']\/?>", self.wb[i])
-        if m:
-          self.wb[i] = re.sub("<target\s+id=[\"'].*?[\"']\/?>","⩤a id='{}'⩥⩤/a⩥".format(m.group(1)), self.wb[i], 1)
-        else:
-          break
+      self.wb[i] = parseEmbeddedTagWithoutContent(line, "target", oneTarget)
 
   def protectMarkup(self):
     fnc = 1 # available to autonumber footnotes
@@ -2791,15 +2797,6 @@ class HTML(Book): #{
 
     parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)
 
-  def doLinks(self):
-    self.dprint(1,"doLinks")
-    for i,line in enumerate(self.wb):
-      m = re.search("<link\s+target=[\"'](.*?)[\"']>.*?<\/link>", self.wb[i])
-      if m:
-        tgt = m.group(1)
-        self.wb[i] = re.sub("<link\s+target=[\"'].*?[\"']>","<a href='#{}'>".format(tgt),self.wb[i])
-        self.wb[i] = re.sub("<\/link>","</a>",self.wb[i])
-
   def doFootnotes(self):
     self.dprint(1,"doFootnotes")
 
@@ -3115,7 +3112,6 @@ class HTML(Book): #{
     self.doBreaks()
     self.doTables()
     self.doIllustrations()
-    self.doLinks()
     self.doFootnotes()
     self.doSidenotes()
     self.doLineGroups()

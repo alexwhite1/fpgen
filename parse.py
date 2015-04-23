@@ -7,6 +7,104 @@ import sys
 import collections
 from msgs import fatal, cprint
 
+# parseEmbeddedTagWithoutContent: (e.g. <fn>, <target>)
+#   text<tag arg>text
+#
+# parseEmbeddedSingleLineTagWithContent: (e.g. <link>)
+#   text<tag arg>content</tag>text
+#
+# parseStandaloneSingleLineTagWithContent: (e.g. <heading>) TODO
+#   <tag arg>content</tag>
+#
+# parseEmbeddedTagBlock:
+#   text<tag>...\n...</tag>text
+#
+# parseStandaloneTagBlock: (e.g. <if>, <illustration>)
+#   <tag>...\n...</tag>
+#
+# parseLineEntry:
+#   <tag>content</tag>
+
+def parseEmbeddedTagWithoutContent(line, tag, function):
+  origLine = line
+  startTag = "<" + tag
+  startLen = len(startTag)
+  off = 0
+  while True:
+    startTagOff = line.find(startTag, off)
+    if startTagOff == -1:
+      return line
+    s = list(line)
+    s.append('\0')
+    startArg = startTagOff + startLen
+    c = s[startArg]
+    i = startArg
+    if c != '>' and c != ' ' and c != '/':
+      # Nope, not really this tag
+      off = i
+      continue
+    # Look for end of arg
+    while s[i] != '>' and s[i] != '\0':
+      i += 1
+    if s[i] == '\0':
+      # Again, not really this tag?  <tag xxx without closing greater...
+      off = i
+      continue
+    startTagEnd = i+1
+    endArgOff = i-1 if s[i-1] == '/' else i
+
+    arg = line[startArg:endArgOff].strip()
+    repl = function(arg, origLine)
+    leftPart = line[0:startTagOff]
+    rightPart = line[startTagEnd:]
+    line = leftPart + repl + rightPart
+    off = len(leftPart) + len(repl)
+
+def parseEmbeddedSingleLineTagWithContent(line, tag, function):
+  origLine = line
+  startTag = "<" + tag
+  startLen = len(startTag)
+  endTag = "</" + tag + ">"
+  endLen = len(endTag)
+  off = 0
+  while True:
+    startTagOff = line.find(startTag, off)
+    if startTagOff == -1:
+      if endTag in line:
+        fatal("Found closing tag " + endTag + " without open tag: " + line)
+      return line
+    s = list(line)
+    s.append('\0')
+    startArg = startTagOff + startLen
+    c = s[startArg]
+    i = startArg
+    if c != '>' and c != ' ':
+      # Nope, not really this tag
+      off = i
+      continue
+    # Look for end of arg
+    while s[i] != '>' and s[i] != '\0':
+      i += 1
+    if s[i] == '\0':
+      # Again, not really this tag?  <tag xxx without closing greater...
+      off = i
+      continue
+    if s[i-1] == '/':
+      fatal("Open tag " + tag + " is marked for close; this tag requires an open and close tag, with text between: " + line)
+    arg = line[startArg:i].strip()
+    startContent = i+1
+    endTagOff = line.find(endTag, startContent)
+    if endTagOff == -1:
+      fatal("Open tag " + tag + " found, no closing tag: " + line)
+    content = line[startContent:endTagOff]
+
+    repl = function(arg, content, origLine)
+
+    leftPart = line[0:startTagOff]
+    rightPart = line[endTagOff+endLen:]
+    line = leftPart + repl + rightPart
+    off = len(leftPart) + len(repl)
+
 # Extract the text on a line which looks like <tag>XXXX</tag>
 def parseLineEntry(tag, line):
   pattern = "^<" + tag + "\s*(.*?)>(.*)</" + tag + ">$"
@@ -160,10 +258,160 @@ def parseStandaloneTagBlock(lines, tag, function, allowClose = False):
   return lines
 
 class TestParsing(unittest.TestCase):
-  def setUp(self):
-    from fpgen import Book
-    self.book = Book(None, None, None, None)
 
+  #
+  # Tests of parseEmbeddedTagWithoutContent
+  #
+  def verifyEmbeddedTagWOC(self, line, expectedArg, expectedResult, replacement):
+    self.callbackN = 0
+    def f(arg, orig):
+      index = self.callbackN
+      self.callbackN += 1
+      self.assertEquals(line, orig)
+      self.assertEquals(arg, expectedArg[index])
+      return replacement[index] if replacement != None else ""
+    result = parseEmbeddedTagWithoutContent(line, "tag", f)
+    self.assertEquals(self.callbackN, 1 if replacement == None else len(replacement))
+    self.assertEquals(result, expectedResult)
+
+  def test_embed_without_empty(self):
+    line = ""
+    self.verifyEmbeddedTagWOC(line, [""], "", [])
+
+  def test_embed_without_empty1(self):
+    line = "xx"
+    self.verifyEmbeddedTagWOC(line, [""], "xx", [])
+
+  def test_embed_without_empty1(self):
+    line = "xx<tagger>"
+    self.verifyEmbeddedTagWOC(line, [""], "xx<tagger>", [])
+
+  def test_embed_without(self):
+    line = "abc<tag>def"
+    self.verifyEmbeddedTagWOC(line, [""], "abcdef", None)
+
+  def test_embed_without_arg(self):
+    line = "abc<tag arg arg>def"
+    self.verifyEmbeddedTagWOC(line, ["arg arg"], "abcdef", None)
+
+  def test_embed_without_arg_close(self):
+    line = "abc<tag arg arg/>def"
+    self.verifyEmbeddedTagWOC(line, ["arg arg"], "abcdef", None)
+
+  def test_embed_without_repl(self):
+    line = "abc<tag>def"
+    self.verifyEmbeddedTagWOC(line, [""], "abcrepldef", [ "repl" ])
+
+  def test_embed_without_repl_close(self):
+    line = "abc<tag/>def"
+    self.verifyEmbeddedTagWOC(line, [""], "abcrepldef", [ "repl" ])
+
+  def test_embed_without_repl_close_space(self):
+    line = "abc<tag   />def"
+    self.verifyEmbeddedTagWOC(line, [""], "abcrepldef", [ "repl" ])
+
+  def test_embed_without_twice(self):
+    line = "abc<tag>def<tag>xxx"
+    self.verifyEmbeddedTagWOC(line, ["", ""], "abcdefxxx", [ "", "" ])
+
+  def test_embed_without_twice_arg(self):
+    line = "abc<tag a1>def<tag a2>xxx"
+    self.verifyEmbeddedTagWOC(line, ["a1", "a2"], "abcdefxxx", [ "", "" ])
+
+  def test_embed_without_twice_arg_repl(self):
+    line = "abc<tag a1>def<tag a2>xxx"
+    self.verifyEmbeddedTagWOC(line, ["a1", "a2"], "abcr1defr2xxx", [ "r1", "r2" ])
+
+  #
+  # Tests of parseEmbeddedSingleLineTagWithContent
+  #
+  def verifyEmbeddedContent(self, line, expectedArg, expectedContent, \
+    expectedResult, replacement):
+    self.callbackN = 0
+    def f(arg, content, orig):
+      index = self.callbackN
+      self.callbackN += 1
+      self.assertEquals(line, orig)
+      self.assertEquals(arg, expectedArg[index])
+      self.assertEquals(content, expectedContent[index])
+      return replacement[index] if replacement != None else ""
+
+    result = parseEmbeddedSingleLineTagWithContent(line, "tag", f)
+    self.assertEquals(self.callbackN, 1 if replacement == None else len(replacement))
+    self.assertEquals(result, expectedResult)
+
+  def test_embed_content_empty(self):
+    line = ""
+    self.verifyEmbeddedContent(line, [""], ["yyy"], "", [])
+
+  def test_embed_content_empty1(self):
+    line = "yyy"
+    self.verifyEmbeddedContent(line, [], [], "yyy", [])
+
+  def test_embed_content_empty2(self):
+    line = "yyy<tagger>foo</tagger>"
+    self.verifyEmbeddedContent(line, [], [], "yyy<tagger>foo</tagger>", [])
+
+  def test_embed_content_empty3(self):
+    line = "yyy<tag"
+    self.verifyEmbeddedContent(line, [], [], "yyy<tag", [])
+
+  def test_embed_content_empty4(self):
+    line = "yyy<tag more"
+    self.verifyEmbeddedContent(line, [], [], "yyy<tag more", [])
+
+  def test_embed_content(self):
+    line = "xxx<tag>yyy</tag>"
+    self.verifyEmbeddedContent(line, [""], ["yyy"], "xxx", None)
+
+  def test_embed_content_alone(self):
+    line = "<tag>yyy</tag>"
+    self.verifyEmbeddedContent(line, [""], ["yyy"], "", None)
+
+  def test_embed_content_arg(self):
+    line = "xxx<tag arg arg arg>yyy</tag>zzz"
+    self.verifyEmbeddedContent(line, ["arg arg arg"], ["yyy"], "xxxzzz", None)
+
+  def test_embed_content_arg_spaces(self):
+    # preserve spaces in content, but not arg
+    line = "xxx<tag     arg >  yyy  </tag>zzz"
+    self.verifyEmbeddedContent(line, ["arg"], ["  yyy  "], "xxxzzz", None)
+
+  def test_embed_content_repl(self):
+    line = "xxx<tag>yyy</tag>zzz"
+    self.verifyEmbeddedContent(line, [""], ["yyy"], "xxxreplzzz", [ "repl" ])
+
+  def test_embed_content_twice(self):
+    line = "xxx<tag arg>yyy</tag>zzz<tag arg2>aaaa</tag>bbbb"
+    self.verifyEmbeddedContent(line, ["arg", "arg2"], ["yyy", "aaaa"],
+        "xxxzzzbbbb", [ "", "" ])
+
+  def test_embed_content_twice_repl(self):
+    line = "xxx<tag arg>yyy</tag>zzz<tag arg2>aaaa</tag>bbbb"
+    self.verifyEmbeddedContent(line, ["arg", "arg2"], ["yyy", "aaaa"],
+        "xxxr1zzzr2bbbb", [ "r1", "r2" ])
+
+  def test_embed_content_no_close(self):
+    line = "xxx<tag arg arg arg>yyy< /tag>"
+    with self.assertRaises(SystemExit) as cm:
+      self.verifyEmbeddedContent(line, None, None, None, None)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_embed_content_no_openclose(self):
+    line = "xxx<tag arg arg arg/>yyy</tag>"
+    with self.assertRaises(SystemExit) as cm:
+      self.verifyEmbeddedContent(line, None, None, None, None)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_embed_content_no_open(self):
+    line = "xxx< tag arg arg arg/>yyy</tag>"
+    with self.assertRaises(SystemExit) as cm:
+      self.verifyEmbeddedContent(line, None, None, None, None)
+    self.assertEqual(cm.exception.code, 1)
+
+  #
+  # Tests of parseStandaloneTagBlock
+  #
   def verify(self, lines, expectedResult, expectedBlocks, replacementBlocks, open="", allowClose = False):
     self.callbackN = -1
     def f(l0, block):
