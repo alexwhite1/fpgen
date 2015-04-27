@@ -511,6 +511,7 @@ class Book(object): #{
           del self.wb[i]
           continue
         del self.wb[i] # closing comment line
+        continue
       i += 1
 
   def applyMacros(self):

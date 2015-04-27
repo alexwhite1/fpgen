@@ -98,8 +98,9 @@ uopt = userOptions()
 # 4.37e    Fix 4.37: Don't try to expand a macro starting with space
 # 4.37f    Fix <footnote id='#'> broken recently
 # 4.37g    Rewrite <link> and <target> using new parsing methods
+# 4.37h    Fix comment on line following multi-line comment
 
-VERSION="4.37g"
+VERSION="4.37h"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
