@@ -100,8 +100,9 @@ uopt = userOptions()
 # 4.37g    Rewrite <link> and <target> using new parsing methods
 # 4.37h    Fix comment on line following multi-line comment
 # 4.38     Relocate footnote options
+# 4.38a    Enclose footnotes in div with class footnote
 
-VERSION="4.38"
+VERSION="4.38a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

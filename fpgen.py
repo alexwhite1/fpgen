@@ -2977,14 +2977,17 @@ class HTML(Book): #{
 
   # anything particular for derived-class media (epub, mobi, PDF)
   # can use this as an overridden method
-  def mediaTweak(self):
+  def footnotesToTable(self):
     # for HTML, gather footnotes into a table structure
+    matched = False
     i = 0
     while i < len(self.wb):
       m = re.match("<div id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", self.wb[i])
       if m:
+        matched = True
         t = []
-        t.append("<table style='margin:0 4em 0 0;' summary='footnote_{}'>".format(m.group(1)))
+        t.append("<div class='footnote'>")
+        t.append("<table summary='footnote_{}'>".format(m.group(1)))
 
         t.append("<colgroup>")
         t.append("<col span='1' style='width: 3em;'/>")
@@ -3001,10 +3004,18 @@ class HTML(Book): #{
         del(self.wb[i]) # closing div
         t.append("</td></tr>")
         t.append("</table>")
+        t.append("</div>")
         t.append("")
         self.wb[i:i+1] = t
         i += len(t)-1
       i += 1
+
+    if matched:
+      if config.uopt.getopt("pstyle") == "indent":
+        # Single paragraph footnotes look strange with a paragraph indent
+        # on the first paragraph. Subsequent paragraphs look ok indented
+        self.css.addcss("[410] .footnote td p.pindent:first-child { text-indent: 0; }")
+      self.css.addcss("[411] .footnote { margin:0 4em 0 0; }")
 
   def processPageNumDisp(self):
     inBlockElement = False
@@ -3080,12 +3091,12 @@ class HTML(Book): #{
     self.startHTML()
     self.processMarkup()
     self.processPageNumDisp()
+    self.footnotesToTable()
     self.placeCSS()
     self.placeMeta()
     self.cleanup()
     self.plinks()
     self.endHTML()
-    self.mediaTweak()
 
 #}
 # END OF CLASS HTML
