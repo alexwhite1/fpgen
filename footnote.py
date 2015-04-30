@@ -4,6 +4,7 @@ import unittest
 import re
 from parse import parseStandaloneTagBlock, parseTagAttributes
 from fpgen import userOptions
+from msgs import fatal, cprint
 
 # If more than 6 in a chapter, it will start using numbers
 # This list comes from "Note (typography)" on wikipedia.
@@ -82,6 +83,9 @@ def relocateFootnotes(block):
     if reset:
       target += "_" + str(footnoteChapter)
     opts = "id='" + displayid + "' target='" + target + "'"
+
+    # Handle fn tags inside footnotes!
+    relocateFootnotes(block)
 
     # Recreate the block
     block.insert(0, "<footnote " + opts + ">")
@@ -372,6 +376,43 @@ class TestFootnote(unittest.TestCase):
     relocateFootnotes(input)
     self.assertSequenceEqual(input, result)
 
+  def test_footnote_none_fn_inside_footnote(self):
+
+    input = [
+      "l1",
+      "w1<fn id='1'> w2",
+      "w3",
+      "<footnote id='1'>",
+      "foot<fn id='1-1'> inside foot",
+      "</footnote>",
+      "<footnote id='1-1'>",
+      "interior footnote",
+      "</footnote>",
+      "",
+      "More text",
+      "",
+      "<heading level='1'>h1</heading>",
+      "text",
+    ]
+    result = [
+      "l1",
+      "w1<fn id='[1]' target='1'> w2",
+      "w3",
+      "<footnote id='[1]' target='1'>",
+      "foot<fn id='[1-1]' target='1-1'> inside foot",
+      "</footnote>",
+      "<footnote id='[1-1]' target='1-1'>",
+      "interior footnote",
+      "</footnote>",
+      "",
+      "More text",
+      "",
+      "<heading level='1'>h1</heading>",
+      "text",
+    ]
+    relocateFootnotes(input)
+    self.assertSequenceEqual(input, result)
+
   def test_footnote_heading(self):
     input = self.input1.copy()
     result = [
@@ -625,3 +666,22 @@ class TestFootnote(unittest.TestCase):
     config.uopt.addopt("footnote-location", "marker")
     relocateFootnotes(input)
     self.assertSequenceEqual(input, result)
+
+  def test_footnote_no_id(self):
+    input = [ "<footnote xid='x'>", "</footnote>" ]
+    with self.assertRaises(SystemExit) as cm:
+      relocateFootnotes(input)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_footnote_no_id_fn(self):
+    input = [ "text<fn iid='1'>" ]
+    with self.assertRaises(SystemExit) as cm:
+      relocateFootnotes(input)
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_footnote_bad_option(self):
+    input = [ "text<fn id='1'>" ]
+    config.uopt.addopt("footnote-location", "headings")
+    with self.assertRaises(SystemExit) as cm:
+      relocateFootnotes(input)
+    self.assertEqual(cm.exception.code, 1)
