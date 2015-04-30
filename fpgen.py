@@ -9,6 +9,7 @@ import codecs
 import platform
 import unittest
 import collections
+import footnote
 
 from parse import parseTagAttributes, parseOption, parseLineEntry, parseStandaloneTagBlock, \
   parseEmbeddedSingleLineTagWithContent, parseEmbeddedTagWithoutContent
@@ -751,55 +752,7 @@ class Book(object): #{
       i += 1
 
     # format footnotes to standard form 08-Sep-2013
-    i = 0
-    fnc = 1 # footnote counter to autonumber if user has used '#'
-    reOneLine = re.compile("(<footnote\s+id=[\"'].*?[\"']>)(.+?)(<\/footnote>)")
-    reStart = re.compile("(<footnote\s+id=[\"'].*?[\"']>)(.+?)$")
-    reStartWOText = re.compile("<footnote\s+id=[\"'].*?[\"']>$")
-    reEnd = re.compile("^(.+?)(<\/footnote>)")
-    while i < len(self.wb):
-
-      # all on one line
-      m = reOneLine.match(self.wb[i])
-      if m:
-        mg1 = m.group(1).strip()
-        mg2 = m.group(2).strip()
-        mg3 = m.group(3).strip()
-        m = re.search("id=[\"']#[\"']", mg1)
-        if m:
-          mg1 = "<footnote id='{}'>".format(fnc)
-          fnc += 1
-        self.wb[i:i+1] = [mg1, mg2, mg3]
-        i += 2
-
-      # starts but doesn't end on this line
-      m = reStart.match(self.wb[i])
-      if m:
-        mg1 = m.group(1).strip()
-        mg2 = m.group(2).strip()
-        m = re.search("id=[\"']#[\"']", mg1)
-        if m:
-          mg1 = "<footnote id='{}'>".format(fnc)
-          fnc += 1
-        self.wb[i:i+1] = [mg1, mg2]
-        i += 1
-
-      # starts without text on this line
-      m = reStartWOText.match(self.wb[i])
-      if m:
-        m = re.search("id=[\"']#[\"']", self.wb[i])
-        if m:
-          self.wb[i] = "<footnote id='{}'>".format(fnc)
-          fnc += 1
-        i += 1
-
-      # ends but didn't start on this line
-      m = reEnd.match(self.wb[i])
-      if m:
-        self.wb[i:i+1] = [m.group(1).strip(),m.group(2).strip()]
-        i += 1
-
-      i += 1
+    footnote.reformat(self.wb)
   ## End of loadFile method
 
   # save file to specified dstfile
@@ -888,6 +841,7 @@ class Book(object): #{
     self.addMeta()
     self.macroTemplates()
     self.chapterHeaders()
+    footnote.relocateFootnotes(self.wb)
 
   def __str__(self):
     return "fpgen"
@@ -1613,21 +1567,6 @@ class HTML(Book): #{
         i += 1
       i += 1
 
-    # single-line or split-line format footnotes to multi
-    i = 0
-    while i < len(self.wb):
-      m = re.match("(<footnote\s+id=[\"'].*?[\"']>)(.*?)(<\/footnote>)", self.wb[i])
-      if m:
-        self.wb[i:i+1] = [m.group(1),m.group(2).strip(),m.group(3)]
-        i += 2
-        continue
-      m = re.match("(<footnote\s+id=[\"'].*?[\"']>)(.*?)$", self.wb[i]) # closing tag on separate line
-      if m:
-        self.wb[i:i+1] = [m.group(1),m.group(2).strip()]
-        i += 1
-        continue
-      i += 1
-
     # whitespace around <footnote and </footnote
     i = 0
     while i < len(self.wb):
@@ -1753,7 +1692,6 @@ class HTML(Book): #{
       self.wb[i] = parseEmbeddedTagWithoutContent(line, "target", oneTarget)
 
   def protectMarkup(self):
-    fnc = 1 # available to autonumber footnotes
     self.dprint(1,"protectMarkup")
     for i,line in enumerate(self.wb):
       self.wb[i] = re.sub("<em>",'⩤em⩥', self.wb[i])
@@ -1770,9 +1708,6 @@ class HTML(Book): #{
       self.wb[i] = re.sub("<\/g>",'⩤/g⩥', self.wb[i])
       self.wb[i] = re.sub("<r>",'⩤r⩥', self.wb[i])
       self.wb[i] = re.sub("<\/r>",'⩤/r⩥', self.wb[i])
-      while re.search("fn id=['\"]#['\"]", self.wb[i]):
-        self.wb[i] = re.sub("fn id=['\"]#['\"]", "fn id='{}'".format(fnc), self.wb[i], 1)
-        fnc += 1
       self.wb[i] = re.sub(r"<(fn id=['\"].*?['\"]/?)>",r'⩤\1⩥', self.wb[i])
 
       # new inline tags 2014.01.27
@@ -2801,35 +2736,44 @@ class HTML(Book): #{
   def doFootnotes(self):
     self.dprint(1,"doFootnotes")
 
-    regex = re.compile("<fn\s+id=[\"'](.*?)[\"']\/?>")
+    matchFN = re.compile("<fn\s+(.*?)/?>")
     footnotes = []
 
     # footnote marks in text
     i = 0
     while i < len(self.wb):
-      m = regex.search(self.wb[i])
-      while m: # two footnotes on same line
-        fmid = m.group(1)
-        if fmid in footnotes:
+      off = 0
+      line = self.wb[i]
+      while True:
+        m = matchFN.search(line, off)
+        if not m:
+          break
+        opts = m.group(1)
+        args = parseTagAttributes("fn", opts, [ "id", "target" ])
+        fmid = args["id"]
+        target = args["target"]
+        if target in footnotes:
           cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
-          self.wb[i] = re.sub("<fn\s+id=[\"'](.*?)[\"']\/?>",
-            "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
-            self.wb[i], 1)
+          repl = "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
         else:
           footnotes.append(fmid)
-          self.wb[i] = re.sub("<fn\s+id=[\"'](.*?)[\"']\/?>",
-            "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>[{0}]</span></sup></a>".format(fmid),
-            self.wb[i], 1)
-        m = regex.search(self.wb[i])
+          repl = "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
+        l = line[0:m.start(0)] + repl
+        off = len(l)    # Next loop
+        line = l + line[m.end(0):]
+      self.wb[i] = line
       i += 1
 
     # footnote targets and text
     i = 0
     while i < len(self.wb):
-      m = re.match("<footnote\s+id=[\"'](.*?)[\"']>", self.wb[i])
+      m = re.match("<footnote\s+(.*?)>", self.wb[i])
       if m:
-        fnid = m.group(1)
-        self.wb[i] = "<div id='f{0}'><a href='#r{0}'>[{0}]</a></div>".format(fnid)
+        opts = m.group(1)
+        args = parseTagAttributes("footnote", opts, [ "id", "target" ])
+        fnid = args["id"]
+        target = args["target"]
+        self.wb[i] = "<div id='f{0}'><a href='#r{0}'>{1}</a></div>".format(target, fnid)
         while not re.match("<\/footnote>", self.wb[i]):
           i += 1
         self.wb[i] = "</div> <!-- footnote end -->"
@@ -3037,7 +2981,7 @@ class HTML(Book): #{
     # for HTML, gather footnotes into a table structure
     i = 0
     while i < len(self.wb):
-      m = re.match("<div id='f(.+?)'><a href='#r.+?'>\[.*?\]<\/a>", self.wb[i])
+      m = re.match("<div id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", self.wb[i])
       if m:
         t = []
         t.append("<table style='margin:0 4em 0 0;' summary='footnote_{}'>".format(m.group(1)))
@@ -3457,10 +3401,11 @@ class Text(Book): #{
   # simplify footnotes, move <l> to left, unadorn page links
   # preformat hr+footnotemark
   def preProcess(self):
-    fnc = 1
     self.dprint(1,"preProcess")
-    for i in range(len(self.wb)):
 
+    i = 0
+    matchFN = re.compile("<fn\s+(.*?)/?>")
+    while i < len(self.wb):
       self.wb[i] = re.sub("<nobreak>", "", self.wb[i])  # 28-Mar-2014
       self.wb[i] = re.sub("<hang>", "", self.wb[i])  # 05-Jun-2014
       self.wb[i] = re.sub("<pstyle=.*>", "", self.wb[i])  # 21-Feb-2015
@@ -3468,15 +3413,21 @@ class Text(Book): #{
       self.wb[i] = re.sub("#(\d+)#", r'\1', self.wb[i]) # page number links
       self.wb[i] = re.sub("#(\d+):.*?#", r'\1', self.wb[i]) # page number links type 2 2014.01.14
 
-      while re.search("fn id=['\"]#['\"]", self.wb[i]):
-        self.wb[i] = re.sub("fn id=['\"]#['\"]", "fn id='{}'".format(fnc), self.wb[i], 1)
-        fnc += 1
-
-      m = re.search(r"<fn\s+id=['\"](.*?)['\"]\/?>", self.wb[i])
-      if m:
-        while m:
-          self.wb[i] = re.sub(r"<fn\s+id=['\"](.*?)['\"]\/?>", r'[\1]', self.wb[i], 1)
-          m = re.search(r"<fn\s+id=['\"](.*?)['\"]\/?>", self.wb[i])
+      # Replace <fn> markers
+      off = 0
+      line = self.wb[i]
+      while True:
+        m = matchFN.search(line, off)
+        if not m:
+          break
+        opts = m.group(1)
+        args = parseTagAttributes("fn", opts, [ "id", "target" ])
+        fmid = args["id"]
+        target = args["target"]
+        l = line[0:m.start(0)] + fmid
+        off = len(l)    # Next loop
+        line = l + line[m.end(0):]
+      self.wb[i] = line
 
       m = re.match("\s+(<l.*)$", self.wb[i])
       if m:
@@ -3492,6 +3443,7 @@ class Text(Book): #{
       # remove any target tags
       if re.search("<target.*?\/>", self.wb[i]):
         self.wb[i] = re.sub("<target.*?\/>", "", self.wb[i])
+      i += 1
 
     # leading spaces inside pre-marked standalong line
     # example:       <l>  This was indented.</l>
@@ -3644,7 +3596,7 @@ class Text(Book): #{
     regexLg = re.compile("<lg(.*?)>")
     regexEndLg = re.compile("<\/lg>")
     regexL = re.compile("<l(.*?)>(.*?)<\/l>")
-    regexFootnote = re.compile(r"<footnote\s+id=['\"](.*?)['\"]>")
+    regexFootnote = re.compile(r"<footnote\s+(.*?)>")
     regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
     regexSidenote = re.compile("<sidenote>")
     while i < len(self.wb):
@@ -3690,9 +3642,12 @@ class Text(Book): #{
           if self.wb[j] != '':
             break
           del self.wb[j]
+        opts = m.group(1)
+        args = parseTagAttributes("footnote", opts, [ "id", "target" ])
+        id = args["id"]
         # Put the first line on the same line as the footnote number [#]
         # unless it is formatting itself, e.g. <lg>...</lg>
-        fn = "[{}] ".format(m.group(1));
+        fn = id + " "
         if self.wb[j][0] != '<':
           self.wb[i] = fn + self.wb[j];
           del self.wb[i+1:j+1]

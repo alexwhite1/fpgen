@@ -100,7 +100,7 @@ class TestTextRewrap(unittest.TestCase):
 
   def test_text_rewrap_footnote1(self):
     self.text.wb = [
-      "l1", "<footnote id='1'>", "l2", "l3", "</footnote>", "l4"
+      "l1", "<footnote id='[1]'>", "l2", "l3", "</footnote>", "l4"
     ]
     self.text.rewrap();
     self.assertSequenceEqual(self.text.wb, [
@@ -110,7 +110,7 @@ class TestTextRewrap(unittest.TestCase):
 
   def test_text_rewrap_footnote_l(self):
     self.text.wb = [
-      "l1", "<footnote id='1'>", "<l rend='center'>l2</l>", "l3", "</footnote>", "l4"
+      "l1", "<footnote id='[1]'>", "<l rend='center'>l2</l>", "l3", "</footnote>", "l4"
     ]
     self.text.rewrap();
     self.assertSequenceEqual(self.text.wb, [

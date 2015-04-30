@@ -99,8 +99,9 @@ uopt = userOptions()
 # 4.37f    Fix <footnote id='#'> broken recently
 # 4.37g    Rewrite <link> and <target> using new parsing methods
 # 4.37h    Fix comment on line following multi-line comment
+# 4.38     Relocate footnote options
 
-VERSION="4.37h"
+VERSION="4.38"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

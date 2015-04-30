@@ -215,12 +215,25 @@ def parseEmbeddedTagBlock(lines, tag, function):
 
 # Look for <tag> ... </tag> where the tags are on standalone lines.
 # As we find each such block, invoke the function against it
-def parseStandaloneTagBlock(lines, tag, function, allowClose = False):
+#
+# If the optional allowClose is set to true, then the opening tag
+# may end in />, to close at the same time, for a zero-length block.
+#
+# If the optional lineFunction is given, then each line is passed
+# to that function, and the function may return a list of lines which
+# are replace that line.  Only the last line of that block is processed
+def parseStandaloneTagBlock(lines, tag, function, allowClose = False, lineFunction = None):
   i = 0
   startTag = "<" + tag
   endTag = "</" + tag + ">"
   regex = re.compile(startTag + "(.*?)(/)?>")
   while i < len(lines):
+
+    if lineFunction != None:
+      insertion = lineFunction(i, lines[i])
+      lines[i:i+1] = insertion
+      i += len(insertion)-1
+
     m = regex.match(lines[i])
     if not m:
       i += 1
