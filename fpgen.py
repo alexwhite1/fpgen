@@ -2751,6 +2751,8 @@ class HTML(Book): #{
         opts = m.group(1)
         args = parseTagAttributes("fn", opts, [ "id", "target" ])
         fmid = args["id"]
+        if not "target" in args:
+          fatal("Missing internal target in fn: " + line)
         target = args["target"]
         if target in footnotes:
           cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
@@ -2794,6 +2796,25 @@ class HTML(Book): #{
     }
   """
 
+  sidenoteEmbedded = """[990]
+    .sidenote {
+      width: 15%;
+      padding-bottom: 0.5em;
+      padding-top: 0.5em;
+      padding-left: 0.5em;
+      padding-right: 0.5em;
+      margin-left: 1em;
+      float: right;
+      clear: right;
+      margin-top: 1em;
+      font-size: smaller;
+      color: black;
+      background: #eeeeee;
+      border: dashed 1px;
+      text-align: center;
+    }
+  """
+
   sidenotePDF = """[990]
     .sidenote {
       overflow: hidden;
@@ -2826,11 +2847,11 @@ class HTML(Book): #{
       if m:
         sawSidenote = True
         startSidenote = i
-        self.wb[i] = self.wb[i][0:m.start(0)] + "<div class='sidenote'>" + self.wb[i][m.end(0):]
+        self.wb[i] = self.wb[i][0:m.start(0)] + "<a class='sidenote'>" + self.wb[i][m.end(0):]
         while i < n:
           m = re.search("<\/sidenote>", self.wb[i])
           if m:
-            self.wb[i] = self.wb[i][0:m.start(0)] + "</div>" + self.wb[i][m.end(0):]
+            self.wb[i] = self.wb[i][0:m.start(0)] + "</a>" + self.wb[i][m.end(0):]
             break
           i += 1
         if i == n or i > startSidenote+10:
@@ -2838,17 +2859,24 @@ class HTML(Book): #{
       i += 1
 
     if sawSidenote:
-      # Sidenotes only in html and pdf
-      if 'h' in self.gentype:
-        self.css.addcss(self.sidenote)
-      # Does not work
-      #elif 'p' in self.gentype:
-      #  self.css.addcss(self.sidenotePDF)
+      style = config.uopt.getopt('sidenote-style')
+      if style == "embedded":
+        self.css.addcss(self.sidenoteEmbedded)
+      elif style == "right" or style == "":
+        # Sidenotes only in html and pdf
+        if 'h' in self.gentype:
+          self.css.addcss(self.sidenote)
+        # Does not work
+        #elif 'p' in self.gentype:
+        #  self.css.addcss(self.sidenotePDF)
+        #  if config.uopt.getopt('pdf-margin-right') == "":
+        #    config.uopt.addopt('pdf-margin-right', '72')
+        else:
+          self.css.addcss(self.sidenoteOff)
       else:
-        self.css.addcss(self.sidenoteOff)
+        fatal("Option sidenote-style must be either embedded or right, not " +
+          style)
 
-      if config.uopt.getopt('pdf-margin-right') == "":
-        config.uopt.addopt('pdf-margin-right', '72')
 
   # setup the framework around the lines
   # if a rend option of mt or mb appears, it applies to the entire block
@@ -3596,6 +3624,35 @@ class Text(Book): #{
           return True
     return False
 
+  def removeSidenotes(self):
+    regexSidenote = re.compile("<sidenote>")
+    i = 0
+    while i < len(self.wb):
+      m = regexSidenote.search(self.wb[i])
+      if m:
+        m1 = re.search("<sidenote>.*<\/sidenote>", self.wb[i])
+        if m1:
+          # Remove <sidenote>...</sidenote>
+          self.wb[i] = (self.wb[i][0:m1.start(0)] + self.wb[i][m1.end(0):]).strip()
+          # Remove it completely if it was the whole line
+          if self.wb[i] == "":
+            del self.wb[i]
+            continue
+        else:
+          # Remove <sidenote>...
+          self.wb[i] = self.wb[i][0:m.start(0)]
+          j = i+1
+          while j < len(self.wb):
+            m = re.search("<\/sidenote>", self.wb[j])
+            if m:
+              # Remove ...</sidenote>
+              self.wb[j] = self.wb[j][m.end(0):]
+              break
+            # Remove line between <sidenote>\n...\n</sidenote>
+            del self.wb[j]
+      i += 1
+
+
   # rewrap
   # doesn't touch lines that are already formatted
   # honors <quote> level
@@ -3609,7 +3666,6 @@ class Text(Book): #{
     regexL = re.compile("<l(.*?)>(.*?)<\/l>")
     regexFootnote = re.compile(r"<footnote\s+(.*?)>")
     regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
-    regexSidenote = re.compile("<sidenote>")
     while i < len(self.wb):
       self.dprint(2,"[rewrap] {}: {}".format(i,self.wb[i]))
       if self.wb[i].startswith("<quote"):
@@ -3670,26 +3726,6 @@ class Text(Book): #{
       if self.wb[i].startswith("</footnote"):
         del self.wb[i]
         continue
-
-      # ----- sidenotes --------------------------------------------------------
-      m = regexSidenote.search(self.wb[i])
-      if m:
-        m1 = re.search("<sidenote>.*<\/sidenote>", self.wb[i])
-        if m1:
-          # Remove <sidenote>...</sidenote>
-          self.wb[i] = self.wb[i][0:m1.start(0)] + self.wb[i][m1.end(0):]
-        else:
-          # Remove <sidenote>...
-          self.wb[i] = self.wb[i][0:m.start(0)]
-          j = i+1
-          while j < len(self.wb):
-            m = re.search("<\/sidenote>", self.wb[j])
-            if m:
-              # Remove ...</sidenote>
-              self.wb[j] = self.wb[j][m.end(0):]
-              break
-            # Remove line between <sidenote>\n...\n</sidenote>
-            del self.wb[j]
 
       # ----- headings --------------------------------------------------------
       m = regexHeading.match(self.wb[i])
@@ -4352,6 +4388,7 @@ class Text(Book): #{
     self.markLines()
     self.doSummary()
     self.doIndex()
+    self.removeSidenotes()
     self.rewrap()
     self.finalSpacing()
     self.finalRend()

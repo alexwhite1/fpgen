@@ -101,8 +101,9 @@ uopt = userOptions()
 # 4.37h    Fix comment on line following multi-line comment
 # 4.38     Relocate footnote options
 # 4.38a    Enclose footnotes in div with class footnote
+# 4.39     Add embedded sidenote-style option
 
-VERSION="4.38a"
+VERSION="4.39"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
