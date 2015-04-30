@@ -2812,6 +2812,7 @@ class HTML(Book): #{
       background: #eeeeee;
       border: dashed 1px;
       text-align: center;
+      text-indent: 0;
     }
   """
 
