@@ -430,6 +430,10 @@ class Book(object): #{
     self.dprint(1,"doIndex")
     parseStandaloneTagBlock(self.wb, "index", self.oneIndex)
 
+  def doMulticol(self):
+    self.dprint(1,"doMulticol")
+    parseStandaloneTagBlock(self.wb, "multicol", self.oneMulticol)
+
   def getCaption(self, block):
     if len(block) == 0:
       return ""
@@ -2249,6 +2253,36 @@ class HTML(Book): #{
     b.append('</div>')
     return b
 
+  def oneMulticol(self, openTag, block):
+    self.indexN += 1
+    nCol = 2
+
+    attributes = parseTagAttributes("multicol", openTag, [ "rend" ])
+    if "rend" in attributes:
+      rend = attributes["rend"]
+      options = parseOption("multicol", rend, [ "ncol" ])
+      if "ncol" in options:
+        try:
+          nCol = int(options["ncol"])
+        except:
+          fatal("<multicol>: rend option ncol requires a number: " + options["ncol"])
+
+    self.css.addcss("""[1236] .multicol{nCol} {{
+      -moz-column-count: {nCol};
+      -moz-column-gap: 20px;
+      -webkit-column-count: {nCol};
+      -webkit-column-gap: 20px;
+      column-count: {nCol};
+      column-gap: 20px;
+    }}""".format(nCol=nCol))
+    b = [ \
+      '', \
+      '<div class="multicol{}">'.format(nCol), \
+    ]
+    b += block
+    b.append('</div>')
+    return b
+
   def doBlockq(self):
     self.dprint(1,"doBlockq")
     regex = re.compile("<quote(.*?)>")
@@ -3111,6 +3145,7 @@ class HTML(Book): #{
     self.tweakSpacing()
     self.userToc()
     self.doIndex()
+    self.doMulticol()
     self.processLinks()
     self.processTargets()
     from drama import DramaHTML
@@ -3592,6 +3627,10 @@ class Text(Book): #{
     for i in range(0, len(result)):
       result[i] = config.FORMATTED_PREFIX + result[i]
     return result
+
+  # In text form, we do nothing for multi-column.
+  def oneMulticol(self, opentag, block):
+    return block
 
   def oneIndex(self, openTag, block):
 
@@ -4389,6 +4428,7 @@ class Text(Book): #{
     self.markLines()
     self.doSummary()
     self.doIndex()
+    self.doMulticol()
     self.removeSidenotes()
     self.rewrap()
     self.finalSpacing()

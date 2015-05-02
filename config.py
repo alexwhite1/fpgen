@@ -102,8 +102,9 @@ uopt = userOptions()
 # 4.38     Relocate footnote options
 # 4.38a    Enclose footnotes in div with class footnote
 # 4.39     Add embedded sidenote-style option
+# 4.40     Add <multicol> tag
 
-VERSION="4.39"
+VERSION="4.40"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
