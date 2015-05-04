@@ -73,10 +73,10 @@ if not m:
 else:
   basename = m.group(1)
 
-#convert(basename, ".epub", [
-#  "--change-justification", "left"
-#  ]
-#)
+convert(basename, ".epub", [
+  "--change-justification", "left"
+  ]
+)
 
 convert(basename, "-a5.pdf", [
   "--paper-size", "a5",
