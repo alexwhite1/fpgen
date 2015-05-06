@@ -1315,6 +1315,27 @@ class HTML(Book): #{
     ]
   )
 
+  lgMarginMap = collections.OrderedDict(
+    [
+      ("mt", 'margin-top'),
+      ("mb", 'margin-bottom'),
+    ]
+  )
+
+  def parseMargins(self, options, string, mm = marginMap):
+    thestyle = ""
+    for key in mm:
+      if key in options:
+        value = options[key]
+        if value != '0' and not value.endswith('em') and not value.endswith('px'):
+          fatal("Margin option " + key + " value " + value +
+            " must either be 0 or end with em.  Found in options: " +
+            string)
+        if value == '0':
+          value = '0em'
+        thestyle += self.marginMap[key] + ":" + value + ";"
+    return thestyle
+
   sizeMap = {
     "xlg"   : "x-large",
     "xlarge": "x-large",
@@ -1334,8 +1355,8 @@ class HTML(Book): #{
     # combine rend specified on line with rend specified for line group
     attributes = parseTagAttributes("l", m.group(1), [ 'rend', 'id' ])
     rend = attributes['rend'] if 'rend' in attributes else ""
-    optionsLG = parseOption("<lg>/rend=", lgr, lLgRendOptions) if lgr != '' else {}
-    optionsL = parseOption("<l>/rend=", rend, lLgRendOptions)
+    optionsLG = parseOption("<lg>/rend=", lgr, lRendOptions) if lgr != '' else {}
+    optionsL = parseOption("<l>/rend=", rend, lRendOptions)
     options = optionsLG.copy()
     options.update(optionsL)
     if len(options) > 0:
@@ -1402,16 +1423,7 @@ class HTML(Book): #{
     elif 'ml' in options:
       thestyle += 'text-align:left;'
 
-    for key in self.marginMap:
-      if key in options:
-        value = options[key]
-        if value != '0' and not value.endswith('em'):
-          fatal("Margin option " + key + " value " + value +
-            " must either be 0 or end with em.  Found in options: " +
-            rend + " " + lgr)
-        if value == '0':
-          value = '0em'
-        thestyle += self.marginMap[key] + ":" + value + ";"
+    thestyle += self.parseMargins(options, rend + " " + lgr)
 
     # ----- font size -----------
     # This is based on keys, not values; so the <l> options don't overwrite the
@@ -2923,31 +2935,59 @@ class HTML(Book): #{
       m = regex.match(line)
       if m:
         lgopts = m.group(1).strip()
+        attributes = parseTagAttributes("l", lgopts, [ 'rend', 'id' ])
+        rend = attributes['rend'] if 'rend' in attributes else ""
+        opts = parseOption("<lg>/rend=", rend, lgRendOptions)
 
         # if a rend option of mt or mb is included, pull it out.
         # 16-Feb-2014 may be decimal
-        blockmargin = "style='"
-        m = re.search("mt:([\d]+)(em|px)", lgopts)
-        if m:
-          blockmargin += " margin-top: {}{}; ".format(m.group(1),m.group(2))
-          lgopts = re.sub("mt:([\d]+)(em|px)\;?","", lgopts)
-        m = re.search("mt:([\d]+\.[\d]+)(em|px)", lgopts)
-        if m:
-          blockmargin += " margin-top: {}{}; ".format(m.group(1),m.group(2))
-          lgopts = re.sub("mt:([\d]+\.[\d]+)(em|px)\;?","", lgopts)
-        m = re.search("mb:([\d]+)(em|px)", lgopts)
-        if m:
-          blockmargin += " margin-bottom: {}{}; ".format(m.group(1),m.group(2))
-          lgopts = re.sub("mb:([\d]+)(em|px)\;?","", lgopts)
-        m = re.search("mb:([\d]+\.[\d]+)(em|px)", lgopts)
-        if m:
-          blockmargin += " margin-bottom: {}{}; ".format(m.group(1),m.group(2))
-          lgopts = re.sub("mb:([\d]+\.[\d]+)(em|px)\;?","", lgopts)
-        blockmargin += "'"
+        blockmargin = "style='" + \
+          self.parseMargins(opts, lgopts, mm=self.lgMarginMap) + "'"
+
+        center = "center" in opts
+        left = "left" in opts
+        right = "right" in opts
+        block = "block" in opts
+        poetry = "poetry" in opts
+
+        modeCount = \
+            (1 if center else 0) + \
+            (1 if left else 0) + \
+            (1 if right else 0) + \
+            (1 if block else 0) + \
+            (1 if poetry else 0)
+        if modeCount > 1:
+          fatal("Multiple lg mode options given in " + rend)
+
+        # Remove the options we've processed
+        # We'll be left with options like ``small'' or ``bold'',
+        # all line-specific options, not block-specific;
+        # which will become defaults for each <l> line within
+        # the group.
+        # It is a little confusing, you can't specify both center and
+        # poetry; and yet you can override in <l> with center, but not
+        # poetry.  Poetry is block-specific; while center is both block
+        # and line.
+        for o in [
+            "mt", "mb",
+            "center", "left", "right", "block", "poetry",
+          ]:
+          if o in opts:
+            del opts[o]
+
+        # Recreate the string with the rest of the options
+        lgopts = "rend=';"
+        for o in opts:
+          v = opts[o]
+          if v != '' and v != None:
+            lgopts += o + ":" + v
+          else:
+            lgopts += o
+          lgopts += ';'
+        lgopts += "'"
 
         # default is left
-        if empty.match(lgopts) or re.search("left", lgopts):
-          lgopts = re.sub("left", "", lgopts) # 17-Feb-2014
+        if modeCount == 0 or left:
           self.wb[i] = "<div class='lgl' {}> <!-- {} -->".format(blockmargin,lgopts)
           self.css.addcss("[220] div.lgl { }")
           self.css.addcss("[221] div.lgl p { text-indent: -17px; margin-left:17px; margin-top:0; margin-bottom:0; }")
@@ -2956,8 +2996,7 @@ class HTML(Book): #{
           self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
           continue
 
-        if re.search("center", lgopts):
-          lgopts = re.sub("center", "", lgopts) # 17-Feb-2014
+        if center:
           self.wb[i] = "<div class='lgc' {}> <!-- {} -->".format(blockmargin,lgopts)
           self.css.addcss("[220] div.lgc { }")
           self.css.addcss("[221] div.lgc p { text-align:center; text-indent:0; margin-top:0; margin-bottom:0; }")
@@ -2966,8 +3005,7 @@ class HTML(Book): #{
           self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
           continue
 
-        if re.search("right", lgopts):
-          lgopts = re.sub("right", "", lgopts) # 16-Mar-2014
+        if right:
           self.wb[i] = "<div class='lgr' {}> <!-- {} -->".format(blockmargin,lgopts)
           self.css.addcss("[220] div.lgr { }")
           self.css.addcss("[221] div.lgr p { text-align:right; text-indent:0; margin-top:0; margin-bottom:0; }")
@@ -2976,8 +3014,7 @@ class HTML(Book): #{
           self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
           continue
 
-        if re.search("block", lgopts):
-          lgopts = re.sub("block", "", lgopts) # 17-Feb-2014
+        if block:
           self.wb[i] = "<div class='literal-container' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
           self.css.addcss("[970] .literal-container { text-align:center; margin:0 0; }")
           self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
@@ -2986,8 +3023,7 @@ class HTML(Book): #{
           self.wb[i] = "</div></div> <!-- end rend -->" # closing </lg>
           continue
 
-        if re.search("poetry", lgopts):
-          lgopts = re.sub("poetry", "", lgopts) # 17-Feb-2014
+        if poetry:
           if self.poetryindent == 'left':
               self.wb[i] = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
               self.css.addcss("[230] div.lgp { }")
@@ -5548,13 +5584,23 @@ illustrationRendOptions = [
   "link",
 ]
 
-lLgRendOptions = [
+lRendOptions = [
   "center", "right", "left",
   "mr", "ml", "mt", "mb",
   "sa", "sb",
   "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
   "under", "bold", "sc", "smallcaps", "i", "italic",
   "align-last", "triple"
+]
+
+# <lg> is almost the same as <l>; but not quite.  Some of this all gets
+# passed off to <l> and can be overridden in <l>
+lgRendOptions = [
+  "center", "right", "left", "poetry", "block",
+  "mr", "ml", "mt", "mb",
+  "sa", "sb",
+  "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
+  "under", "bold", "sc", "smallcaps", "i", "italic",
 ]
 
 if __name__ == '__main__':
