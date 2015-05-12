@@ -104,8 +104,9 @@ uopt = userOptions()
 # 4.39     Add embedded sidenote-style option
 # 4.40     Add <multicol> tag
 # 4.40a    Rewrite <lg> using new parsing methods
+# 4.40b    Add break='no' tag to <chap-head>
 
-VERSION="4.40a"
+VERSION="4.40b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
