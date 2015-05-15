@@ -105,8 +105,9 @@ uopt = userOptions()
 # 4.40     Add <multicol> tag
 # 4.40a    Rewrite <lg> using new parsing methods
 # 4.40b    Add break='no' tag to <chap-head>
+# 4.40c    Expose poetry-style option
 
-VERSION="4.40b"
+VERSION="4.40c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

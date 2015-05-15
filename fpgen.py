@@ -185,12 +185,20 @@ class Book(object): #{
     self.gentype = fmt
     self.back2 = -1 # loop detector
     self.back1 = -1
-    self.poetryindent = 'left'
     self.italicdef = 'emphasis'
     self.uprop = self.userProperties()
     self.umeta = self.userMeta()
     self.templates = template.createTemplates(fmt)
     self.supphd = [] # user's supplemental header lines
+
+  def poetryIndent(self):
+    style = config.uopt.getopt("poetry-style");
+    if style == "":
+      # Historic default
+      return "left"
+    if style == "center" or style == "left":
+      return style
+    fatal("option poetry-style must be either left or center, not: " + style)
 
   # display (fatal) error and exit
   def fatal(self, message):
@@ -3025,7 +3033,7 @@ class HTML(Book): #{
           continue
 
         if poetry:
-          if self.poetryindent == 'left':
+          if self.poetryIndent() == "left":
               self.wb[i] = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
               self.css.addcss("[230] div.lgp { }")
               self.css.addcss("[231] div.lgp p { text-align:left; text-indent:0; margin-top:0; margin-bottom:0; }")
@@ -4138,7 +4146,7 @@ class Text(Book): #{
                 if len(theline) > config.LINE_WRAP:
                   s = re.sub("□", " ", theline)
                   self.dprint(1,"warning: long poetry line:\n{}".format(s))
-                if self.poetryindent == 'center':
+                if self.poetryIndent() == 'center':
                     leader = " " * ((config.LINE_WIDTH - maxwidth) // 2)
                 else:
                     leader = " " * 4
