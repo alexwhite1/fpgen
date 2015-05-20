@@ -864,6 +864,7 @@ class Book(object): #{
     self.dprint(1, "chapter headers")
     i = 0
     emittitle = True
+    usingBook = False
     while i < len(self.wb):
       line = self.wb[i]
       if line.startswith("<chap-head"):
@@ -874,7 +875,7 @@ class Book(object): #{
           j += 1
         if j == len(self.wb):
           fatal("End of file after <chap-head>")
-        attributes = parseTagAttributes("chap-head", opts, [ "pn", "id", "emittitle", "break" ])
+        attributes = parseTagAttributes("chap-head", opts, [ "pn", "id", "emittitle", "break", "type" ])
         pn = attributes["pn"] if "pn" in attributes else None
         id = attributes["id"] if "id" in attributes else None
         nobreak = True if "break" in attributes and attributes["break"] == "no" else False
@@ -889,6 +890,17 @@ class Book(object): #{
           else:
             fatal("<chap-head> emittitle must be yes or no, not " + v)
 
+        book = False
+        if "type" in attributes:
+          type = attributes["type"]
+          if type == "chap":
+            book = False
+          elif type == "book":
+            book = True
+            usingBook = True
+          else:
+            fatal("<chap-head> type must be chap or book, not " + type)
+
         line = self.wb[j]
         if line.startswith("<sub-head"):
           opts, subHead = parseLineEntry("sub-head", line)
@@ -898,7 +910,7 @@ class Book(object): #{
           subHead = None
           j -= 1
 
-        replacement = self.headers(chapHead, subHead, pn, id, emittitle, nobreak)
+        replacement = self.headers(chapHead, subHead, pn, id, emittitle, nobreak, book, usingBook)
         self.wb[i:j+1] = replacement
         i += len(replacement)
         emittitle = False
@@ -3145,13 +3157,17 @@ class HTML(Book): #{
         inBlockElement = False
 
   # Emit html specific output for <chap-head> and <sub-head> tags
-  def headers(self, chapHead, subHead, pn, id, emittitle, nobreak):
+  def headers(self, chapHead, subHead, pn, id, emittitle, nobreak, book, usingBook):
     result = []
     if emittitle:
       title = self.umeta.get("DC.Title")
       result.append("<l rend='center mt:3em mb:2em fs:2.5em'>" + title + "</l>")
       result.append("")
-    h = "<heading level='1'"
+    if book or not usingBook:
+      level = '1'
+    else:
+      level = '2'
+    h = "<heading level='" + level + "'"
     if emittitle or nobreak:
       h += " nobreak"
     if pn != None:
@@ -4445,12 +4461,16 @@ class Text(Book): #{
         self.wb[i] = l
       i += 1
 
-  def headers(self, chapHead, subHead, pn, id, emittitle, nobreak):
+  def headers(self, chapHead, subHead, pn, id, emittitle, nobreak, book, usingBook):
     result = []
     if emittitle:
       title = self.umeta.get("DC.Title")
       result.append("<l rend='center'>" + title + "</l>")
-    h = "<heading level='1'>" + chapHead 
+    if book or not usingBook:
+      level = '1'
+    else:
+      level = '2'
+    h = "<heading level='" + level + "'>" + chapHead 
     if subHead != None:
       h += "<br/>" + subHead
     h += "</heading>"
