@@ -243,22 +243,33 @@ class Book(object): #{
 
     def get(self, tag):
       for l in self.meta:
-        m = re.match("<meta name=['\"](.*?)['\"] *content=['\"](.*?)['\"]", l)
-        if m:
-          name = m.group(1)
-          value = m.group(2)
-          if name == tag:
-            return value
+        m = re.match("<meta (.*?)/?>", l)
+        if not m:
+          continue
+        args = m.group(1)
+        attributes = parseTagAttributes("meta", args, [ "name", "content" ])
+        if not "name" in attributes:
+          fatal("Missing 'name' in meta tag: " + l)
+        if not "content" in attributes:
+          fatal("Missing 'content' in meta tag: " + l)
+        name = attributes["name"]
+        if name == tag and "content" in attributes:
+          return attributes["content"]
       return None
 
     def getAsDict(self):
       d = {}
       for l in self.meta:
-        m = re.match("<meta name=['\"](.*?)['\"] *content=['\"](.*?)['\"]", l)
-        if m:
-          name = m.group(1)
-          value = m.group(2)
-          d[name] = value
+        m = re.match("<meta (.*?)/?>", l)
+        if not m:
+          continue
+        args = m.group(1)
+        attributes = parseTagAttributes("meta", args, [ "name", "content" ])
+        if "name" in attributes:
+          name = attributes["name"]
+        if "content" in attributes:
+          value = attributes["content"]
+        d[name] = value
       return d
 
   def shortHeading(self):
