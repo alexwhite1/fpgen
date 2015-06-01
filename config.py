@@ -108,8 +108,9 @@ uopt = userOptions()
 # 4.40c    Expose poetry-style option
 # 4.41     Add type='book' to <chap-head>
 # 4.41a    Parse <meta> tags correctly
+# 4.41b    Add summary-style indent
 
-VERSION="4.41a"
+VERSION="4.41b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

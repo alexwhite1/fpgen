@@ -439,10 +439,10 @@ class Book(object): #{
     self.dprint(1,"doSummary")
     style = config.uopt.getopt("summary-style");
     if style != "":
-      if style == "hang" or style == "block":
+      if style == "hang" or style == "block" or style == "indent":
         self.summaryStyle = style
       else:
-        fatal("option summary-style must be either hang or block, not: " + style)
+        fatal("option summary-style must be either hang, indent or block, not: " + style)
     parseStandaloneTagBlock(self.wb, "summary", self.oneSummary)
 
   def doIndex(self):
@@ -2254,7 +2254,9 @@ class HTML(Book): #{
       # div only applies to the first para.  For multi-para, regular code
       # will emit <p class="pindent">
       self.css.addcss("[1234] .summary .pindent { text-indent:-1.5em; }")
-    else:
+    elif self.summaryStyle == "indent":
+      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; text-indent:1.5em; }")
+    else: # summaryStyle == "block"
       self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; }")
     return [ "<div class='summary'>" ] + block + [ "</div>" ]
 
@@ -3692,6 +3694,9 @@ class Text(Book): #{
     if self.summaryStyle == "hang":
       lm = 2
       ti = 0
+    elif self.summaryStyle == "indent":
+      lm = 0
+      ti = 2
     else:
       lm = 0
       ti = 0
