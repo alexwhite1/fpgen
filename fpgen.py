@@ -1368,6 +1368,27 @@ class HTML(Book): #{
         thestyle += self.marginMap[key] + ":" + value + ";"
     return thestyle
 
+  def parseFontSize(self, options1, options2, options3, textOpt):
+    style = ''
+    found = False
+    for key in self.sizeMap:
+      if key in options1:
+        style = "font-size:" + self.sizeMap[key] + ";"
+        found = True
+    if not found:
+      for key in self.sizeMap:
+        if key in options2:
+          style = "font-size:" + self.sizeMap[key] + ";"
+
+    if "fs" in options3:
+      value = options3['fs']
+      if not re.match("[\d\.]+em$", value):
+        fatal("Font size option fs:" + value + ", must be specified in ems." +
+          " Found in options: " + textOpt)
+      style = "font-size:{};".format(options3['fs'])
+
+    return style
+
   sizeMap = {
     "xlg"   : "x-large",
     "xlarge": "x-large",
@@ -1462,22 +1483,7 @@ class HTML(Book): #{
     # <lg> options, i.e. <lg rend='lg'>...<l rend='xlg'>...</l>...</lg>
     # would end up with both lg and xlg as keys.  So check the <l> options first,
     # and only look at the <lg> options if there were no size options there
-    found = False
-    for key in self.sizeMap:
-      if key in optionsL:
-        thestyle += "font-size:" + self.sizeMap[key] + ";"
-        found = True
-    if not found:
-      for key in self.sizeMap:
-        if key in optionsLG:
-          thestyle += "font-size:" + self.sizeMap[key] + ";"
-
-    if "fs" in options:
-      value = options['fs']
-      if not re.match("[\d\.]+em$", value):
-        fatal("Font size option fs:" + value + ", must be specified in ems." +
-          " Found in options: " + rend + " " + lgr)
-      thestyle += "font-size:{};".format(options['fs'])
+    thestyle += self.parseFontSize(optionsL, optionsLG, options, rend + " " + lgr)
 
     # ----- font presentation ---
     if "under" in options:
@@ -2491,6 +2497,19 @@ class HTML(Book): #{
   tableCount = 0
   styleClasses = {}
 
+  def parsePx(self, opts, key, defval):
+    value = defval
+    if key in opts:
+      s = opts[key]
+      # Can either have nothing, or px; but treated the same as px
+      if s.endswith("px"):
+        s = s[0:-2]
+      try:
+        value = int(s)
+      except:
+        fatal("rend option " + key + " requires a number, not: " + opts[key])
+    return value
+
   def oneTableBlock(self, openTag, block):
     self.tableCount += 1
     tableID = "tab" + str(self.tableCount)
@@ -2517,22 +2536,19 @@ class HTML(Book): #{
     useborder = False
     left = False
     flushleft = False
+    fontsize = None
     m = re.search("rend='(.*?)'", openTag)
     if m:
       trend = m.group(1)
-      m = re.search("vp:(\d+)", trend) # vertical cell padding
-      if m:
-        vpad = int(m.group(1))
-      m = re.search("hp:(\d+)", trend) # horizontal cell padding
-      if m:
-        hpad = int(m.group(1))
-      useborder = re.search("border", trend) # table uses borders
-      left = re.search("left", trend)  # Left, not centre
-      flushleft = re.search("flushleft", trend)  # Left, without indent
+      opts = parseOption("rend", trend, tableRendOptions)
+      vpad = self.parsePx(opts, 'vp', vpad)
+      hpad = self.parsePx(opts, 'hp', hpad)
+      hangIndent = self.parsePx(opts, 'hang', hangIndent)
+      fontsize = self.parseFontSize(opts, opts, opts, trend)
 
-      m = re.search("hang:(\d+)", trend)
-      if m:
-        hangIndent = int(m.group(1))
+      useborder = 'border' in opts # table uses borders
+      left = 'left' in opts  # Left, not centre
+      flushleft = 'flushleft' in opts  # Left, without indent
 
     # Generate nth-of-type css for columns that need lines between them
     colIndex = 1
@@ -2570,7 +2586,14 @@ class HTML(Book): #{
     if useborder:
       s += " border"
       self.css.addcss("[561] table.border td { border: 1px solid black; }")
-    s += "'>"
+
+    # end of class arg
+    s += "'"
+
+    if fontsize != None and fontsize != '':
+      s += " style='" + fontsize + "'"
+
+    s += ">"
     t.append(s)
     if userWidth:
       t.append("<colgroup>")
@@ -4538,17 +4561,6 @@ class TableFormatter: #{
   LAST_LINECHARS = "─┴┸━┷┻"
   ISOLATED_LINECHARS = "───━━━"
 
-  rendOptions = [
-    # Text only
-    "pad", "textwidth",
-
-    # html only
-    "vp", "hp", "border", "left", "flushleft", "hang",
-
-    # ignored, but the default
-    "center",
-  ]
-
   def __init__(self, tableLine, lines):
     self.maxTableWidth = config.LINE_WRAP
     self.vpad = False
@@ -4569,7 +4581,7 @@ class TableFormatter: #{
     m = re.search(r"rend='(.*?)'", self.tableLine)
     if m:
       rend = m.group(1)
-      opts = parseOption("rend", rend, self.rendOptions)
+      opts = parseOption("rend", rend, tableRendOptions)
       if 'pad' in opts:
         self.vpad = True
       if 'textwidth' in opts:
@@ -5646,6 +5658,20 @@ lgRendOptions = [
   "sa", "sb",
   "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
   "under", "bold", "sc", "smallcaps", "i", "italic",
+]
+
+tableRendOptions = [
+  # Text only
+  "pad", "textwidth",
+
+  # html only
+  "vp", "hp", "border", "left", "flushleft", "hang",
+
+  # html fontsize options
+  "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
+
+  # ignored, but the default
+  "center",
 ]
 
 if __name__ == '__main__':

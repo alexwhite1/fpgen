@@ -109,8 +109,9 @@ uopt = userOptions()
 # 4.41     Add type='book' to <chap-head>
 # 4.41a    Parse <meta> tags correctly
 # 4.41b    Add summary-style indent
+# 4.42     Add fontsizes to <table> & new parsing methods
 
-VERSION="4.41b"
+VERSION="4.42"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
