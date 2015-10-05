@@ -882,7 +882,7 @@ class Book(object): #{
         keys = {}
         opts, chapHead = parseLineEntry("chap-head", line)
         j = i+1
-        while j < len(self.wb) and re.match(self.wb[j], "^\s*$"):
+        while j < len(self.wb) and re.match("^\s*$", self.wb[j]):
           j += 1
         if j == len(self.wb):
           fatal("End of file after <chap-head>")
