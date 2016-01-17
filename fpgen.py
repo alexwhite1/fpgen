@@ -4006,7 +4006,7 @@ class Text(Book): #{
           m = re.search("ml:([\d\.]+)em", therend)
           if m:
             # indent left
-            howmuch = int(m.group(1))
+            howmuch = int(float(m.group(1)))
           else:
             m = re.search("ml:0", therend)
             if m:
@@ -4023,7 +4023,7 @@ class Text(Book): #{
             m = re.search("mr:([\d\.]+)em", therend)
             if m:
               # indent right
-              howmuch = int(m.group(1))
+              howmuch = int(float(m.group(1)))
             else:
               m = re.search("mr:0", therend)
               if m:
@@ -4320,6 +4320,12 @@ class Text(Book): #{
       llen = config.LINE_WIDTH - (2 * len(self.qstack[-1]))
       leader = self.qstack[-1]
       s = " ".join(t)
+
+      if (llen < 10):
+        fatal("<quote> nesting too deep, remaining line length is " +
+            str(llen) + " characters. Current nesting level is " +
+            str(len(self.qstack)) +
+            ".  Check for missing or malformed </quote> tags.");
 
       # u = self.wrap(s, llen, leader) # before 19-Sep-2013
 

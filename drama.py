@@ -189,7 +189,7 @@ class Drama:
     for i,line in enumerate(block):
 
       # Line starts stage direction
-      if not inStage and line[0] == '[':
+      if not inStage and line.startswith("["):
         # If line ends the stage direction, only treat it as a stage
         # direction if there is nothing after it
         if line.find('] ') < 0:
