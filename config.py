@@ -110,8 +110,10 @@ uopt = userOptions()
 # 4.41a    Parse <meta> tags correctly
 # 4.41b    Add summary-style indent
 # 4.42     Add fontsizes to <table> & new parsing methods
+# 4.42a    Error when too many nested <quote> in text
+# 4.42b    <align=h> for table cell hang
 
-VERSION="4.42"
+VERSION="4.42b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

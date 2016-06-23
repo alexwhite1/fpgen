@@ -2681,7 +2681,7 @@ class HTML(Book): #{
             class2 = userClass
 
         # Check both hang and align: hang can be set, but <align=c> override
-        if col.hang and align == 'left':
+        if (col.hang and align == 'left') or align == 'hang':
           # We still want our horizontal padding, i.e. we want to add hpad pixels to 1.5em
           # An em is normally 16px.
           left = hangIndent + hpad
@@ -2690,9 +2690,10 @@ class HTML(Book): #{
           hang = ''
 
         # Minimize the size of our html so we don't blow up epubs; always use a class
+        alignText = 'left' if align == 'hang' else align
         style = \
           "padding: " + str(vpad) + "px " + str(hpad) + "px; " + \
-          "text-align:" + align + "; vertical-align:" + valign + ";" + \
+          "text-align:" + alignText + "; vertical-align:" + valign + ";" + \
           hang;
         if not style in self.styleClasses:
           styleClass = "tdStyle" + str(len(self.styleClasses))
@@ -5019,6 +5020,8 @@ class TableCell: #{
       self.align = 'right'
     elif data.startswith("<align=l>"):
       self.align = 'left'
+    elif data.startswith("<align=h>"):
+      self.align = 'hang'
     else:
       self.align = '0'
     if not self.isDefaultAlignment():
