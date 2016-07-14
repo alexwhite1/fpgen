@@ -1309,6 +1309,9 @@ class HTML(Book): #{
     self.dstfile = ofile
     self.cpn = 0
     self.showPageNumbers = False
+    self.tableCount = 0
+    self.styleClasses = {}
+
 
   # internal class to manage CSS as it is added at runtime
   class CSS(object):
@@ -2493,9 +2496,6 @@ class HTML(Book): #{
           self.css.addcss("[378] hr.footnotemark { border:none; border-bottom:1px solid silver; width:10%; margin:1em auto 1em 0; }")
         else:
           self.fatal("unknown hr rend: /{}/".format(m.group(1)))
-
-  tableCount = 0
-  styleClasses = {}
 
   def parsePx(self, opts, key, defval):
     value = defval
