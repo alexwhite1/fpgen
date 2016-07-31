@@ -2858,7 +2858,7 @@ class HTML(Book): #{
         if not "target" in args:
           fatal("Missing internal target in fn: " + line)
         target = args["target"]
-        if target in footnotes:
+        if fmid in footnotes:
           cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
           repl = "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
         else:

@@ -113,8 +113,9 @@ uopt = userOptions()
 # 4.42a    Error when too many nested <quote> in text
 # 4.42b    <align=h> for table cell hang
 # 4.42c    Fix tdStyle when multiple formats are generated
+# 4.42d    Fix multiple footnote reference test
 
-VERSION="4.42c"
+VERSION="4.42d"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
