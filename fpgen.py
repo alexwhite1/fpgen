@@ -2346,22 +2346,41 @@ class HTML(Book): #{
       m = regex.match(line)
       if m:
         rendatt = m.group(1)
+        opts = m.group(1).strip()
+        attributes = parseTagAttributes("quote", opts, [ 'rend' ])
+        rend = attributes['rend'] if 'rend' in attributes else ""
+        opts = parseOption("<quote>/rend=", rend, quoteRendOptions)
+
+        if "w" in opts and "fs" in opts:
+          self.fatal("Cannot specify both width and fontsize in <quote>")
 
         # is a width specified? must be in em
-        m = re.search("w:(\d+)em", rendatt)
-        if m:
-          rendw = m.group(1)
-          self.wb[i] = "<div class='blockquote"+rendw+"'>"
-          self.css.addcss("[391] div.blockquote"+rendw+" { margin:1em auto; width:"+rendw+"em; }")
-          self.css.addcss("[392] div.blockquote"+rendw+" p { text-align:left; }")
+        if "w" in opts:
+          m = re.search("(\d+)em", opts["w"])
+          rendw = self.marginSize("quote", opts, "w", "")
+          drendw = re.sub("%", "percent", rendw)
+
+          if "right" in opts:
+            self.wb[i] = "<div class='blockquote-right" + drendw + "'>"
+            self.css.addcss("[391] div.blockquote-right"+ drendw + " { margin:1em 0em 1em auto; text-align:right; width:"+rendw+"; }")
+            self.css.addcss("[392] div.blockquote-right"+ drendw + " p { text-align:left; }")
+          else:
+            self.wb[i] = "<div class='blockquote"+drendw+"'>"
+            self.css.addcss("[391] div.blockquote"+drendw+" { margin:1em auto; width:"+rendw+"; }")
+            self.css.addcss("[392] div.blockquote"+drendw+" p { text-align:left; }")
           owned = True
+        else:
+          if "right" in opts:
+            self.fatal("<quote>: Must specify w option if using right")
 
         # is a font size specified? must be in em
-        m = re.search("fs:([\d\.]+)em", rendatt)
-        if m:
-          if owned:
-            self.fatal("doBlockq rend overload")
-          rendfs = m.group(1)
+        if "fs" in opts:
+          m = re.search("([\d\.]+)em", opts["fs"])
+          if m:
+            rendfs = "{}".format(m.group(1))
+          else:
+            fatal("<quote>: malformed fs option in rend tag: " + opts["fs"])
+
           # user-specified font size.
           drendfs = re.sub("\.","r", rendfs)
           self.wb[i] = "<div class='blockquote"+drendfs+"'>"
@@ -2378,7 +2397,7 @@ class HTML(Book): #{
       if re.match("<\/quote>",line):
         self.wb[i] = "</div>"
 
-  def marginSize(self, opts, name, default):
+  def marginSize(self, tag, opts, name, default):
     if not name in opts:
       return default
 
@@ -2399,7 +2418,7 @@ class HTML(Book): #{
     except:
       pass
 
-    fatal("<tb>: malformed " + name + " option in rend tag: " + opt)
+    fatal("<" + tag + ">: malformed " + name + " option in rend tag: " + opt)
 
   def doBreaks(self): # 02-Apr-2014 rewrite
     self.dprint(1,"doBreaks")
@@ -2424,8 +2443,8 @@ class HTML(Book): #{
           rend = attr["rend"]
           opts = parseOption("rend", rend, tbRendOptions)
 
-          tb_mt = self.marginSize(opts, "mt", tb_mt)
-          tb_mb = self.marginSize(opts, "mb", tb_mb)
+          tb_mt = self.marginSize("tb", opts, "mt", tb_mt)
+          tb_mb = self.marginSize("tb", opts, "mb", tb_mb)
 
           # line style:
           if "ls" in opts:
@@ -2858,6 +2877,7 @@ class HTML(Book): #{
         if not "target" in args:
           fatal("Missing internal target in fn: " + line)
         target = args["target"]
+        cprint("id: " + fmid + ", target: " + target)
         if fmid in footnotes:
           cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
           repl = "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
@@ -3007,12 +3027,14 @@ class HTML(Book): #{
         right = "right" in opts
         block = "block" in opts
         poetry = "poetry" in opts
+        blockRight = "block-right" in opts
 
         modeCount = \
             (1 if center else 0) + \
             (1 if left else 0) + \
             (1 if right else 0) + \
             (1 if block else 0) + \
+            (1 if blockRight else 0) + \
             (1 if poetry else 0)
         if modeCount > 1:
           fatal("Multiple lg mode options given in " + rend)
@@ -3028,7 +3050,7 @@ class HTML(Book): #{
         # and line.
         for o in [
             "mt", "mb",
-            "center", "left", "right", "block", "poetry",
+            "center", "left", "right", "block", "poetry", "block-right",
           ]:
           if o in opts:
             del opts[o]
@@ -3075,6 +3097,15 @@ class HTML(Book): #{
         if block:
           self.wb[i] = "<div class='literal-container' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
           self.css.addcss("[970] .literal-container { text-align:center; margin:0 0; }")
+          self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
+          while not re.match("<\/lg", self.wb[i]):
+            i += 1
+          self.wb[i] = "</div></div> <!-- end rend -->" # closing </lg>
+          continue
+
+        if blockRight:
+          self.wb[i] = "<div class='literal-container-right' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
+          self.css.addcss("[969] .literal-container-right { text-align:right; margin:1em 0; }")
           self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
           while not re.match("<\/lg", self.wb[i]):
             i += 1
@@ -5662,11 +5693,15 @@ lRendOptions = [
 # <lg> is almost the same as <l>; but not quite.  Some of this all gets
 # passed off to <l> and can be overridden in <l>
 lgRendOptions = [
-  "center", "right", "left", "poetry", "block",
+  "center", "right", "left", "poetry", "block", "block-right",
   "mr", "ml", "mt", "mb",
   "sa", "sb",
   "xlg", "xlarge", "lg", "large", "xsm", "xsmall", "sm", "small", "fs",
   "under", "bold", "sc", "smallcaps", "i", "italic",
+]
+
+quoteRendOptions = [
+  "right", "w", "fs"
 ]
 
 tableRendOptions = [
