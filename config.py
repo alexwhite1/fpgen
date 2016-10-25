@@ -115,8 +115,9 @@ uopt = userOptions()
 # 4.42c    Fix tdStyle when multiple formats are generated
 # 4.42d    Fix multiple footnote reference test
 # 4.43     New <lg rend='block-right'> and <quote rend='right w:XX%'>
+# 4.43a    Fix 4.42d: broke footnote asterisk style
 
-VERSION="4.43"
+VERSION="4.43a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

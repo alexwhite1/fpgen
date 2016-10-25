@@ -2860,7 +2860,7 @@ class HTML(Book): #{
     self.dprint(1,"doFootnotes")
 
     matchFN = re.compile("<fn\s+(.*?)/?>")
-    footnotes = []
+    footnotes = {}
 
     # footnote marks in text
     i = 0
@@ -2878,11 +2878,11 @@ class HTML(Book): #{
           fatal("Missing internal target in fn: " + line)
         target = args["target"]
         cprint("id: " + fmid + ", target: " + target)
-        if fmid in footnotes:
+        if fmid in footnotes and footnotes[fmid] == target:
           cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
           repl = "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
         else:
-          footnotes.append(fmid)
+          footnotes[fmid] = target
           repl = "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
         l = line[0:m.start(0)] + repl
         off = len(l)    # Next loop
