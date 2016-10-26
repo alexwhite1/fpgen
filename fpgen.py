@@ -2856,54 +2856,6 @@ class HTML(Book): #{
 
     parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)
 
-  def doFootnotes(self):
-    self.dprint(1,"doFootnotes")
-
-    matchFN = re.compile("<fn\s+(.*?)/?>")
-    footnotes = {}
-
-    # footnote marks in text
-    i = 0
-    while i < len(self.wb):
-      off = 0
-      line = self.wb[i]
-      while True:
-        m = matchFN.search(line, off)
-        if not m:
-          break
-        opts = m.group(1)
-        args = parseTagAttributes("fn", opts, [ "id", "target" ])
-        fmid = args["id"]
-        if not "target" in args:
-          fatal("Missing internal target in fn: " + line)
-        target = args["target"]
-        cprint("id: " + fmid + ", target: " + target)
-        if fmid in footnotes and footnotes[fmid] == target:
-          cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
-          repl = "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
-        else:
-          footnotes[fmid] = target
-          repl = "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
-        l = line[0:m.start(0)] + repl
-        off = len(l)    # Next loop
-        line = l + line[m.end(0):]
-      self.wb[i] = line
-      i += 1
-
-    # footnote targets and text
-    i = 0
-    while i < len(self.wb):
-      m = re.match("<footnote\s+(.*?)>", self.wb[i])
-      if m:
-        opts = m.group(1)
-        args = parseTagAttributes("footnote", opts, [ "id", "target" ])
-        fnid = args["id"]
-        target = args["target"]
-        self.wb[i] = "<div id='f{0}'><a href='#r{0}'>{1}</a></div>".format(target, fnid)
-        while not re.match("<\/footnote>", self.wb[i]):
-          i += 1
-        self.wb[i] = "</div> <!-- footnote end -->"
-      i += 1
 
   sidenote = """[990]
     .sidenote {
@@ -3260,7 +3212,7 @@ class HTML(Book): #{
     self.doBreaks()
     self.doTables()
     self.doIllustrations()
-    self.doFootnotes()
+    footnote.footnotesToHtml(self.wb)
     self.doSidenotes()
     self.doLineGroups()
     self.doLines()

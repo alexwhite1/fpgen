@@ -4,12 +4,16 @@ import unittest
 import re
 from parse import parseStandaloneTagBlock, parseTagAttributes
 from fpgen import userOptions
-from msgs import fatal, cprint
+from msgs import fatal, cprint, dprint
 
 # If more than 6 in a chapter, it will start using numbers
 # This list comes from "Note (typography)" on wikipedia.
 footnoteMarkers = [
   "*", "†", "‡", "§", "‖", "¶",
+]
+
+footnoteMarkersText = [
+  "star", "dagger", "doubledagger", "section", "parallelto", "pilcrow",
 ]
 
 # This method both relocates the <footnote> tags, and also normalizes
@@ -19,7 +23,7 @@ footnoteMarkers = [
 # since the display value (id) is no longer unique.
 #
 # Note this method is device-independent.
-# The tags are parsed again in HTML.doFootnotes (both fn and footnote),
+# The tags are parsed again below in footnotesToHtml (both fn and footnote),
 # (and once again in mediaTweak, or at least the generated html is!)
 # and Text.preProcess(fn), and Text.rewrap(footnote)
 #
@@ -69,6 +73,7 @@ def relocateFootnotes(block):
     if not "id" in args:
       fatal("<footnote> does not have id attribute: " + opts)
     id = args["id"]
+    target = None
     if id == '#':
       nonlocal footnotec
       id = str(footnotec)
@@ -78,8 +83,16 @@ def relocateFootnotes(block):
         displayid = "[" + id + "]"
       footnotec += 1
     else:
-      displayid = "[" + id + "]"
-    target = id
+      if id in footnoteMarkers:
+        i = footnoteMarkers.index(id)
+        displayid = id  # Don't add the square brackets
+        target = footnoteMarkersText[i]
+        if not reset:
+          fatal("Use of explicit footnote symbols requires footnote-location to be set to either asterisk or heading-reset: " + str(opts))
+      else:
+        displayid = "[" + id + "]"
+    if target == None:
+      target = id
     if reset:
       target += "_" + str(footnoteChapter)
     opts = "id='" + displayid + "' target='" + target + "'"
@@ -118,6 +131,7 @@ def relocateFootnotes(block):
       if not "id" in args:
         fatal("<fn> does not have id attribute: " + line)
       id = args["id"]
+      target = None
       if id == '#':
         id = str(fnc)
         if mode == asterisk and fnc <= len(footnoteMarkers):
@@ -126,8 +140,14 @@ def relocateFootnotes(block):
           displayid = "[" + id + "]"
         fnc += 1
       else:
-        displayid = "[" + id + "]"
-      target = id
+        if id in footnoteMarkers:
+          i = footnoteMarkers.index(id)
+          displayid = id  # Don't add the square brackets
+          target = footnoteMarkersText[i]
+        else:
+          displayid = "[" + id + "]"
+      if target == None:
+        target = id
       if reset:
         nonlocal footnoteChapter
         target += "_" + str(footnoteChapter)
@@ -233,6 +253,55 @@ def reformat(block):
       i += 1
 
     i += 1
+
+def footnotesToHtml(wb):
+
+  matchFN = re.compile("<fn\s+(.*?)/?>")
+  footnotes = {}
+
+  # footnote marks in text
+  i = 0
+  while i < len(wb):
+    off = 0
+    line = wb[i]
+    while True:
+      m = matchFN.search(line, off)
+      if not m:
+        break
+      opts = m.group(1)
+      args = parseTagAttributes("fn", opts, [ "id", "target" ])
+      fmid = args["id"]
+      if not "target" in args:
+        fatal("Missing internal target in fn: " + line)
+      target = args["target"]
+      dprint(1, "id: " + fmid + ", target: " + target)
+      if fmid in footnotes and footnotes[fmid] == target:
+        cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
+        repl = "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
+      else:
+        footnotes[fmid] = target
+        repl = "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
+      l = line[0:m.start(0)] + repl
+      off = len(l)    # Next loop
+      line = l + line[m.end(0):]
+    wb[i] = line
+    i += 1
+
+  # footnote targets and text
+  i = 0
+  while i < len(wb):
+    m = re.match("<footnote\s+(.*?)>", wb[i])
+    if m:
+      opts = m.group(1)
+      args = parseTagAttributes("footnote", opts, [ "id", "target" ])
+      fnid = args["id"]
+      target = args["target"]
+      wb[i] = "<div id='f{0}'><a href='#r{0}'>{1}</a></div>".format(target, fnid)
+      while not re.match("<\/footnote>", wb[i]):
+        i += 1
+      wb[i] = "</div> <!-- footnote end -->"
+    i += 1
+
 
 class TestFootnote(unittest.TestCase):
   def setUp(self):
@@ -566,6 +635,74 @@ class TestFootnote(unittest.TestCase):
     relocateFootnotes(input)
     self.assertSequenceEqual(input, result)
 
+  def test_footnote_asterisk_cross_gen(self):
+    config.uopt.addopt("footnote-location", "asterisk")
+    # Broke in 4.42d, fixed again in 4.43a
+    # Does not really test correctly, it is footnoteToHtml that
+    # we want to test.  See next test case
+    input = [
+      "blah<fn id='#'>",
+      "<footnote id='#'>",
+      "fn",
+      "</footnote>",
+      "<genfootnotes>", # force new chapter
+      "second blah<fn id='#'>",
+      "<footnote id='#'>",
+      "second fn",
+      "</footnote>",
+    ]
+    # Note targets are id, underscore, chapter
+    result = [
+      "blah<fn id='*' target='1_1'>",
+      "<hr rend='footnotemark'>",
+      "<footnote id='*' target='1_1'>",
+      "fn",
+      "</footnote>",
+      "",
+      "second blah<fn id='*' target='1_2'>",
+      "<hr rend='footnotemark'>",
+      "<footnote id='*' target='1_2'>",
+      "second fn",
+      "</footnote>",
+      "",
+    ]
+    relocateFootnotes(input)
+    self.assertSequenceEqual(input, result)
+
+  def test_footnoteToHtml_asterisk_cross_gen(self):
+    config.uopt.addopt("footnote-location", "asterisk")
+    # Broke in 4.42d, fixed again in 4.43a
+    # Note targets are id, underscore, chapter
+    input = [
+      "blah<fn id='*' target='1_1'>",
+      "<hr rend='footnotemark'>",
+      "<footnote id='*' target='1_1'>",
+      "fn",
+      "</footnote>",
+      "",
+      "second blah<fn id='*' target='1_2'>",
+      "<hr rend='footnotemark'>",
+      "<footnote id='*' target='1_2'>",
+      "second fn",
+      "</footnote>",
+      "",
+    ]
+    result = [
+      "blah<a id='r1_1'/><a href='#f1_1' style='text-decoration:none'><sup><span style='font-size:0.9em'>*</span></sup></a>",
+      "<hr rend='footnotemark'>",
+      "<div id='f1_1'><a href='#r1_1'>*</a></div>",
+      'fn',
+      '</div> <!-- footnote end -->',
+      '',
+      "second blah<a id='r1_2'/><a href='#f1_2' style='text-decoration:none'><sup><span style='font-size:0.9em'>*</span></sup></a>",
+      "<hr rend='footnotemark'>",
+      "<div id='f1_2'><a href='#r1_2'>*</a></div>",
+      'second fn',
+      '</div> <!-- footnote end -->',
+      '',
+    ]
+    footnotesToHtml(input)
+    self.assertSequenceEqual(input, result)
 
   def test_footnote_heading_reset_manual2(self):
     config.uopt.addopt("footnote-location", "heading-reset")
@@ -665,6 +802,154 @@ class TestFootnote(unittest.TestCase):
     ]
     config.uopt.addopt("footnote-location", "marker")
     relocateFootnotes(input)
+    self.assertSequenceEqual(input, result)
+
+  def test_footnote_asterisk(self):
+    config.uopt.addopt("footnote-location", "heading-reset")
+    input = [
+        "l1",
+        "w1<fn id='*'> w2",
+        "l3",
+        "<footnote id='*'>",
+        "footnote",
+        "</footnote>"
+    ]
+    result = [
+      'l1',
+      "w1<fn id='*' target='star_1'> w2",
+      'l3',
+      "<hr rend='footnotemark'>",
+      "<footnote id='*' target='star_1'>",
+      'footnote',
+      '</footnote>',
+      "",
+    ]
+
+    relocateFootnotes(input)
+    self.assertSequenceEqual(input, result)
+
+  # two starred footnotes separated by footnote dump
+  # should point at their two separate footnotes
+  def test_footnote_asterisk_two_different(self):
+    config.uopt.addopt("footnote-location", "heading-reset")
+    input = [
+        "l1",
+        "w1<fn id='*'> w2",
+        "l3",
+        "<footnote id='*'>",
+        "footnote",
+        "</footnote>",
+        "<genfootnotes>",
+        "l1a",
+        "w1a<fn id='*'> w2a",
+        "l3a",
+        "<footnote id='*'>",
+        "footnotea",
+        "</footnote>",
+    ]
+    result = [
+      'l1',
+      "w1<fn id='*' target='star_1'> w2",
+      'l3',
+      "<hr rend='footnotemark'>",
+      "<footnote id='*' target='star_1'>",
+      'footnote',
+      '</footnote>',
+      '',
+      'l1a',
+      "w1a<fn id='*' target='star_2'> w2a",
+      'l3a',
+      "<hr rend='footnotemark'>",
+      "<footnote id='*' target='star_2'>",
+      'footnotea',
+      '</footnote>',
+      '',
+    ]
+
+    relocateFootnotes(input)
+    self.assertSequenceEqual(input, result)
+
+  def test_footnote_section(self):
+    config.uopt.addopt("footnote-location", "heading-reset")
+    input = [
+        "l1",
+        "w1<fn id='§'> w2",
+        "l3",
+        "<footnote id='§'>",
+        "footnote",
+        "</footnote>"
+    ]
+    result = [
+      'l1',
+      "w1<fn id='§' target='section_1'> w2",
+      'l3',
+      "<hr rend='footnotemark'>",
+      "<footnote id='§' target='section_1'>",
+      'footnote',
+      '</footnote>',
+      '',
+    ]
+
+    relocateFootnotes(input)
+    self.assertSequenceEqual(input, result)
+
+  def test_footnote_section_two_forward(self):
+    config.uopt.addopt("footnote-location", "heading-reset")
+    input = [
+        "l1",
+        "w1<fn id='§'> w2",
+        "l3",
+        "w3<fn id='§'> w4",
+        "l5",
+        "<footnote id='§'>",
+        "footnote",
+        "</footnote>"
+    ]
+    result = [
+      'l1',
+      "w1<fn id='§' target='section_1'> w2",
+      'l3',
+      "w3<fn id='§' target='section_1'> w4",
+      'l5',
+      "<hr rend='footnotemark'>",
+      "<footnote id='§' target='section_1'>",
+      'footnote',
+      '</footnote>',
+      "",
+    ]
+
+    relocateFootnotes(input)
+    self.assertSequenceEqual(input, result)
+
+  def test_footnote_section_two_forward_Html(self):
+    config.uopt.addopt("footnote-location", "heading-reset")
+    input = [
+      'l1',
+      "w1<fn id='§' target='section_1'> w2",
+      'l3',
+      "w3<fn id='§' target='section_1'> w4",
+      'l5',
+      "<hr rend='footnotemark'>",
+      "<footnote id='§' target='section_1'>",
+      'footnote',
+      '</footnote>',
+      "",
+    ]
+    result = [
+      'l1',
+      "w1<a id='rsection_1'/><a href='#fsection_1' style='text-decoration:none'><sup><span style='font-size:0.9em'>\xa7</span></sup></a> w2",
+      'l3',
+      "w3<a href='#fsection_1' style='text-decoration:none'><sup><span style='font-size:0.9em'>\xa7</span></sup></a> w4",
+      'l5',
+      "<hr rend='footnotemark'>",
+      "<div id='fsection_1'><a href='#rsection_1'>\xa7</a></div>",
+      'footnote',
+      '</div> <!-- footnote end -->',
+      '',
+    ]
+
+    # TODO: Warning that id is twice, <footnote> link to the first
+    footnotesToHtml(input)
     self.assertSequenceEqual(input, result)
 
   def test_footnote_no_id(self):
