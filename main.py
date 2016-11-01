@@ -54,7 +54,7 @@ def main():
 
   if options.ebookid != "":
     options.formats = "thkep"
-    if not re.match("^201\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.ebookid):
+    if not re.match("^20[01]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.ebookid):
       print("Ebookid doesn't look correct: " + options.ebookid)
       exit(1)
 
@@ -192,7 +192,7 @@ def main():
     print("creating Kindle")
     # make epub as source for kindle
     outfile = "{}-e2.html".format(bn)
-    hb = HTML(options.infile, outfile, options.debug, 'e')
+    hb = HTML(options.infile, outfile, options.debug, 'k')
     hb.run()
     OPT_EPUB_ARGS[1] = "{}-e2.html".format(bn)
     OPT_EPUB_ARGS[2] = "{}-e2.epub".format(bn)

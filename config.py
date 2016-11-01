@@ -117,8 +117,9 @@ uopt = userOptions()
 # 4.43     New <lg rend='block-right'> and <quote rend='right w:XX%'>
 # 4.43a    Fix 4.42d: broke footnote asterisk style
 # 4.43b    Allow fn/footnote id tags to be special characters, e.g. *, dagger
+# 4.43c    <if> for kindle works again; --ebookid allow years prior to 2010
 
-VERSION="4.43b"
+VERSION="4.43c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
