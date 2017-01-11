@@ -143,7 +143,8 @@ def main():
    "--sr1-search", "\"<hr class=.pbk./>\"",
    "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
    "--sr1-search", "\"<br\/><br\/>\"",
-   "--sr1-replace", "—"
+   "--sr1-replace", "—",
+   "--level1-toc \"//h:h1\"", "--level2-toc \"//h:h2\"",
   ]
 
   # generate desired output formats
