@@ -2247,13 +2247,17 @@ class HTML(Book): #{
 
         if hlevel == 3:
           self.wb[i] = "<h3{}{}{}>{}{}</h3>".format(style, useclass, htarget, span, htitle)
-          self.css.addcss("[258] h3 { text-align:center; font-weight:normal;")
-          self.css.addcss("[259]      font-size:1.0em; margin:1em auto 0.5em auto}")
+          self.css.addcss("""[258] h3 { text-align:center; font-weight:normal;
+            font-size:1.0em; margin:1em auto 0.5em auto;
+            page-break-after:avoid;
+          }""")
 
         if hlevel == 4:
           self.wb[i] = "<h4{}{}{}>{}{}</h4>".format(style, useclass, htarget, span, htitle)
-          self.css.addcss("[260] h4 { text-align:center; font-weight:normal;")
-          self.css.addcss("[261]      font-size:1.0em; margin:1em auto 0.5em auto}")
+          self.css.addcss("""[260] h4 { text-align:center; font-weight:normal;
+            font-size:1.0em; margin:1em auto 0.5em auto;
+            page-break-after:avoid;
+          }""")
 
   def oneSummary(self, openTag, block):
     if openTag != "":
@@ -2512,7 +2516,13 @@ class HTML(Book): #{
       if m:
         if re.search("footnotemark", m.group(1)):
           self.wb[i]= "<hr class='footnotemark'/>"
-          self.css.addcss("[378] hr.footnotemark { border:none; border-bottom:1px solid silver; width:10%; margin:1em auto 1em 0; }")
+          self.css.addcss("""[378] hr.footnotemark {
+            border:none;
+            border-bottom:1px solid silver;
+            width:10%;
+            margin:1em auto 1em 0;
+            page-break-after: avoid;
+          }""");
         else:
           self.fatal("unknown hr rend: /{}/".format(m.group(1)))
 
