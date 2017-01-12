@@ -5791,6 +5791,7 @@ tableRendOptions = [
 leaderCSS = """[561] td.{0} {{
   max-width:40em;
   overflow-x:hidden;
+  display:block;
 }}
 td.{0}:after {{
   float:left;
