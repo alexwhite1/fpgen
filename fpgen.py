@@ -120,14 +120,15 @@ def wrap2(s, lm=0, rm=0, li=0, ti=0, breakOnEmDash=False):  # 22-Feb-2014
   lines += wrap2h(s.strip(), lm, rm, li, ti, breakOnEmDash) # last or only piece to wrap
   return lines
 
-def alignLine(line, align, w):
+def alignLine(line, align, w, padChar=' '):
   # Figure out what will fit in the current width and remove from the cell
   remainder = line
   lines = []
 
-  # Empty: always one line
+  # Empty: always one line, never any padding
   if remainder == "":
     remainder = " "
+    padChar = ' '
 
   indent = 0
   first = True
@@ -157,12 +158,20 @@ def alignLine(line, align, w):
     # Make sure we use the printable width
     pad = w - textCellWidth(fits)
     if align == 'left' or align == 'hang':
-      content = fits + ' ' * pad
+      pc = padChar
+
+      # For lines using hang, don't pad with anything except space
+      # if there are more lines to be done.
+      if align == 'hang':
+        if remainder != "":
+          pc = ' '
+
+      content = fits + (pc * pad)[0:pad]
     elif align == 'center':
       half = pad // 2
-      content = half * ' ' + fits + (pad-half) * ' '
+      content = (half * padChar)[0:pad] + fits + ((pad-half) * padChar)[0:pad]
     elif align == 'right':
-      content = pad * ' ' + fits
+      content = (pad * padChar)[0:pad] + fits
 
     lines.append(' ' * indent + content)
 
@@ -215,6 +224,7 @@ class Book(object): #{
   class userProperties(object):
     def __init__(self):
       self.prop = {}
+      self.addprop("leader-dots", ".")
 
     def addprop(self,k,v):
       self.prop[k] = v
@@ -935,7 +945,7 @@ class Book(object): #{
 #}
 # end of class Book
 
-def parseTablePattern(line, isHTML):
+def parseTablePattern(line, isHTML, uprop = None):
   # pull the pattern
   if isHTML:
     m = re.search("patternhtml=[\"'](.*?)[\"']", line)
@@ -952,7 +962,7 @@ def parseTablePattern(line, isHTML):
   list = tpat.split()
 
   for oneCol in list:
-    col = ColDescr(oneCol, line)
+    col = ColDescr(oneCol, line, uprop)
     cols.append(col)
 
     #self.dprint(1, "col: " + str(col))
@@ -971,7 +981,7 @@ def parseTablePattern(line, isHTML):
 
 # Column Descriptor. A Parsed version of the user defined pattern
 class ColDescr: #{
-  def __init__(self, description, tableLine = "?"):
+  def __init__(self, description, tableLine = "?", uprop = None):
     self.userWidth = 0
     self.width = 0
     self.align = ""
@@ -984,6 +994,9 @@ class ColDescr: #{
     self.isLast = False
     self.hang = False
     self.preserveSpaces = False
+    self.leaderName = None
+    self.leaderChars = None
+    self.uprop = uprop
 
     self.parse(description, tableLine)
 
@@ -991,7 +1004,7 @@ class ColDescr: #{
     off = 0
     n = len(oneCol)
 
-    # Each column is |*[lrc][TBC][S]#*|*
+    # Each column is |*[lrch][TBC][S]#*|*
 
     # Parse leading |
     c = oneCol[off]
@@ -1008,23 +1021,46 @@ class ColDescr: #{
 
     # Parse column horizontal and vertical alignment
     while True:
-      if oneCol[off] == 'c':
+      c = oneCol[off]
+      if c == 'c':
         self.align = "center"
-      elif oneCol[off] == 'l':
+      elif c == 'l':
         self.align = "left"
-      elif oneCol[off] == 'h':
+      elif c == 'h':
         self.align = "left"
         self.hang = True
-      elif oneCol[off] == 'r':
+      elif c == 'r':
         self.align = "right"
-      elif oneCol[off] == 'T':
+      elif c == 'T':
         self.valign = "top"
-      elif oneCol[off] == 'B':
+      elif c == 'B':
         self.valign = "bottom"
-      elif oneCol[off] == 'C':
+      elif c == 'C':
         self.valign = "middle"
-      elif oneCol[off] == 'S':
+      elif c == 'S':
         self.preserveSpaces = True
+      elif c == 'L':
+        # Parse leader in format either L, or L(X) where X is a string
+        name = "dots"
+        if off+1 < n:
+          c = oneCol[off+1]
+          if c == '(':
+            off += 1
+            try:
+              end = oneCol.index(')', off)
+            except ValueError:
+              fatal("Incorrect table column specification " + oneCol +
+                  " inside " + tableLine + ": L(name) not correctly specified")
+            name = oneCol[off+1:end]
+            off = end
+
+        # Note leader-dots is always there
+        self.leaderName = "leader-" + name
+        if not self.leaderName in self.uprop.prop:
+          fatal("Incorrect table specification " + oneCol + " inside " +
+            tableLine + ": L(" + name + "): requires a property named " +
+            self.leaderName)
+        self.leaderChars = self.uprop.prop[self.leaderName]
       else:
         break
       off += 1
@@ -1060,7 +1096,7 @@ class ColDescr: #{
             self.lineAfter *= 4
 
         if off != n:
-          fatal("Incorrect table specification " + oneCol + " inside " + tableLine)
+          fatal("Incorrect table specification " + oneCol + " inside " + tableLine + ": >>>" + c + "<<<")
 
   def __eq__(self, other):
     return self.__dict__ == other.__dict__
@@ -1120,6 +1156,59 @@ class TestParseTableColumn(unittest.TestCase):
     c = ColDescr("rS")
     self.assertEqual(c.align, "right")
     self.assertEqual(c.preserveSpaces, True)
+
+  def test_colh(self):
+    c = ColDescr("h")
+    self.assertEqual(c.align, "left")
+    self.assertEqual(c.hang, True)
+
+  def test_colL(self):
+    uprop = Book.userProperties()
+    c = ColDescr("lL", uprop=uprop)
+    self.assertEqual(c.align, "left")
+    self.assertEqual(c.leaderName, "leader-dots")
+    self.assertEqual(c.leaderChars, ".")
+
+  def test_colLfollowed(self):
+    uprop = Book.userProperties()
+    c = ColDescr("lL33", uprop=uprop)
+    self.assertEqual(c.align, "left")
+    self.assertEqual(c.leaderName, "leader-dots")
+    self.assertEqual(c.leaderChars, ".")
+    self.assertEqual(c.userWidth, True)
+    self.assertEqual(c.width, 33)
+
+  def test_colL1(self):
+    with self.assertRaises(SystemExit) as cm:
+      uprop = Book.userProperties()
+      c = ColDescr("lL(dash)", uprop=uprop)
+    # Should be property leader-dash doesn't exist
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_colL2(self):
+    with self.assertRaises(SystemExit) as cm:
+      c = ColDescr("lL(dash")
+    # Syntax error
+    self.assertEqual(cm.exception.code, 1)
+
+  def test_colL3(self):
+    uprop = Book.userProperties()
+    uprop.addprop("leader-dash", "x-y-z")
+    c = ColDescr("lL(dash)", uprop=uprop)
+    self.assertEqual(c.align, "left")
+    self.assertEqual(c.leaderName, "leader-dash")
+    self.assertEqual(c.leaderChars, "x-y-z")
+    self.assertEqual(c.userWidth, False)
+
+  def test_colL3followed(self):
+    uprop = Book.userProperties()
+    uprop.addprop("leader-dash", "x-y-z")
+    c = ColDescr("lL(dash)99", uprop=uprop)
+    self.assertEqual(c.align, "left")
+    self.assertEqual(c.leaderName, "leader-dash")
+    self.assertEqual(c.leaderChars, "x-y-z")
+    self.assertEqual(c.userWidth, True)
+    self.assertEqual(c.width, 99)
 
   def test_simple3(self):
     result = parseTablePattern("pattern='   r   l33 c5 '", False)
@@ -2552,7 +2641,7 @@ class HTML(Book): #{
     self.css.addcss("[560] table.flushleft { margin:0.5em 0em; border-collapse: collapse; padding:3px; }")
 
     # pull the pattern
-    columns = parseTablePattern(openTag, True)
+    columns = parseTablePattern(openTag, True, self.uprop)
 
     # Were there any user-specified widths?
     userWidth = False
@@ -2730,6 +2819,17 @@ class HTML(Book): #{
           self.css.addcss("[564] ." + styleClass + " {\n" + style + "\n}")
         else:
           styleClass = self.styleClasses[style]
+
+        # If we have a leader for this column, add class=leader to the <td>
+        # and surround the cell data with <span>...</span>
+        leaderName = col.leaderName
+        if leaderName != None and len(data) > 0:
+          if class2 != '':
+            class2 = class2 + ' '
+          class2 += leaderName
+          data = "<span>" + data + "</span>"
+          leaderString = 150 * col.leaderChars
+          self.css.addcss(leaderCSS.format(leaderName, leaderString))
 
         if class2 != '':
           class2 = class2 + ' '
@@ -4385,7 +4485,7 @@ class Text(Book): #{
     del t[0] # <table line
     del t[-1] # </table line
 
-    tf = TableFormatter(tableLine, t)
+    tf = TableFormatter(tableLine, t, self.uprop)
     return tf.format()
 
   # merge all contiguous requested spaces
@@ -4561,7 +4661,8 @@ class TableFormatter: #{
   LAST_LINECHARS = "─┴┸━┷┻"
   ISOLATED_LINECHARS = "───━━━"
 
-  def __init__(self, tableLine, lines):
+  def __init__(self, tableLine, lines, uprop = None):
+    self.uprop = uprop
     self.maxTableWidth = config.LINE_WRAP
     self.vpad = False
     self.tableLine = tableLine
@@ -4592,7 +4693,7 @@ class TableFormatter: #{
             opts['textwidth'] + " in table line " + self.tableLine)
 
     # pattern must be specified
-    self.columns = parseTablePattern(self.tableLine, False)
+    self.columns = parseTablePattern(self.tableLine, False, self.uprop)
     self.ncols = len(self.columns)
 
   #
@@ -5064,6 +5165,9 @@ class TableCell: #{
       return self.columnDescription.align
     return self.align
 
+  def getLeader(self):
+    return self.columnDescription.leader;
+
   def isDefaultAlignment(self):
     return self.align == '0'
 
@@ -5089,7 +5193,10 @@ class TableCell: #{
     if self.isDefaultAlignment() and self.columnDescription.hang:
       align = "hang"
 
-    self.lines = alignLine(self.getData(), align, w)
+    if self.columnDescription.leaderChars != None:
+      self.lines = alignLine(self.getData(), align, w, self.columnDescription.leaderChars)
+    else:
+      self.lines = alignLine(self.getData(), align, w)
 
 
   # Vertical align in N
@@ -5679,6 +5786,23 @@ tableRendOptions = [
   # ignored, but the default
   "center",
 ]
+
+# CSS uses for leaders; the table cell pattern character L, or L(name)
+leaderCSS = """[561] td.{0} {{
+  max-width:40em;
+  overflow-x:hidden;
+}}
+td.{0}:after {{
+  float:left;
+  width:0;
+  white-space:nowrap;
+  content: "{1}";
+  text-indent:0;
+}}
+td.{0} span {{
+  background:white;
+}}
+"""
 
 if __name__ == '__main__':
   from main import main
