@@ -2829,7 +2829,7 @@ class HTML(Book): #{
           class2 += leaderName
           data = "<span>" + data + "</span>"
           leaderString = 150 * col.leaderChars
-          self.css.addcss(leaderCSS.format(leaderName, leaderString))
+          self.css.addcss(leaderCSS.format(leaderName, leaderString.replace(' ', '\\00A0')))
 
         if class2 != '':
           class2 = class2 + ' '
