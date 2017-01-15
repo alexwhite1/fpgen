@@ -42,10 +42,12 @@ def main():
     from testtext import TestTextInline, TestTextRewrap
     from footnote import TestFootnote
     from template import TestTemplate
+    from testhtml import TestHTMLPara
     for cl in [
       TestParseTableColumn, TestMakeTable, TestDrama, TestParsing,
       TestParseTagAttributes, TestOneDramaBlockMethod, TestTextRewrap,
-      TestTextInline, TestTableCellFormat, TestTemplate, TestFootnote
+      TestTextInline, TestTableCellFormat, TestTemplate, TestFootnote,
+      TestHTMLPara
     ]:
       tests.append(l.loadTestsFromTestCase(cl))
     tests = l.suiteClass(tests)
