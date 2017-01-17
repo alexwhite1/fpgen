@@ -122,8 +122,9 @@ uopt = userOptions()
 # 4.43e    page-break-after:avoid for h3, h4, footnotemark
 # 4.44     Add leaders to table cells
 # 4.44a    Fix leaders for firefox
+# 4.44b    Rewrite paragraph recognition; many para starts being lost
 
-VERSION="4.44a"
+VERSION="4.44b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

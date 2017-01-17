@@ -463,18 +463,34 @@ class Book(object): #{
     self.dprint(1,"doMulticol")
     parseStandaloneTagBlock(self.wb, "multicol", self.oneMulticol)
 
-  def getCaption(self, block):
+  #
+  # Retrieve the caption out of the <illustration>...</illustration> block
+  #
+  def trimCaptionTags(self, block):
     if len(block) == 0:
-      return ""
-    caption = " ".join(block).strip()
-    if not caption.startswith("<caption>"):
+      return
+    if not block[0].startswith("<caption>"):
       fatal("Illustration block does not start with <caption>: " + str(block))
-    caption = caption[9:]
-    if not caption.endswith("</caption>"):
+    n = len(block)-1
+    if not block[n].endswith("</caption>"):
       fatal("Illustration block does not end with </caption>: " + str(block))
-    caption = caption[0:-10]
 
-    return caption
+    block[0] = block[0][9:]
+    block[n] = block[n][0:-10]
+    if block[n].strip() == '':
+      del(block[n])
+    if len(block) > 0:
+      if block[0].strip() == '':
+        del(block[0])
+
+  #
+  # Captions are traditionally joined, delimited by spaces. This conflicts
+  # with markPara which paragraphs them. Someday we need to resolve this,
+  # it causes a real mess in markPara
+  #
+  def getCaption(self, block):
+    self.trimCaptionTags(block)
+    return " ".join(block).strip()
 
   # validate file as UTF-8
   def checkFile(self, fn):
@@ -1866,104 +1882,204 @@ class HTML(Book): #{
       self.wb[i] = re.sub("<ol>", '⎧', self.wb[i]) # overline
       self.wb[i] = re.sub("<\/ol>", '⎫', self.wb[i]) # overline
 
+  # No paragraphs in this particular tag; for a tag which must start a line
+  def skip(self, tag, wb, start):
+    n = start
+    if wb[n].startswith("<" + tag):
+      if wb[n].endswith("/>"):
+        return n+1
+      endTag = "</" + tag
+      m = len(wb)
+      while not wb[n].startswith(endTag):
+        n += 1
+        if n >= m:
+          fatal("Missing end tag: " + endTag + " starting near " + str(start))
+    return n
+
+  # No paragraphs in this tag; for a tag which can end inside a line.
+  def skipSameline(self, tag, wb, start):
+    n = start
+    if wb[n].startswith("<" + tag):
+      endTag = "</" + tag
+      m = len(wb)
+      while wb[n].find(endTag) == -1:
+        n += 1
+        if n >= m:
+          fatal("Missing end tag: " + endTag + " starting near " + str(start))
+      n += 1
+    return n
+
+  # <caption>...</caption> tags are considered paragraphs themselves.
+  # Extract them, and format them up separately.
+  def markIllustrationPara(self):
+    def oneIllustration(args, block):
+      self.trimCaptionTags(block)
+      if len(block) == 0:
+        # No caption, return unchanged
+        return [ "<illustration" + args + "/>" ]
+
+      # Have just the caption. Mark it up as text paragraphs.
+      self.markParaArray(block, self.captionPara, None)
+
+      # Turn the caption back into an illustration, for future reparsing in
+      # the normal flow in doIllustrations(). Why can't we mark the paragraphs
+      # at that point? Because ordering is all-important in this mess...
+      block.insert(0, "<caption>")
+      block.insert(0, "<illustration" + args + ">")
+      block.append("</caption>")
+      block.append("</illustration>")
+      return block
+    parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)
+
   def markPara(self):
-    self.dprint(1,"markPara")
-
-    hangPara = "<p class='hang'>"
-    linePara = "<p>"
-    blockPara = "<p class='noindent'>"
-    indentPara = "<p class='pindent'>"
-
     if config.uopt.getopt("pstyle") == "indent": # new 27-Mar-2014
       self.css.addcss("[811] .pindent { margin-top:0; margin-bottom:0; text-indent:1.5em; }")
       self.css.addcss("[812] .noindent { margin-top:0; margin-bottom:0; text-indent:0; }")
-      indent = True
-      defaultPara = indentPara
-      noIndentPara = blockPara
+      defaultPara = self.indentPara
+      noIndentPara = self.blockPara
     else:
-      defaultPara = linePara
-      indent = False
+      defaultPara = self.linePara
+      noIndentPara = None
     self.css.addcss("[813] .hang { padding-left:1.5em; text-indent:-1.5em; }");
+
+    self.markParaArray(self.wb, defaultPara, noIndentPara)
+    self.markIllustrationPara()
+
+  # The different tags we use for paragraphs
+  hangPara = "<p class='hang'>"
+  linePara = "<p>"
+  blockPara = "<p class='noindent'>"
+  indentPara = "<p class='pindent'>"
+  captionPara = "<p class='caption'>"
+
+  # At this point, all tags which are purely inside text have been converted
+  # into internal codes. (i.e. font styles and sizes)
+  # So we don't have to worry about them causing artificial paragraph
+  # boundaries. At this point, we can simply split off paragraphs by stopping
+  # at blank lines, or lines which start with tags.
+  # Well, always an exception: we special case <br/> and don't start a para
+  # for that one case.
+  #
+  # We need to ignore (except as delimiters) anything within blocks which
+  # are formatted differently: <lg>, <table>, <sidenote>.
+  # <caption> inside <illustration> is treated a little special, in that
+  # we find paragraphs inside the caption, but tag them with the caption class.
+  #
+  # Most of the code this is involved in handling the paragraph-specific 
+  # instructions: <hang>, <nobreak> and <pstyle>
+  def markParaArray(self, wb, defaultPara, noIndentPara):
+    self.dprint(1,"markPara")
+
+    indent = noIndentPara != None
+
     paragraphTag = defaultPara
 
-    i = 1
-    while i < len(self.wb)-1:
+    i = 0
+    while i < len(wb):
 
-      if self.wb[i].startswith("▹"): # preformatted
+      line = wb[i]
+
+      # A whole bunch of ways that a line or group of lines isn't formatted
+      if line.startswith(config.FORMATTED_PREFIX): # preformatted
         i += 1
         continue
 
-      if self.wb[i].startswith("<lg"): # no paragraphs in line groups
-        while not self.wb[i].startswith("</lg"):
-          i += 1
-        i += 1
-        continue
+      # No formatting inside these tags
+      for tag in [ "lg", "table", "illustration" ]:
+        j = self.skip(tag, wb, i)
+        if i != j:
+          i = j
+          continue
 
-      if self.wb[i].startswith("<table"): # no paragraphs in tables
-        while not self.wb[i].startswith("</table"):
-          i += 1
-        i += 1
-        continue
+      # No formatting inside these, but slightly different parsing
+      for tag in [ "sidenote" ]:
+        j = self.skipSameline(tag, wb, i)
+        if i != j:
+          i = j
+          continue
 
-      if self.wb[i].startswith("<pstyle="):
-        rest = self.wb[i][8:]
+      line = wb[i]
+
+      # <pstyle=XXX> alone on a line
+      if line.startswith("<pstyle="):
+        rest = line[8:]
         if rest == "hang>":
-          defaultPara = hangPara
+          defaultPara = self.hangPara
         elif rest == "default>":
           if indent:
-            defaultPara = indentPara
+            defaultPara = self.indentPara
           else:
-            defaultPara = linePara
+            defaultPara = self.linePara
         else:
-          fatal("Bad pstyle: " + self.wb[i])
-        self.wb[i] = '' # Clear the tag
+          fatal("Bad pstyle: " + wb[i])
+        wb[i] = '' # Clear the tag
+        line = ''
         paragraphTag = defaultPara
 
-      if self.wb[i].startswith("<nobreak>"): # new 27-Mar-2014
+      # <nobreak> leading a line
+      if line.startswith("<nobreak>"): # new 27-Mar-2014
         if not indent:
           self.fatal("<nobreak> only legal with option pstyle set to indent")
         paragraphTag = noIndentPara
-        self.wb[i] = re.sub("<nobreak>", "", self.wb[i])
+        line = line[9:]
+        wb[i] = line
 
       # If the line has a drop cap, don't indent
-      if re.search("☊", self.wb[i]) and indent:
+      if re.search("☊", line) and indent:
         paragraphTag = noIndentPara
 
-      if self.wb[i].startswith("<hang>"):
-        paragraphTag = hangPara
-        self.wb[i] = re.sub("<hang>", "", self.wb[i])
+      if line.startswith("<hang>"):
+        paragraphTag = self.hangPara
+        line = line[6:]
+        wb[i] = line
 
       # outside of tables and line groups, no double blank lines
-      if empty.match(self.wb[i-1]) and empty.match(self.wb[i]):
-        del (self.wb[i])
-        i -= 1
+      if wb[i-1] == "" and line == "":
+        del (wb[i])
+        if i > 0:
+          i -= 1
         continue
 
-      # a single, unmarked line # 07-Mar-2014 edit
-      if (empty.match(self.wb[i-1]) and empty.match(self.wb[i+1])
-        and not re.match("^<", self.wb[i]) and not re.match(">$", self.wb[i])
-        and not empty.match(self.wb[i])):
-          self.wb[i] = paragraphTag + self.wb[i] + "</p>" #27-Mar-2014
-          paragraphTag = defaultPara
-          i +=  1
-          continue
-
-      # start of paragraph # 07-Mar-2014 edit
-      if (empty.match(self.wb[i-1]) and not empty.match(self.wb[i])
-        and not self.wb[i].startswith("<")):
-          self.wb[i] = paragraphTag + self.wb[i] # 27-Mar-2014
-          paragraphTag = defaultPara
-          i +=  1
-          continue
-
-      # end of paragraph
-      if (empty.match(self.wb[i+1]) and not empty.match(self.wb[i])
-         and not re.search(">$", self.wb[i])):
-        self.wb[i] = self.wb[i] + "</p>"
-        i +=  1
+      # Ignore a blank line
+      if line == "":
+        i += 1
         continue
+
+      # Ignore lines with tags; note that textual tags like <i> have been
+      # converted into special characters, not <
+      if line[0] == '<' and line != "<br/>":
+          i += 1
+          continue
+
+      # A paragraph starts on a non-blank line,
+      # and ends at:
+      # - A blank line
+      # - a standalone line: preformatted, <table>, <lg>, <sidenote>
+      # - end of file
+      # - a paragraph tag: <nobreak>, <hang>, <pstyle>, drop-cap
+      # - any other tag!
+      wb[i] = paragraphTag + line
+      n = len(wb)
+      while i < n:
+        if i+1 == n or self.isParaBreak(wb[i+1]):
+          wb[i] += "</p>"
+          break
+        i += 1
+
+      # Revert to default paragraph style
+      paragraphTag = defaultPara
 
       i += 1
+    return wb
+
+  def isParaBreak(self, line):
+    if line == "":
+      return True
+    if line[0] == "▹": # preformatted
+      return True
+    if line[0] == '<' and line != "<br/>":
+        return True
+    return False
 
   fontmap = {
     'l' : '⓯',
@@ -2960,7 +3076,9 @@ class HTML(Book): #{
       t.append("{}<img src='{}' alt='' id='{}' style='{}'/>{}".format(s0, i_filename, i_id, style, s1))
       if i_caption != "":
         self.css.addcss("[392] p.caption { text-align:center; margin:0 auto; width:100%; }")
-        t.append("<p class='caption'>{}</p>".format(i_caption))
+        # markPara will now tag each paragraph with class='caption'
+        #t.append("<p class='caption'>" + i_caption + "</p>")
+        t.append(i_caption)
       t.append("</div>")
       return t
 
@@ -3314,19 +3432,6 @@ class HTML(Book): #{
 
     return result
 
-  def processMarkup(self):
-    self.doHeadings()
-    # self.doDrama()
-    self.doBlockq()
-    self.doSummary()
-    self.doBreaks()
-    self.doTables()
-    self.doIllustrations()
-    footnote.footnotesToHtml(self.wb)
-    self.doSidenotes()
-    self.doLineGroups()
-    self.doLines()
-
   # HTML: Main logic
   def process(self):
     super().process()
@@ -3344,7 +3449,18 @@ class HTML(Book): #{
     self.markPara()
     self.restoreMarkup()
     self.startHTML()
-    self.processMarkup()
+
+    self.doHeadings()
+    self.doBlockq()
+    self.doSummary()
+    self.doBreaks()
+    self.doTables()
+    self.doIllustrations()
+    footnote.footnotesToHtml(self.wb)
+    self.doSidenotes()
+    self.doLineGroups()
+    self.doLines()
+
     self.processPageNumDisp()
     self.footnotesToTable()
     self.placeCSS()
@@ -3380,8 +3496,9 @@ class Text(Book): #{
   # save file to specified dstfile
   # overload to do special wrapping for text output only
   def saveFile(self, fn):
-    while empty.match(self.wb[-1]): # no trailing blank lines
-      self.wb.pop()
+    if len(self.wb) > 0:
+      while empty.match(self.wb[-1]): # no trailing blank lines
+        self.wb.pop()
     nwrapped = 0
     self.dprint(1,"text:saveFile")
     if os.linesep == "\r\n":
@@ -4510,8 +4627,9 @@ class Text(Book): #{
       self.wb[i] = re.sub("\s+\.rs",".rs", self.wb[i])
 
     i = 0
-    while re.match("▹?\.rs", self.wb[i]): # no initial vertical space
-      del self.wb[0]
+    if len(self.wb) > 0:
+      while re.match("▹?\.rs", self.wb[i]): # no initial vertical space
+        del self.wb[0]
     while i < len(self.wb)-1:
       m1 = re.match("▹?\.rs (\d+)", self.wb[i])
       m2 = re.match("▹?\.rs (\d+)", self.wb[i+1])
