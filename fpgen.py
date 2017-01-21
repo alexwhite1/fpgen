@@ -957,9 +957,76 @@ class Book(object): #{
         fatal("Found <sub-head> not after a <chap-head>: " + line)
 
       i += 1
-
 #}
 # end of class Book
+
+# Parse the font size on <lg> and <table>
+def parseFontSize(options1, options2, options3, textOpt):
+  style = ''
+  found = False
+  for key in fontSizeMap:
+    if key in options1:
+      style = "font-size:" + fontSizeMap[key] + ";"
+      found = True
+  if not found:
+    for key in fontSizeMap:
+      if key in options2:
+        style = "font-size:" + fontSizeMap[key] + ";"
+
+  if "fs" in options3:
+    value = options3['fs']
+    if not re.match("[\d\.]+em$", value):
+      fatal("Font size option fs:" + value + ", must be specified in ems." +
+        " Found in options: " + textOpt)
+    style = "font-size:{};".format(options3['fs'])
+
+  return style
+
+# Common parsing for the lg tag, to pull out and parse the rend attribute,
+# and figure out the alignment.
+# Returns (opts, align), where opts is the parsed rend attribute array,
+# and align is one of the six alignment options.
+def parseLgOptions(args):
+  lgopts = args
+  attributes = parseTagAttributes("l", lgopts, [ 'rend', 'id' ])
+  rend = attributes['rend'] if 'rend' in attributes else ""
+  opts = parseOption("<lg>/rend=", rend, lgRendOptions)
+
+  center = "center" in opts
+  left = "left" in opts
+  right = "right" in opts
+  block = "block" in opts
+  poetry = "poetry" in opts
+  blockRight = "block-right" in opts
+
+  modeCount = \
+      (1 if center else 0) + \
+      (1 if left else 0) + \
+      (1 if right else 0) + \
+      (1 if block else 0) + \
+      (1 if blockRight else 0) + \
+      (1 if poetry else 0)
+  if modeCount > 1:
+    fatal("Multiple lg mode options given in " + rend)
+  if modeCount == 0:
+    left = True
+
+  if left:
+    align = "left"
+  elif right:
+    align = "right"
+  elif center:
+    align = "center"
+  elif block:
+    align = "block"
+  elif poetry:
+    align = "poetry"
+  elif blockRight:
+    align = "block-right"
+  else:
+    fatal("Cannot happen: " + args)
+
+  return (opts, align)
 
 def parseTablePattern(line, isHTML, uprop = None):
   # pull the pattern
@@ -1476,38 +1543,6 @@ class HTML(Book): #{
         thestyle += self.marginMap[key] + ":" + value + ";"
     return thestyle
 
-  def parseFontSize(self, options1, options2, options3, textOpt):
-    style = ''
-    found = False
-    for key in self.sizeMap:
-      if key in options1:
-        style = "font-size:" + self.sizeMap[key] + ";"
-        found = True
-    if not found:
-      for key in self.sizeMap:
-        if key in options2:
-          style = "font-size:" + self.sizeMap[key] + ";"
-
-    if "fs" in options3:
-      value = options3['fs']
-      if not re.match("[\d\.]+em$", value):
-        fatal("Font size option fs:" + value + ", must be specified in ems." +
-          " Found in options: " + textOpt)
-      style = "font-size:{};".format(options3['fs'])
-
-    return style
-
-  sizeMap = {
-    "xlg"   : "x-large",
-    "xlarge": "x-large",
-    "lg"    : "large",
-    "large" : "large",
-    "xsm"   : "x-small",
-    "xsmall": "x-small",
-    "sm"    : "small",
-    "small" : "small",
-  }
-
   def m2h(self, s, pf='False', lgr=''):
     incoming = s
     m = re.match("<l(.*?)>(.*?)<\/l>",s)
@@ -1591,7 +1626,7 @@ class HTML(Book): #{
     # <lg> options, i.e. <lg rend='lg'>...<l rend='xlg'>...</l>...</lg>
     # would end up with both lg and xlg as keys.  So check the <l> options first,
     # and only look at the <lg> options if there were no size options there
-    thestyle += self.parseFontSize(optionsL, optionsLG, options, rend + " " + lgr)
+    thestyle += parseFontSize(optionsL, optionsLG, options, rend + " " + lgr)
 
     # ----- font presentation ---
     if "under" in options:
@@ -1651,7 +1686,7 @@ class HTML(Book): #{
     i = 0
     while i < len(self.wb):
 
-      if not self.wb[i].startswith("▹"):
+      if not self.wb[i].startswith(config.FORMATTED_PREFIX):
         # protect special characters
         self.wb[i] = re.sub(r"\\ ", '⋀', self.wb[i]) # escaped (hard) spaces
         self.wb[i] = re.sub(r" ",   '⋀', self.wb[i]) # unicode 0xA0, non-breaking space
@@ -1744,7 +1779,7 @@ class HTML(Book): #{
 
     cpn = ""
     for i, line in enumerate(self.wb):
-      if line.startswith("▹"): # no page numbers in preformatted text
+      if line.startswith(config.FORMATTED_PREFIX): # no page numbers in preformatted text
         continue
       m = re.search(r"pn=['\"](\+?)(.+?)['\"]", self.wb[i])
       if m:
@@ -2075,7 +2110,7 @@ class HTML(Book): #{
   def isParaBreak(self, line):
     if line == "":
       return True
-    if line[0] == "▹": # preformatted
+    if line[0] == config.FORMATTED_PREFIX: # preformatted
       return True
     if line[0] == '<' and line != "<br/>":
         return True
@@ -2369,7 +2404,7 @@ class HTML(Book): #{
     repl = r"\1" + self.NARROW_NO_BREAK_SPACE + r"\2"
     sub = r"([\w⩥" + self.RIGHT_DOUBLE_ANGLE_QUOTATION_MARK + "])([!?;])"
     for i,line in enumerate(self.wb):
-      if line.startswith("▹"):
+      if line.startswith(config.FORMATTED_PREFIX):
         continue
       if not line.startswith("<"):
         # Note that all <font> changes are protected by changing to ⩥
@@ -2778,7 +2813,7 @@ class HTML(Book): #{
       vpad = self.parsePx(opts, 'vp', vpad)
       hpad = self.parsePx(opts, 'hp', hpad)
       hangIndent = self.parsePx(opts, 'hang', hangIndent)
-      fontsize = self.parseFontSize(opts, opts, opts, trend)
+      fontsize = parseFontSize(opts, opts, opts, trend)
 
       useborder = 'border' in opts # table uses borders
       left = 'left' in opts  # Left, not centre
@@ -3182,139 +3217,104 @@ class HTML(Book): #{
         fatal("Option sidenote-style must be either embedded or right, not " +
           style)
 
-
   # setup the framework around the lines
   # if a rend option of mt or mb appears, it applies to the entire block
   # other rend options apply to the contents of the block
   def doLineGroups(self):
     self.dprint(1,"doLineGroups")
-    regex = re.compile("<lg(.*?)>")
-    for i,line in enumerate(self.wb):
-      m = regex.match(line)
-      if m:
-        lgopts = m.group(1).strip()
-        attributes = parseTagAttributes("l", lgopts, [ 'rend', 'id' ])
-        rend = attributes['rend'] if 'rend' in attributes else ""
-        opts = parseOption("<lg>/rend=", rend, lgRendOptions)
 
-        # if a rend option of mt or mb is included, pull it out.
-        # 16-Feb-2014 may be decimal
-        blockmargin = "style='" + \
-          self.parseMargins(opts, lgopts, mm=self.lgMarginMap) + "'"
+    def lgBlock(args, lgblock):
+      (opts, align) = parseLgOptions(args)
 
-        center = "center" in opts
-        left = "left" in opts
-        right = "right" in opts
-        block = "block" in opts
-        poetry = "poetry" in opts
-        blockRight = "block-right" in opts
+      # if a rend option of mt or mb is included, pull it out.
+      # 16-Feb-2014 may be decimal
+      blockmargin = "style='" + \
+        self.parseMargins(opts, args, mm=self.lgMarginMap) + "'"
 
-        modeCount = \
-            (1 if center else 0) + \
-            (1 if left else 0) + \
-            (1 if right else 0) + \
-            (1 if block else 0) + \
-            (1 if blockRight else 0) + \
-            (1 if poetry else 0)
-        if modeCount > 1:
-          fatal("Multiple lg mode options given in " + rend)
+      # Remove the options we've processed
+      # We'll be left with options like ``small'' or ``bold'',
+      # all line-specific options, not block-specific;
+      # which will become defaults for each <l> line within
+      # the group.
+      # It is a little confusing, you can't specify both center and
+      # poetry; and yet you can override in <l> with center, but not
+      # poetry.  Poetry is block-specific; while center is both block
+      # and line.
+      for o in [
+          "mt", "mb",
+          "center", "left", "right", "block", "poetry", "block-right",
+        ]:
+        if o in opts:
+          del opts[o]
 
-        # Remove the options we've processed
-        # We'll be left with options like ``small'' or ``bold'',
-        # all line-specific options, not block-specific;
-        # which will become defaults for each <l> line within
-        # the group.
-        # It is a little confusing, you can't specify both center and
-        # poetry; and yet you can override in <l> with center, but not
-        # poetry.  Poetry is block-specific; while center is both block
-        # and line.
-        for o in [
-            "mt", "mb",
-            "center", "left", "right", "block", "poetry", "block-right",
-          ]:
-          if o in opts:
-            del opts[o]
+      # Recreate the string with the rest of the options
+      # This will be emitted as a comment on the <div> line;
+      # then m2h will find that comment and reparse it to handle the
+      # rest of the options.
+      lgopts = "rend=';"
+      for o in opts:
+        v = opts[o]
+        if v != '' and v != None:
+          lgopts += o + ":" + v
+        else:
+          lgopts += o
+        lgopts += ';'
+      lgopts += "'"
 
-        # Recreate the string with the rest of the options
-        lgopts = "rend=';"
-        for o in opts:
-          v = opts[o]
-          if v != '' and v != None:
-            lgopts += o + ":" + v
-          else:
-            lgopts += o
-          lgopts += ';'
-        lgopts += "'"
+      # default is left
+      if align == "left":
+        divLine = "<div class='lgl' {}> <!-- {} -->".format(blockmargin,lgopts)
+        self.css.addcss("[220] div.lgl { }")
+        self.css.addcss("[221] div.lgl p { text-indent: -17px; margin-left:17px; margin-top:0; margin-bottom:0; }")
+        divEndLine = "</div> <!-- end rend -->" # closing </lg>
 
-        # default is left
-        if modeCount == 0 or left:
-          self.wb[i] = "<div class='lgl' {}> <!-- {} -->".format(blockmargin,lgopts)
-          self.css.addcss("[220] div.lgl { }")
-          self.css.addcss("[221] div.lgl p { text-indent: -17px; margin-left:17px; margin-top:0; margin-bottom:0; }")
-          while not re.match("<\/lg>", self.wb[i]):
-            i += 1
-          self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
-          continue
+      elif align == "center":
+        divLine = "<div class='lgc' {}> <!-- {} -->".format(blockmargin,lgopts)
+        self.css.addcss("[220] div.lgc { }")
+        self.css.addcss("[221] div.lgc p { text-align:center; text-indent:0; margin-top:0; margin-bottom:0; }")
+        divEndLine = "</div> <!-- end rend -->" # closing </lg>
 
-        if center:
-          self.wb[i] = "<div class='lgc' {}> <!-- {} -->".format(blockmargin,lgopts)
-          self.css.addcss("[220] div.lgc { }")
-          self.css.addcss("[221] div.lgc p { text-align:center; text-indent:0; margin-top:0; margin-bottom:0; }")
-          while not re.match("<\/lg>", self.wb[i]):
-            i += 1
-          self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
-          continue
+      elif align == "right":
+        divLine = "<div class='lgr' {}> <!-- {} -->".format(blockmargin,lgopts)
+        self.css.addcss("[220] div.lgr { }")
+        self.css.addcss("[221] div.lgr p { text-align:right; text-indent:0; margin-top:0; margin-bottom:0; }")
+        divEndLine = "</div> <!-- end rend -->" # closing </lg>
 
-        if right:
-          self.wb[i] = "<div class='lgr' {}> <!-- {} -->".format(blockmargin,lgopts)
-          self.css.addcss("[220] div.lgr { }")
-          self.css.addcss("[221] div.lgr p { text-align:right; text-indent:0; margin-top:0; margin-bottom:0; }")
-          while not re.match("<\/lg>", self.wb[i]):
-            i += 1
-          self.wb[i] = "</div> <!-- end rend -->" # closing </lg>
-          continue
+      elif align == "block":
+        divLine = "<div class='literal-container' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
+        self.css.addcss("[970] .literal-container { text-align:center; margin:0 0; }")
+        self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
+        divEndLine = "</div></div> <!-- end rend -->" # closing </lg>
 
-        if block:
-          self.wb[i] = "<div class='literal-container' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
-          self.css.addcss("[970] .literal-container { text-align:center; margin:0 0; }")
-          self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
-          while not re.match("<\/lg", self.wb[i]):
-            i += 1
-          self.wb[i] = "</div></div> <!-- end rend -->" # closing </lg>
-          continue
+      elif align == "block-right":
+        divLine = "<div class='literal-container-right' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
+        self.css.addcss("[969] .literal-container-right { text-align:right; margin:1em 0; }")
+        self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
+        divEndLine = "</div></div> <!-- end rend -->" # closing </lg>
 
-        if blockRight:
-          self.wb[i] = "<div class='literal-container-right' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
-          self.css.addcss("[969] .literal-container-right { text-align:right; margin:1em 0; }")
-          self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
-          while not re.match("<\/lg", self.wb[i]):
-            i += 1
-          self.wb[i] = "</div></div> <!-- end rend -->" # closing </lg>
-          continue
+      elif align == "poetry":
+        if self.poetryIndent() == "left":
+          divLine = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
+          self.css.addcss("[230] div.lgp { }")
+          self.css.addcss("[231] div.lgp p { text-align:left; text-indent:0; margin-top:0; margin-bottom:0; }")
+          self.css.addcss("[233] .poetry-container { display:inline-block; text-align:left; margin-left:2em; }")
+          # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
+          divEndLine = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
+        else: # centered
+          self.css.addcss("[233] .poetry-container { text-align:center; }")
+          self.css.addcss("[230] div.lgp { display: inline-block; text-align: left; }")
+          divLine = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
+          self.css.addcss("[231] div.lgp p { text-align:left; margin-top:0; margin-bottom:0; }")
+          # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
+          divEndLine = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
+      return [ divLine ] + lgblock + [ divEndLine ]
 
-        if poetry:
-          if self.poetryIndent() == "left":
-              self.wb[i] = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
-              self.css.addcss("[230] div.lgp { }")
-              self.css.addcss("[231] div.lgp p { text-align:left; text-indent:0; margin-top:0; margin-bottom:0; }")
-              self.css.addcss("[233] .poetry-container { display:inline-block; text-align:left; margin-left:2em; }")
-              while not re.match("<\/lg", self.wb[i]):
-                i += 1
-              # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
-              self.wb[i] = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
-              continue
-          else: # centered
-              self.css.addcss("[233] .poetry-container { text-align:center; }")
-              self.css.addcss("[230] div.lgp { display: inline-block; text-align: left; }")
-              self.wb[i] = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
-              self.css.addcss("[231] div.lgp p { text-align:left; margin-top:0; margin-bottom:0; }")
-              while not re.match("<\/lg", self.wb[i]):
-                i += 1
-              # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
-              self.wb[i] = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
-              continue
+    parseStandaloneTagBlock(self.wb, "lg", lgBlock)
 
   # process lines, in or outside a line group
+  # At this point, the <lg> line has been turned into a <div>, with a comment
+  # which contains the original rend argument; extract it again, pass it off
+  # to m2h, which will apply it to each line
   def doLines(self):
     self.dprint(1,"doLines")
     i = 0
@@ -3636,6 +3636,49 @@ class Text(Book): #{
 
     return line
 
+  # Unused, fonts missing characters
+  def doUnicodeItalic(self, line):
+    upperZero = ord('A')
+    lowerZero = ord('a')
+
+    mathUpperZero = 0x1d434;
+    mathLowerZero = 0x1d44e;
+    mathUpperBoldZero = 0x1d400;
+    mathLowerBoldZero = 0x1d41a;
+    while True:
+      m = re.search("<i>(.*?)<\/i>", line)
+      if not m:
+        break
+      sub = line[m.start(1):m.end(1)]
+      n = len(sub)
+      replace = ""
+      off = 0
+      while off < n:
+        c = sub[off]
+        if c == '<':
+          # Ignore tags
+          while True:
+            c = sub[off]
+            replace += c
+            if c == '>':
+              break
+            off += 1
+            if off >= n:
+              break
+        else:
+          if c.isupper():
+            replace += chr(mathUpperZero + (ord(c)-upperZero))
+          elif c.islower():
+            replace += chr(mathLowerZero + (ord(c)-lowerZero))
+          else:
+            replace += c
+        off += 1
+
+      line = line[:m.start()] + replace + line[m.end():]
+
+    return line
+
+
   # convert all inline markup to text equivalent at start of run
   # Text version
   def processInline(self):
@@ -3669,6 +3712,7 @@ class Text(Book): #{
 
         self.wb[i] = regexRemove.sub("", self.wb[i])
 
+        #self.wb[i] = self.doUnicodeItalic(self.wb[i]) # unicode italic
         self.wb[i] = regexI.sub(replacewith, self.wb[i]) # italic
         self.wb[i] = regexEM.sub("_", self.wb[i]) # italic
         self.wb[i] = regexB.sub("=", self.wb[i]) # bold
@@ -3687,7 +3731,7 @@ class Text(Book): #{
           replace = ""
           x = m.group(1)
           for j in range(len(x)-1):
-            replace += x[j] + "□" # space after all but last character
+            replace += x[j] + config.HARD_SPACE # space after all but last character
           replace += x[-1] # last character
           self.wb[i] = regexG.sub(replace, self.wb[i], 1)
           m = regexG.search(self.wb[i])
@@ -3855,9 +3899,9 @@ class Text(Book): #{
       s = re.sub("<(\/?sc)>", r"[[\1]]", s) # small caps
       s = re.sub("<(\/?g)>", r"[[\1]]", s) # gesperrt
       s = re.sub("<(\/?u)>", r"[[\1]]", s) # underline
-      s = re.sub(r"\\ ", "□", s) # hard spaces
+      s = re.sub(r"\\ ", config.HARD_SPACE, s) # hard spaces
       s = re.sub(r"<thinsp>|<nnbsp>|<wjoiner>", "", s) # remove special tags
-      s = re.sub(r" ",'□', s) # unicode 0xA0, non-breaking space
+      s = re.sub(r" ", config.HARD_SPACE, s) # unicode 0xA0, non-breaking space
       while re.search(r"\. \.", s):
         s = re.sub(r"\. \.", ".□.", s) # spaces in ellipsis
       s = re.sub(r"…", "...", s) # unwrap ellipsis UTF-8 character for text
@@ -3878,7 +3922,7 @@ class Text(Book): #{
       # For each line in the lg block.
       for i, line in enumerate(block):
         if not (re.match("<l", line) or re.match("<tb", line)):
-          line = re.sub(" ", "□", line)
+          line = re.sub(" ", config.HARD_SPACE, line)
           line = "<l>{0}</l>".format(line)
           block[i] = line
       return [ "<lg " + args + ">" ] + block + [ "</lg>" ]
@@ -3908,7 +3952,7 @@ class Text(Book): #{
           t.append("▹.rs 1")
           u = s.split('\n')
           for x in u:
-            t.append("▹"+x) # may be multiple lines
+            t.append(config.FORMATTED_PREFIX+x) # may be multiple lines
           t.append("▹.rs 1")
         else: # fpgen wraps illustration line
           # TODO: In this form, if we are wrapped in an <lg>, the .rs comes out centered!
@@ -3916,7 +3960,7 @@ class Text(Book): #{
           t.append("▹.rs 1")
           u = wrap2(s)
           for x in u:
-            t.append("▹"+x) # may be multiple lines
+            t.append(config.FORMATTED_PREFIX+x) # may be multiple lines
           t.append("▹.rs 1")
       return t
 
@@ -4013,7 +4057,6 @@ class Text(Book): #{
     i = 0
     regexTable = re.compile(r"<table(.*?)>")
     regexLg = re.compile("<lg(.*?)>")
-    regexEndLg = re.compile("<\/lg>")
     regexL = re.compile("<l(.*?)>(.*?)<\/l>")
     regexFootnote = re.compile(r"<footnote\s+(.*?)>")
     regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
@@ -4133,9 +4176,7 @@ class Text(Book): #{
         if self.isTbHidden(self.wb[i]):
           t = []
         else:
-          t = ["▹.rs 1"]
-          t.append("▹                 *        *        *        *        *")
-          t.append("▹.rs 1")
+          t = ["▹.rs 1", textTbLine, "▹.rs 1" ]
         self.wb[i:i+1] = t
         i += 1
         continue
@@ -4175,6 +4216,7 @@ class Text(Book): #{
         i += len(t) + 2
         continue
 
+      # ----- footnote marker ----------------------------------------------
       if self.wb[i].startswith("<hr"):
         m = re.search("rend='(.*?)'\/?>",self.wb[i])
         t = ["▹.rs 1"]
@@ -4187,7 +4229,6 @@ class Text(Book): #{
         i += 1
         continue
 
-
       # ----- page breaks --------------------------------------------------
       if self.wb[i].startswith("<pb"):
         self.wb[i] = "▹.rs 4"
@@ -4198,99 +4239,11 @@ class Text(Book): #{
       m = regexL.match(self.wb[i])
       if m:
         handled = False
-
-        if not empty.match(m.group(2)):
-          thetext = (self.detag(m.group(2)))
-          therend = m.group(1)
-
-          m = re.search("sb:(\d+)", therend) # text spaces before
-          if m:
-            howmuch = m.group(1)
-            self.wb.insert(i, ".rs {}".format(howmuch))
-            i += 1
-
-          m = re.search("sa:(\d+)", therend) # text spaces after
-          if m:
-            howmuch = m.group(1)
-            self.wb.insert(i+1, ".rs {}".format(howmuch))
-
-          m = re.search("ml:([\d\.]+)em", therend)
-          if m:
-            # indent left
-            howmuch = int(float(m.group(1)))
-          else:
-            m = re.search("ml:0", therend)
-            if m:
-              howmuch = 0
-
-          if m:
-            self.wb[i] = self.qstack[-1] + " " * howmuch + thetext.strip()
-            handled = True
-
-          m = re.search("right", therend)
-          if m:
-            howmuch = 0
-          else:
-            m = re.search("mr:([\d\.]+)em", therend)
-            if m:
-              # indent right
-              howmuch = int(float(m.group(1)))
-            else:
-              m = re.search("mr:0", therend)
-              if m:
-                howmuch = 0
-
-          if m:
-            # rend="right" or rend="mr:0"
-            rmar = config.LINE_WIDTH - len(self.qstack[-1]) - howmuch
-            fstr = "{:>" + str(rmar) + "}"
-            self.wb[i] = fstr.format(thetext.strip())
-            handled = True
-
-          m = re.search("center", therend)
-          if m:
-            # center
-            #self.wb[i] = "▹" + '{:^{width}}'.format(thetext.strip(), width=config.LINE_WIDTH)
-            replacements = self.centerL(thetext.strip())
-            self.wb[i:i+1] = replacements
-            i += len(replacements)-1
-            handled = True
-
-          m = re.search("triple", therend)
-          if m:
-            pieces = thetext.split("|")
-            if len(pieces) != 3:
-              fatal("<l> triple alignment does not have three pieces: " + thetext)
-            left = pieces[0]
-            center = pieces[1]
-            right = pieces[2]
-
-            # This makes it have even spacing on both sides.
-            # Alternatively, we could try to center the middle with different spacing
-            if False:
-              extra = config.LINE_WIDTH - len(left) - len(right) - len(center)
-              if extra <= 0:
-                fatal("Triple alignment doesn't fit: " + str(extra) + "; Line:" + thetext)
-              gapl = extra // 2
-              gapr = gap + extra % 2      # Make sure we add up to LINE_WIDTH
-            else:
-              gapl = (config.LINE_WIDTH - len(center))//2 - len(left)
-              gapr = (config.LINE_WIDTH - len(center))//2 - len(right)
-              if gapl <= 0 or gapr <= 0:
-                fatal("Triple alignment doesn't fit: left=" + str(gapl) + \
-                  ", right=" + str(gapr) + "; Line:" + thetext)
-
-            self.wb[i] = left + gapl * ' ' + center + gapr * ' ' + right
-            handled = True
-
-          if not handled:
-            self.wb[i] = self.qstack[-1] + thetext.strip()
-
-        else:
-          # Blank line, i.e. <l></l>
-          self.wb[i] = config.FORMATTED_PREFIX
-
-        i += 1
+        args = m.group(1).strip()
+        contents = m.group(2)
+        block = self.oneL(args, contents)
+        self.wb[i:i+1] = block
+        i += len(block)
         continue
 
       # ----- tables ----------------------------------------------------------
@@ -4302,216 +4255,20 @@ class Text(Book): #{
         while not re.match("<\/table>", self.wb[j]):
           j += 1
         endloc = j
-        self.wb[startloc:endloc+1] = self.makeTable(self.wb[startloc:endloc+1])
+        block = self.makeTable(self.wb[startloc:endloc+1])
+        self.wb[startloc:endloc+1] = block
+        i += len(block)
+        continue
 
       # ----- process line group ----------------------------------------------
       m = regexLg.match(self.wb[i])
       if m:
-        self.wb[i] = ".rs 1" # the <lg...
-        i += 1 # first line of line group
-
-        # Process <tb> for all cases
+        startloc = i
         j = i
-        while not regexEndLg.match(self.wb[j]):
-          # Only do a prefix match, we ignore potential the rend=
-          if re.match("<tb", self.wb[j]):
-            if not self.isTbHidden(self.wb[j]):
-              self.wb[j] = "▹                 *        *        *        *        *"
-            else:
-              del self.wb[j]
-              continue
+        while not self.wb[j].startswith("</lg>"):
           j += 1
-
-        # Isolate the attribute, and process the different styles: center, left, right, poetry,
-        # and block; all separately
-        attrib = m.group(1)
-
-        m = re.search("center", attrib)
-        if m:
-          while not regexEndLg.match(self.wb[i]):
-            m = re.match(r"<l.*?>(.*?)</l>", self.wb[i])
-            if m:
-              if not empty.match(m.group(1)):
-                theline = self.detag(m.group(1))
-                if len(theline) > config.LINE_WRAP:
-                  s = re.sub("□", " ", theline)
-                  cprint("warning (long line):\n{}".format(s))
-                self.wb[i] = "▹" + '{:^{width}}'.format(theline, width=config.LINE_WIDTH)
-              else:
-                self.wb[i] = config.FORMATTED_PREFIX
-            i += 1
-          self.wb[i] = ".rs 1" # overwrites the </lg>
-          continue
-
-        m = re.search("right", attrib)
-        if m:
-          while not regexEndLg.match(self.wb[i]):
-            m = re.match(r"<l.*?>(.*?)</l>", self.wb[i])
-            if m:
-              if not empty.match(m.group(1)):
-                theline = self.detag(m.group(1))
-                if len(theline) > config.LINE_WRAP:
-                  s = re.sub("□", " ", theline)
-                  cprint("warning (long line):\n{}".format(s))
-                self.wb[i] = "▹" + '{:>{width}}'.format(theline, width=config.LINE_WIDTH)
-              else:
-                self.wb[i] = config.FORMATTED_PREFIX
-            i += 1
-          self.wb[i] = ".rs 1" # overwrites the </lg>
-          continue
-
-        # ----- begin poetry code ---------------------------------------------
-        # poetry allows rends: ml:Nem, center, mr:0em
-        m = re.search("poetry", attrib)
-        if m:
-          # first determine maximum width in poetry block
-          j = i
-          maxwidth = 0
-          maxline = ""
-          while not regexEndLg.match(self.wb[j]):
-            self.wb[j] = self.detag(self.wb[j])
-            theline = re.sub(r"<.+?>", "", self.wb[j]) # centering tags, etc.
-            if len(theline) > maxwidth:
-              maxwidth = len(self.wb[j])
-              maxline = self.wb[j]
-            j += 1
-          maxwidth -= 3
-          if maxwidth > 70:
-            cprint("warning (long poetry line {} chars)".format(maxwidth))
-            self.dprint(1,"  " + maxline) # shown in debug in internal form
-          lastLine = None
-          while not regexEndLg.match(self.wb[i]):
-            m = re.match("<l(.*?)>(.*?)</l>", self.wb[i])
-            if m:
-              irend = m.group(1)
-              itext = m.group(2)
-
-              # center and right override ml
-              if re.search("center", irend):
-                tstr = "▹{0:^" + "{}".format(maxwidth) + "}"
-                self.wb[i] = tstr.format(itext)
-                i += 1
-                continue
-              if re.search("mr:0em", irend) or re.search("mr:0", irend):
-                tstr = "▹{0:>" + "{}".format(maxwidth) + "}"
-                self.wb[i] = tstr.format(itext)
-                i += 1
-                continue
-              if re.search("align-last", irend):
-                if lastLine == None:
-                  fatal("Use of rend='align-last' without a last line: " + itext)
-                itext = " " * len(lastLine) + itext
-
-              m = re.search("ml:(\d+)em", irend)
-              if m:
-                isml = True
-                itext = "□" * int(m.group(1)) + itext
-              if not empty.match(itext):
-                theline = self.detag(itext)
-                lastLine = theline
-                if len(theline) > config.LINE_WRAP:
-                  s = re.sub("□", " ", theline)
-                  self.dprint(1,"warning: long poetry line:\n{}".format(s))
-                if self.poetryIndent() == 'center':
-                    leader = " " * ((config.LINE_WIDTH - maxwidth) // 2)
-                else:
-                    leader = " " * 4
-                self.wb[i] = "▹" + self.qstack[-1] + leader + "{:<}".format(theline)
-
-              else:
-                self.wb[i] = config.FORMATTED_PREFIX
-
-            i += 1
-          self.wb[i] = ".rs 1"  # overwrites the </lg>
-          continue
-        # ----- end of poetry code --------------------------------------------
-
-        # block allows rends: ml, mr
-        m = re.search("block", attrib)
-        if m:
-          # find width of block
-          j = i
-          maxw = 0
-          longline = ""
-          while not regexEndLg.match(self.wb[j]):
-            m = re.match("<l(.*?)>(.*?)</l>", self.wb[j])
-            if m:
-              therend = m.group(1)
-              thetext = m.group(2)
-              rendlen = 0
-              textlen = 0
-              m = re.search("m[lr]:([\d\.]+)em", therend)
-              if m: # length may be affected
-                rendlen = int(m.group(1))
-              if not empty.match(thetext): # if not empty
-                thetext = self.detag(thetext) # handle markup
-              textlen = len(thetext) # calculate length
-              totlen = rendlen + textlen
-            elif self.wb[j].startswith(config.FORMATTED_PREFIX):
-              pass
-            else:
-              self.fatal(self.wb[j])
-            if totlen > maxw:
-              maxw = totlen
-              longline = thetext
-            j += 1
-          # have maxw calculated
-          if maxw > config.LINE_WIDTH:
-            self.dprint(1,"warning: long line: ({})\n{}".format(len(longline),longline))
-            leader = ""
-          else:
-            leader = "□" * ((config.LINE_WIDTH - maxw) // 2) # fixed left indent for block
-
-          while not regexEndLg.match(self.wb[i]):
-            m = re.match("<l(.*?)>(.*?)</l>", self.wb[i]) # parse each line
-            if m:
-              s = m.group(2) # text part
-              if not empty.match(s):
-                thetext = self.detag(s) # expand markup
-              else:
-                thetext = ""
-              irend = m.group(1)
-
-              m = re.search("ml:([\d\.]+)em", irend) # padding on left?
-              if m:
-                thetext = "□" * int(m.group(1)) + thetext
-
-              m = re.search("mr:([\d\.]+)", irend) # right aligned
-              if m:
-                inright = int(m.group(1))
-                fstr = "{:>"+str(maxw-inright)+"}"
-                thetext = fstr.format(thetext)
-                thetext = re.sub(" ", "□", thetext)
-
-              m = re.search("center", irend) # centered in block
-              if m:
-                thetext = " " * ((maxw - len(thetext))//2) + thetext
-                thetext = re.sub(" ", "□", thetext)
-
-              # if not specified,
-              self.wb[i] = "▹" + leader + thetext
-            elif self.wb[i].startswith(config.FORMATTED_PREFIX):
-              pass
-            else:
-              self.wb[i] = config.FORMATTED_PREFIX
-            i += 1
-          self.wb[i] = ".rs 1"
-          continue
-
-        # if not handled, line group is left-align
-        while not regexEndLg.match(self.wb[i]):
-          m = re.match("<l.*?>(.*?)</l>", self.wb[i])
-          if m:
-            if empty.match(m.group(1)):
-              self.wb[i] = config.FORMATTED_PREFIX
-            else:
-              theline = self.detag(m.group(1))
-              if len(theline) > config.LINE_WRAP:
-                s = re.sub("□", " ", theline)
-                self.dprint(1,"warning: long line:\n{}".format(s))
-              self.wb[i] = "▹" + '{:<72}'.format(theline)
-          i += 1
-        self.wb[i] = ".rs 1"
+        endloc = j
+        self.wb[startloc:endloc+1] = self.oneLineGroup(m, self.wb[startloc:endloc+1])
 
       # ----- wrap ------------------------------------------------------------
 
@@ -4551,6 +4308,330 @@ class Text(Book): #{
       u.append(".rs 1")
       self.wb[mark1:mark2] = u
       i = mark1 + len(u)
+
+  # One single standalone <l> line.
+  # therend is everything matching <l(.*)>
+  # contents is everything matching <l>(.*)</l>
+  def oneL(self, therend, contents):
+    if contents == "":
+      # Blank line, i.e. <lXX></l>
+      return [ config.FORMATTED_PREFIX ]
+
+    handled = False
+    thetext = self.detag(contents)
+    block = [ contents ]
+    i = 0
+
+    m = re.search("sb:(\d+)", therend) # text spaces before
+    if m:
+      howmuch = m.group(1)
+      block.insert(0, ".rs {}".format(howmuch))
+      i = 1
+
+    m = re.search("sa:(\d+)", therend) # text spaces after
+    if m:
+      howmuch = m.group(1)
+      block.append(".rs {}".format(howmuch))
+
+    m = re.search("ml:([\d\.]+)em", therend)
+    if m:
+      # indent left
+      howmuch = int(float(m.group(1)))
+    else:
+      m = re.search("ml:0", therend)
+      if m:
+        howmuch = 0
+
+    if m:
+      block[i] = self.qstack[-1] + " " * howmuch + thetext.strip()
+      handled = True
+
+    m = re.search("right", therend)
+    if m:
+      howmuch = 0
+    else:
+      m = re.search("mr:([\d\.]+)em", therend)
+      if m:
+        # indent right
+        howmuch = int(float(m.group(1)))
+      else:
+        m = re.search("mr:0", therend)
+        if m:
+          howmuch = 0
+
+    if m:
+      # rend="right" or rend="mr:0"
+      rmar = config.LINE_WIDTH - len(self.qstack[-1]) - howmuch
+      fstr = "{:>" + str(rmar) + "}"
+      block[i] = fstr.format(thetext.strip())
+      handled = True
+
+    m = re.search("center", therend)
+    if m:
+      # center
+      #self.wb[i] = config.FORMATTED_PREFIX + '{:^{width}}'.format(thetext.strip(), width=config.LINE_WIDTH)
+      replacements = self.centerL(thetext.strip())
+      block[i:i+1] = replacements
+      i += len(replacements)-1
+      handled = True
+
+    m = re.search("triple", therend)
+    if m:
+      pieces = thetext.split("|")
+      if len(pieces) != 3:
+        fatal("<l> triple alignment does not have three pieces: " + thetext)
+      left = pieces[0]
+      center = pieces[1]
+      right = pieces[2]
+
+      # This makes it have even spacing on both sides.
+      # Alternatively, we could try to center the middle with different spacing
+      if False:
+        extra = config.LINE_WIDTH - len(left) - len(right) - len(center)
+        if extra <= 0:
+          fatal("Triple alignment doesn't fit: " + str(extra) + "; Line:" + thetext)
+        gapl = extra // 2
+        gapr = gap + extra % 2      # Make sure we add up to LINE_WIDTH
+      else:
+        gapl = (config.LINE_WIDTH - len(center))//2 - len(left)
+        gapr = (config.LINE_WIDTH - len(center))//2 - len(right)
+        if gapl <= 0 or gapr <= 0:
+          fatal("Triple alignment doesn't fit: left=" + str(gapl) + \
+            ", right=" + str(gapr) + "; Line:" + thetext)
+
+      block[i] = left + gapl * ' ' + center + gapr * ' ' + right
+      handled = True
+
+    # Must be left
+    if not handled:
+      block[i] = self.qstack[-1] + thetext.strip()
+
+    return block
+
+  def oneLineGroup(self, m, block):
+    # remove <lg>, and </lg>
+    del block[0]
+    del block[-1]
+
+    # Isolate the attribute, and process the different styles:
+    # center, left, right, poetry,
+    # and block; all separately
+    opts, align = parseLgOptions(m.group(1))
+    self.formatLineGroup(m, block, opts, align)
+
+    # Blank line, before and after
+    block.insert(0, ".rs 1")
+    block.append(".rs 1")
+    return block
+
+  # The whole file has already been processed by markLines().
+  # This took each line in the line group, and if it didn't already have
+  # a <l> or <tb>, it has added <l>...</l> around the line.
+  # All spaces were turned into hard spaces.
+  def formatLineGroup(self, m, block, opts, align):
+
+    # <tb> is allowed as a special case inside a line group
+    i = 0
+    while i < len(block):
+      # Only do a prefix match, we ignore potential the rend=
+      if block[i].startswith("<tb"):
+        if not self.isTbHidden(block[i]):
+          block[i] = textTbLine
+        else:
+          del block[i]
+          continue
+      i += 1
+
+    # ----- bold, italic markers -------------------------------------------
+    marker = "".join([ textFontStyleMap[key] for key in opts if key in textFontStyleMap ])
+    if len(marker) != 0:
+      revMarker = marker[::-1]
+      for i, line in enumerate(block):
+        if line.startswith(config.FORMATTED_PREFIX):
+          continue
+        # Find first non-hard-space, and stick the marker in
+        m = re.match("<l(.*?)>(.*?)</l>", line)
+        if m:
+          l = m.group(2)
+          for off, c in enumerate(l):
+            if c != config.HARD_SPACE:
+              l = l[0:off] + marker + l[off:] + revMarker
+              block[i] = "<l" + m.group(1) + ">" + l + "</l>"
+              break
+
+    # ----- left, right, center ---------------------------------------------
+    fmt = None
+    if align == "center":
+      fmt = "^"
+    elif align == "right":
+      fmt = ">"
+    elif align == "left":
+      fmt = "<"
+
+    if fmt != None:
+      i = 0
+      while i < len(block):
+        m = re.match(r"<l.*?>(.*?)</l>", block[i])
+        if m:
+          if not empty.match(m.group(1)):
+            theline = self.detag(m.group(1))
+            if len(theline) > config.LINE_WRAP:
+              s = re.sub(config.HARD_SPACE, " ", theline)
+              if align == "left":
+                # Message for left comes out later as Wrapping line
+                dprint(1, "warning: long line:\n{}".format(s))
+              else:
+                cprint("warning (long line):\n{}".format(s))
+            block[i] = (config.FORMATTED_PREFIX + '{:' + fmt + '{width}}').format(theline, width=config.LINE_WIDTH)
+          else:
+            block[i] = config.FORMATTED_PREFIX
+        i += 1
+      return
+
+    # ----- begin poetry code ---------------------------------------------
+    # poetry allows rends: ml:Nem, center, mr:0em
+    if align == "poetry":
+      # first determine maximum width in poetry block
+      maxwidth = 0
+      maxline = ""
+      i = 0
+      while i < len(block):
+        block[i] = self.detag(block[i])
+        theline = re.sub(r"<.+?>", "", block[i]) # centering tags, etc.
+        if len(theline) > maxwidth:
+          maxwidth = len(block[i])
+          maxline = block[i]
+        i += 1
+
+      maxwidth -= 3
+      if maxwidth > 70:
+        cprint("warning (long poetry line {} chars)".format(maxwidth))
+        self.dprint(1,"  " + maxline) # shown in debug in internal form
+
+      lastLine = None
+      i = 0
+      while i < len(block):
+        m = re.match("<l(.*?)>(.*?)</l>", block[i])
+        if m:
+          irend = m.group(1)
+          itext = m.group(2)
+
+          # center and right override ml
+          if re.search("center", irend):
+            tstr = "▹{0:^" + "{}".format(maxwidth) + "}"
+            block[i] = tstr.format(itext)
+            i += 1
+            continue
+          if re.search("mr:0em", irend) or re.search("mr:0", irend):
+            tstr = "▹{0:>" + "{}".format(maxwidth) + "}"
+            block[i] = tstr.format(itext)
+            i += 1
+            continue
+          if re.search("align-last", irend):
+            if lastLine == None:
+              fatal("Use of rend='align-last' without a last line: " + itext)
+            itext = " " * len(lastLine) + itext
+
+          m = re.search("ml:(\d+)em", irend)
+          if m:
+            isml = True
+            itext = config.HARD_SPACE * int(m.group(1)) + itext
+          if not empty.match(itext):
+            theline = self.detag(itext)
+            lastLine = theline
+            if len(theline) > config.LINE_WRAP:
+              s = re.sub(config.HARD_SPACE, " ", theline)
+              self.dprint(1,"warning: long poetry line:\n{}".format(s))
+            if self.poetryIndent() == 'center':
+                leader = " " * ((config.LINE_WIDTH - maxwidth) // 2)
+            else:
+                leader = " " * 4
+            block[i] = config.FORMATTED_PREFIX + self.qstack[-1] + leader + "{:<}".format(theline)
+
+          else:
+            block[i] = config.FORMATTED_PREFIX
+
+        i += 1
+      return
+    # ----- end of poetry code --------------------------------------------
+
+    # block allows rends: ml, mr
+    # block, or block-right
+    if align.startswith("block"):
+      # find width of block
+      maxw = 0
+      longline = ""
+      i = 0
+      while i < len(block):
+        m = re.match("<l(.*?)>(.*?)</l>", block[i])
+        if m:
+          therend = m.group(1)
+          thetext = m.group(2)
+          rendlen = 0
+          textlen = 0
+          m = re.search("m[lr]:([\d\.]+)em", therend)
+          if m: # length may be affected
+            rendlen = int(m.group(1))
+          if not empty.match(thetext): # if not empty
+            thetext = self.detag(thetext) # handle markup
+          textlen = len(thetext) # calculate length
+          totlen = rendlen + textlen
+        elif block[i].startswith(config.FORMATTED_PREFIX):
+          pass
+        else:
+          self.fatal(block[i])
+        if totlen > maxw:
+          maxw = totlen
+          longline = thetext
+        i += 1
+
+      # Have maxw calculated
+      # Now compute fixed left indent
+      if maxw > config.LINE_WIDTH:
+        self.dprint(1,"warning: long line: ({})\n{}".format(len(longline),longline))
+        leader = ""
+      elif align == "block-right":
+        leader = config.HARD_SPACE * (config.LINE_WIDTH - maxw)
+      else:     # block
+        leader = config.HARD_SPACE * ((config.LINE_WIDTH - maxw) // 2)
+
+      i = 0
+      while i < len(block):
+        m = re.match("<l(.*?)>(.*?)</l>", block[i]) # parse each line
+        if m:
+          s = m.group(2) # text part
+          if not empty.match(s):
+            thetext = self.detag(s) # expand markup
+          else:
+            thetext = ""
+          irend = m.group(1)
+
+          m = re.search("ml:([\d\.]+)em", irend) # padding on left?
+          if m:
+            thetext = config.HARD_SPACE * int(m.group(1)) + thetext
+
+          m = re.search("mr:([\d\.]+)", irend) # right aligned
+          if m:
+            inright = int(m.group(1))
+            fstr = "{:>"+str(maxw-inright)+"}"
+            thetext = fstr.format(thetext)
+            thetext = re.sub(" ", config.HARD_SPACE, thetext)
+
+          m = re.search("center", irend) # centered in block
+          if m:
+            thetext = " " * ((maxw - len(thetext))//2) + thetext
+            thetext = re.sub(" ", config.HARD_SPACE, thetext)
+
+          # if not specified,
+          block[i] = config.FORMATTED_PREFIX + leader + thetext
+        elif block[i].startswith(config.FORMATTED_PREFIX):
+          pass
+        else:
+          block[i] = config.FORMATTED_PREFIX
+        i += 1
+      return
+
+    return
 
   # Center a single line enclosed in <l>...</l>
   # If it doesn't fit, break appropriately and center multiple lines
@@ -4612,11 +4693,11 @@ class Text(Book): #{
     # merge user-forced lines
     i = 0
     while i < len(self.wb):
-      if "▹" == self.wb[i]:
+      if config.FORMATTED_PREFIX == self.wb[i]:
         startloc = i
         spacecount = 1
         i += 1
-        while i < len(self.wb) and "▹" == self.wb[i]:
+        while i < len(self.wb) and config.FORMATTED_PREFIX == self.wb[i]:
           spacecount += 1
           i += 1
         self.wb[startloc:i] = [".rs {}".format(spacecount)]
@@ -4665,9 +4746,9 @@ class Text(Book): #{
         line = []
         for c in l:
           # ?? or start or end dropcap
-          if c == "▹" or c == config.DROP_START or c == config.DROP_END:
+          if c == config.FORMATTED_PREFIX or c == config.DROP_START or c == config.DROP_END:
             continue
-          elif c == "□":
+          elif c == config.HARD_SPACE:
             c = " "
           elif c == "⊐": # escaped percent signs (macros)
             c = "%"
@@ -4686,8 +4767,8 @@ class Text(Book): #{
         l = ''.join(line)
 
       else:
-        l = re.sub("▹", "", l)
-        l = re.sub("□", " ", l)
+        l = re.sub(config.FORMATTED_PREFIX, "", l)
+        l = re.sub(config.HARD_SPACE, " ", l)
         l = re.sub('⊐', '%', l) # escaped percent signs (macros)
         l = re.sub('⊏', '#', l) # escaped octothorpes (page links)
         l = re.sub("≼", "<", l) # <
@@ -5847,19 +5928,12 @@ class TestMakeTable(unittest.TestCase):
   # TODO: Tests for computing widths
   # TODO: Tests for computing some widths
 
+# legal attributes on <illustration>
 illustrationAttributes = [
   "content", "src", "rend", "id",
 ]
 
-tbAttributes = [
-  "rend",
-]
-
-tbRendOptions = [
-  "text",       # text:hidden
-  "mt", "mb", "ls", "lc", "thickness", "w", "right", "left", "align",
-]
-
+# rend= options on <illustration>
 illustrationRendOptions = [
   "w", "h",
   "align",
@@ -5867,6 +5941,20 @@ illustrationRendOptions = [
   "occupy",
   "link",
 ]
+
+# legal attributes on <tb>
+tbAttributes = [
+  "rend",
+]
+
+# rend= options for <tb>
+tbRendOptions = [
+  "text",       # text:hidden
+  "mt", "mb", "ls", "lc", "thickness", "w", "right", "left", "align",
+]
+
+# Line used in text output for a <tb>
+textTbLine = "▹                 *        *        *        *        *"
 
 lRendOptions = [
   "center", "right", "left",
@@ -5887,10 +5975,34 @@ lgRendOptions = [
   "under", "bold", "sc", "smallcaps", "i", "italic",
 ]
 
+# These are the font styles in the lgRendOptions, and their mapping to
+# text letters
+textFontStyleMap = {
+  "bold"   : "=",
+  "under"  : "=",
+  "italic" : "_",
+  "i"      : "_",
+}
+
+# Used in <lg> and <table> (currently); map from our keyword to css keyword
+fontSizeMap = {
+  "xlg"   : "x-large",
+  "xlarge": "x-large",
+  "lg"    : "large",
+  "large" : "large",
+  "xsm"   : "x-small",
+  "xsmall": "x-small",
+  "sm"    : "small",
+  "small" : "small",
+}
+
+
+# rend= options for <quote>
 quoteRendOptions = [
   "right", "w", "fs"
 ]
 
+# rend= options for <table>
 tableRendOptions = [
   # Text only
   "pad", "textwidth",

@@ -123,8 +123,9 @@ uopt = userOptions()
 # 4.44     Add leaders to table cells
 # 4.44a    Fix leaders for firefox
 # 4.44b    Rewrite paragraph recognition; many para starts being lost
+# 4.44c    Observe font changes specified by <lg rend=''> in text output
 
-VERSION="4.44b"
+VERSION="4.44c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -138,6 +139,7 @@ LINE_WRAP = 75
 debug = 0
 FORMATTED_PREFIX = "▹"
 NO_WRAP_PREFIX = "\u2135"
+HARD_SPACE = "□"
 DROP_START = "☊"
 DROP_END = "☋"
 pn_cover = ""
