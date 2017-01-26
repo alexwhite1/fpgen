@@ -124,8 +124,9 @@ uopt = userOptions()
 # 4.44a    Fix leaders for firefox
 # 4.44b    Rewrite paragraph recognition; many para starts being lost
 # 4.44c    Observe font changes specified by <lg rend=''> in text output
+# 4.45     Add footnote-style, with new paragraph style
 
-VERSION="4.44c"
+VERSION="4.45"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

@@ -46,13 +46,7 @@ def relocateFootnotes(block):
       'marker':marker,
       'asterisk':asterisk,
   }
-  tagValue = config.uopt.getopt("footnote-location")
-  if tagValue == '':
-    mode = none
-  elif tagValue in options:
-    mode = options[tagValue]
-  else:
-    fatal("footnote-location option " + tagValue + " is not legal.  Valid values are: none, heading, heading-reset, marker.")
+  mode = config.uopt.getOptEnum("footnote-location", options, none)
 
   notes = []
   fnc = 1
@@ -296,7 +290,7 @@ def footnotesToHtml(wb):
       args = parseTagAttributes("footnote", opts, [ "id", "target" ])
       fnid = args["id"]
       target = args["target"]
-      wb[i] = "<div id='f{0}'><a href='#r{0}'>{1}</a></div>".format(target, fnid)
+      wb[i] = "<div class='footnote-id' id='f{0}'><a href='#r{0}'>{1}</a></div>".format(target, fnid)
       while not re.match("<\/footnote>", wb[i]):
         i += 1
       wb[i] = "</div> <!-- footnote end -->"

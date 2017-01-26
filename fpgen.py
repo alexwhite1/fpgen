@@ -63,6 +63,16 @@ class userOptions(object):
     else:
       return ""
 
+  def getOptEnum(self, k, map, default):
+    tagValue = self.getopt(k)
+    if tagValue == '':
+      return default
+    elif tagValue in map:
+      return map[tagValue]
+    else:
+      fatal("Option " + k + ": Illegal value '" + tagValue + "'. Legal values are: " + str(map.keys()))
+    return None
+
   def isOpt(self, k, default):
     if k in self.opt:
       if self.opt[k] == "true":
@@ -3343,6 +3353,20 @@ class HTML(Book): #{
         self.wb[i] = self.m2h(self.wb[i], inPoetry, rendopts)
       i += 1
 
+  def emitFootnotes(self):
+    table = 1
+    paragraph = 2
+    options = {
+      'table':table,
+      'paragraph':paragraph,
+    }
+    mode = config.uopt.getOptEnum("footnote-style", options, table)
+
+    if mode == table:
+      self.footnotesToTable()
+    elif mode == paragraph:
+      self.footnotesToParagraph()
+
   # anything particular for derived-class media (epub, mobi, PDF)
   # can use this as an overridden method
   def footnotesToTable(self):
@@ -3350,7 +3374,7 @@ class HTML(Book): #{
     matched = False
     i = 0
     while i < len(self.wb):
-      m = re.match("<div id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", self.wb[i])
+      m = re.match("<div class='footnote-id' id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", self.wb[i])
       if m:
         matched = True
         t = []
@@ -3358,7 +3382,7 @@ class HTML(Book): #{
         t.append("<table summary='footnote_{}'>".format(m.group(1)))
 
         t.append("<colgroup>")
-        t.append("<col span='1' style='width: 3em;'/>")
+        t.append("<col span='1' class='footnoteid'/>")
         t.append("<col span='1'/>")
         t.append("</colgroup>")
 
@@ -3384,6 +3408,49 @@ class HTML(Book): #{
         # on the first paragraph. Subsequent paragraphs look ok indented
         self.css.addcss("[410] .footnote td p.pindent:first-child { text-indent: 0; }")
       self.css.addcss("[411] .footnote { margin:0 4em 0 0; }")
+      self.css.addcss("[411] .footnoteid { width: 3em; }")
+
+  def footnotesToParagraph(self):
+    # for HTML, gather footnotes into paragraphs
+    matched = False
+    i = 0
+    while i < len(self.wb):
+      m = re.match("<div class='footnote-id' id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", self.wb[i])
+      if m:
+        matched = True
+        t = []
+        t.append("<div class='footnote'>")
+        t.append("<p class='footnote'>")
+        self.wb[i] = re.sub("div", "span", self.wb[i])
+        t.append(self.wb[i]) # <div id='f1_2'><a href='#r1_2'>[1]</a></div>
+        del(self.wb[i])
+
+        first = True
+        while not re.search("<!-- footnote end -->",self.wb[i]):
+
+          if first:
+            # Remove first paragraph tag
+            m = re.match("<p.*?>", self.wb[i])
+            if m:
+              self.wb[i] = self.wb[i][m.end():]
+              first = False
+          t.append(self.wb[i])
+          del(self.wb[i])
+        del(self.wb[i]) # closing div
+        t.append("</div>")
+        t.append("")
+        self.wb[i:i+1] = t
+        i += len(t)-1
+      i += 1
+
+    if matched:
+      self.css.addcss("[411] div.footnote { margin:0 .5em; }")
+      self.css.addcss("[411] p.footnote { text-indent:1.5em; }")
+      self.css.addcss(""" [411] .footnote-id {
+        text-indent:1.5em;
+        vertical-align:super;
+        font-size:smaller;
+      }""")
 
   def processPageNumDisp(self):
     inBlockElement = False
@@ -3462,7 +3529,7 @@ class HTML(Book): #{
     self.doLines()
 
     self.processPageNumDisp()
-    self.footnotesToTable()
+    self.emitFootnotes()
     self.placeCSS()
     self.placeMeta()
     self.cleanup()
