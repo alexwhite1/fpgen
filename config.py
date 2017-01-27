@@ -125,8 +125,9 @@ uopt = userOptions()
 # 4.44b    Rewrite paragraph recognition; many para starts being lost
 # 4.44c    Observe font changes specified by <lg rend=''> in text output
 # 4.45     Add footnote-style, with new paragraph style
+# 4.45a    <index>: don't justify, handle indentation
 
-VERSION="4.45"
+VERSION="4.45a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

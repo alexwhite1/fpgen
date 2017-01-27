@@ -2538,14 +2538,20 @@ class HTML(Book): #{
         except:
           fatal("<index>: rend option ncol requires a number: " + options["ncol"])
 
-    self.css.addcss("""[1235] .index{} {{
+    # Note indexes look yuky justified, so text-align: left
+    self.css.addcss("""[1235] .index{N} {{
       -moz-column-count: {nCol};
       -moz-column-gap: 20px;
       -webkit-column-count: {nCol};
       -webkit-column-gap: 20px;
       column-count: {nCol};
       column-gap: 20px;
-    }}""".format(self.indexN, nCol=nCol))
+    }}
+    .index{N} .line {{
+      text-align: left;
+      text-indent:-2em;
+      margin:0 auto 0 2em;
+    }}""".format(N=self.indexN, nCol=nCol))
     b = [ \
       '', \
       '<div class="index{}">'.format(self.indexN), \
