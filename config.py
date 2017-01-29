@@ -126,8 +126,9 @@ uopt = userOptions()
 # 4.44c    Observe font changes specified by <lg rend=''> in text output
 # 4.45     Add footnote-style, with new paragraph style
 # 4.45a    <index>: don't justify, handle indentation
+# 4.45b    Rewrite the html poetry code to keep stanza on a page & not truncate
 
-VERSION="4.45a"
+VERSION="4.45b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

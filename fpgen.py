@@ -70,7 +70,8 @@ class userOptions(object):
     elif tagValue in map:
       return map[tagValue]
     else:
-      fatal("Option " + k + ": Illegal value '" + tagValue + "'. Legal values are: " + str(map.keys()))
+      fatal("Option " + k + ": Illegal value '" + tagValue +
+          "'. Legal values are: " + ', '.join(k for k in map))
     return None
 
   def isOpt(self, k, default):
@@ -211,13 +212,10 @@ class Book(object): #{
     self.supphd = [] # user's supplemental header lines
 
   def poetryIndent(self):
-    style = config.uopt.getopt("poetry-style");
-    if style == "":
-      # Historic default
-      return "left"
-    if style == "center" or style == "left":
-      return style
-    fatal("option poetry-style must be either left or center, not: " + style)
+    return config.uopt.getOptEnum("poetry-style", {
+        "left":"left",
+        "center":"center"
+      }, "left");
 
   # display (fatal) error and exit
   def fatal(self, message):
@@ -1511,7 +1509,9 @@ class HTML(Book): #{
       keys = list(self.cssline.keys())
       keys.sort()
       for s in keys:
-        t.append("      " + s[6:])
+        lines = s[6:].split("\n")
+        for l in lines:
+          t.append("      " + l)
       return t
 
   # translate marked-up line to HTML
@@ -3239,6 +3239,8 @@ class HTML(Book): #{
   def doLineGroups(self):
     self.dprint(1,"doLineGroups")
 
+    # Note: preprocess.lgBlock has already run, and converted blank lines
+    # inside the <lg> tags into <l></l>
     def lgBlock(args, lgblock):
       (opts, align) = parseLgOptions(args)
 
@@ -3303,27 +3305,106 @@ class HTML(Book): #{
         divEndLine = "</div></div> <!-- end rend -->" # closing </lg>
 
       elif align == "block-right":
-        divLine = "<div class='literal-container-right' {}><div class='literal'> <!-- {} -->".format(blockmargin,lgopts)
+        divLine = """
+          <div class='literal-container-right' {}>
+          <div class='literal'> <!-- {} -->""".format(blockmargin,lgopts)
         self.css.addcss("[969] .literal-container-right { text-align:right; margin:1em 0; }")
         self.css.addcss("[971] .literal { display:inline-block; text-align:left; }")
         divEndLine = "</div></div> <!-- end rend -->" # closing </lg>
 
       elif align == "poetry":
-        if self.poetryIndent() == "left":
-          divLine = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
-          self.css.addcss("[230] div.lgp { }")
-          self.css.addcss("[231] div.lgp p { text-align:left; text-indent:0; margin-top:0; margin-bottom:0; }")
-          self.css.addcss("[233] .poetry-container { display:inline-block; text-align:left; margin-left:2em; }")
-          # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
-          divEndLine = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
-        else: # centered
-          self.css.addcss("[233] .poetry-container { text-align:center; }")
-          self.css.addcss("[230] div.lgp { display: inline-block; text-align: left; }")
-          divLine = "<div class='poetry-container' {}><div class='lgp'> <!-- {} -->".format(blockmargin,lgopts)
-          self.css.addcss("[231] div.lgp p { text-align:left; margin-top:0; margin-bottom:0; }")
-          # breaks: self.wb[i] = "</div></div> <div style='clear:both'/> <!-- end poetry block -->" # closing </lg>
-          divEndLine = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
+        lgblock = addStanzas(lgblock)
+        self.css.addcss(
+            poetryLeftCSS
+                if self.poetryIndent() == "left" else
+            poetryCenterCSS
+        )
+        divLine = """
+          <div class='poetry-container' {}>
+          <div class='lgp'> <!-- {} -->""".format(blockmargin,lgopts)
+        divEndLine = "</div></div> <!-- end poetry block --><!-- end rend -->" # closing </lg>
       return [ divLine ] + lgblock + [ divEndLine ]
+
+    # All lines are surrounded by <l>...</l> at this point.
+    # There are three types of lines:
+    # 1) A piece of poetry. <l>text</l>
+    # 2) A blank line. <l></l>
+    # 3) Special lines, <l rend=>...</l>
+    # A stanza is a grouping of poetry lines, and includes any following
+    # blank lines and special lines. It would then end, when the following
+    # poetry line is reached.
+    # We need two levels of div around it, one inline-block, to get a size;
+    # and the next block to be able to position the special lines.
+    # In the event that we don't have any special lines, we only use one div,
+    # the outer.
+    def addStanzas(block):
+
+      # Add markup for a single stanza
+      def markupStanza(stanza):
+
+        needsSizing = False
+        for line in stanza:
+          if not line.startswith("<l>"):
+            needsSizing = True
+            break
+
+        if needsSizing:
+          return [
+              "<div class='stanza-outer'>",
+              "<div class='stanza-inner'>",
+            ] + stanza + [
+              "</div>",
+              "</div>",
+            ]
+        else:
+          return [
+              "<div class='stanza-outer'>",
+            ] + stanza + [
+              "</div>",
+            ]
+
+      # Break the lines in the linegroup up into a list of stanzas
+      # returns a list of lists of lines
+      def parseStanzas(lines):
+        result = []
+        stanza = []
+        inStanza = False
+        inBetween = False
+        for line in block:
+
+          if line == "<l></l>": # blank line
+            inBetween = True
+            stanza.append(line)
+
+          elif line.startswith("<l>"): # poetry line
+            if inStanza and not inBetween:
+                stanza.append(line) # Just another line in existing stanza
+            else:
+              if inStanza:
+                # End current stanza
+                result.append(stanza)
+                stanza = []
+                inStanza = False
+              # Start new stanza
+              inStanza = True
+              inBetween = False
+              stanza.append(line)
+
+          else: # must be <l rend=...>, i.e. special line
+            inBetween = True
+            stanza.append(line)
+
+        if len(stanza) > 0:
+          result.append(stanza)
+        return result
+
+      # Break the set of lines in the linegroup, into a set of stanzas;
+      # then markup each stanza individually
+      result = []
+      stanzas = parseStanzas(block)
+      for stanza in stanzas:
+        result.extend(markupStanza(stanza))
+      return result
 
     parseStandaloneTagBlock(self.wb, "lg", lgBlock)
 
@@ -6106,6 +6187,50 @@ td.{0}:after {{
 td.{0} span {{
   background:white;
 }}
+"""
+
+poetryLeftCSS = """[230]
+div.lgp { }
+
+div.lgp p {
+  text-align:left; text-indent:0; margin-top:0; margin-bottom:0;
+}
+
+.poetry-container {
+  display:block; text-align:left; margin-left:2em;
+}
+
+.stanza-inner {
+  display:inline-block;
+}
+
+.stanza-outer {
+  page-break-inside: avoid;
+}
+
+.stanza-inner .line0 {
+  display:inline-block;
+}
+.stanza-outer .line0 {
+  display:block;
+}
+"""
+
+poetryCenterCSS = """[230]
+div.lgp {
+  display:inline-block;
+  text-align: left;
+}
+
+div.lgp p {
+  text-align:left;
+  margin-top:0;
+  margin-bottom:0;
+}
+
+.poetry-container {
+  text-align:center;
+}
 """
 
 if __name__ == '__main__':
