@@ -127,8 +127,9 @@ uopt = userOptions()
 # 4.45     Add footnote-style, with new paragraph style
 # 4.45a    <index>: don't justify, handle indentation
 # 4.45b    Rewrite the html poetry code to keep stanza on a page & not truncate
+# 4.45c    Fixup error msgs in arg parsing code; find file automatically
 
-VERSION="4.45b"
+VERSION="4.45c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

@@ -3,10 +3,12 @@ import re
 import sys, os
 import unittest
 import zipfile
+import fnmatch
 
 import config
 from fpgen import Lint, Text, HTML
 import msgs
+from msgs import fatal
 
 def main():
   # process command line
@@ -57,19 +59,36 @@ def main():
   if options.ebookid != "":
     options.formats = "thkep"
     if not re.match("^20[01]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.ebookid):
-      print("Ebookid doesn't look correct: " + options.ebookid)
-      exit(1)
-
+      fatal("Ebookid doesn't look correct: " + options.ebookid)
 
   tmp = options.formats
   tmp = re.sub('a|h|t|k|e|p', '', tmp)
   if not tmp == '':
-    print("format option {} not supported".format(tmp))
-    exit(1)
+    fatal("format option {} not supported".format(tmp))
 
   # 'a' format is 'all'
   if options.formats == 'a':
     options.formats = "htpek"
+
+  # Can either use -i file, or just file.
+  if len(args) > 1:
+    fatal("Too many positional options")
+
+  if len(args) == 1:
+    if options.infile == '':
+      options.infile = args[0]
+    else:
+      fatal("Positional argument is incompatible with the file option -i/--infile")
+
+  # Nothing specified? See if exactly one file matching *-src.txt in current dir
+  if options.infile == '':
+    for file in os.listdir('.'):
+      if fnmatch.fnmatch(file, '*-src.txt'):
+        if options.infile != '':
+          fatal("Input file not specified; multiple found in the current directory.")
+        options.infile = file
+    if options.infile == '':
+      fatal("Missing source file option -i/--infile")
 
   # check input filename
   m = re.match('(.*?)-src.txt', options.infile)
@@ -78,7 +97,14 @@ def main():
     print("example: midnight-src.txt will generate midnight.html, midnight.txt")
     exit(1)
   else:
-    bn = m.group(1)
+    input = m.group(1)
+
+  try:
+    processFile(options, input)
+  except FileNotFoundError:
+    fatal(options.infile + ": File not found")
+
+def processFile(options, bn):
 
   # run Lint for every format specified
   # user may have included conditional code blocks
