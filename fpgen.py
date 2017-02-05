@@ -3074,16 +3074,7 @@ class HTML(Book): #{
       if "align" in opts:
         i_posn = opts['align']
 
-      if i_posn == "right":
-        self.css.addcss("[380] .figright { float:right; clear:right; margin-left:1em;")
-        self.css.addcss("[381]             margin-bottom:1em; margin-top:1em; margin-right:0;")
-        self.css.addcss("[382]             padding:0; text-align:center; }")
-      if i_posn == "left":
-        self.css.addcss("[383] .figleft  { float:left; clear:left; margin-right:1em;")
-        self.css.addcss("[384]             margin-bottom:1em; margin-top:1em; margin-left:0;")
-        self.css.addcss("[385]             padding:0; text-align:center; }")
-      if i_posn == "center":
-        self.css.addcss("[386] .figcenter { text-align:center; margin:1em auto;}")
+      self.css.addcss(illustrationCSS[i_posn])
 
       # --------------------------------------------------------------------
       # set i_w, i_h width and height
@@ -6232,6 +6223,46 @@ div.lgp p {
   text-align:center;
 }
 """
+
+illustrationRightCSS = """[380]
+.figright {
+  float:right;
+  clear:right;
+  margin-left:1em;
+  margin-bottom:1em;
+  margin-top:1em;
+  margin-right:0;
+  padding:0;
+  text-align:center;
+}
+"""
+
+illustrationLeftCSS = """[383]
+.figleft {
+  float:left;
+  clear:left;
+  margin-right:1em;
+  margin-bottom:1em;
+  margin-top:1em;
+  margin-left:0;
+  padding:0;
+  text-align:center;
+}
+"""
+
+illustrationCenterCSS = """[386]
+.figcenter {
+  text-align:center;
+  margin:1em auto;
+  page-break-inside: avoid;
+}
+"""
+
+illustrationCSS = {
+    "right"  : illustrationRightCSS,
+    "left"   : illustrationLeftCSS,
+    "center" : illustrationCenterCSS,
+}
 
 if __name__ == '__main__':
   from main import main
