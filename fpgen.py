@@ -4386,7 +4386,7 @@ class Text(Book): #{
         handled = False
         args = m.group(1).strip()
         contents = m.group(2)
-        block = self.oneL(args, contents)
+        block = self.oneL({}, args, contents)
         self.wb[i:i+1] = block
         i += len(block)
         continue
@@ -4454,74 +4454,91 @@ class Text(Book): #{
       self.wb[mark1:mark2] = u
       i = mark1 + len(u)
 
+  def getAlignment(self, opts):
+    for o in [ "left", "right", "center", "ml", "mr" ]:
+      if o in opts:
+        return o, opts[o]
+    return None, None
+
   # One single standalone <l> line.
   # therend is everything matching <l(.*)>
   # contents is everything matching <l>(.*)</l>
-  def oneL(self, therend, contents):
+  def oneL(self, optionsLG, therend, contents):
     if contents == "":
       # Blank line, i.e. <lXX></l>
       return [ config.FORMATTED_PREFIX ]
+
+    attributes = parseTagAttributes("l", therend, [ 'rend', 'id' ])
+    rend = attributes['rend'] if 'rend' in attributes else ""
+    optionsL = parseOption("<l>/rend=", rend, lRendOptions)
+
+    # Only if there is no alignment on the <l> do we look for alignment on
+    # the <lg>; so we can override alignment for a single line inside
+    align, alignValue = self.getAlignment(optionsL)
+    if align == None:
+      align, alignValue = self.getAlignment(optionsLG)
+    dprint(1, "Alignment: " + str(align) + ", " + str(alignValue))
+
+    opts = optionsLG.copy()
+    opts.update(optionsL)
+    if len(opts) > 0:
+      dprint(1, "Options: " + str(opts))
 
     handled = False
     thetext = self.detag(contents)
     block = [ contents ]
     i = 0
 
-    m = re.search("sb:(\d+)", therend) # text spaces before
-    if m:
-      howmuch = m.group(1)
+    if "sb" in opts: # text spaces before
+      howmuch = opts["sb"]
       block.insert(0, ".rs {}".format(howmuch))
       i = 1
 
-    m = re.search("sa:(\d+)", therend) # text spaces after
-    if m:
-      howmuch = m.group(1)
+    if "sa" in opts: # text spaces after
+      howmuch = opts["sa"]
       block.append(".rs {}".format(howmuch))
 
-    m = re.search("ml:([\d\.]+)em", therend)
-    if m:
-      # indent left
-      howmuch = int(float(m.group(1)))
-    else:
-      m = re.search("ml:0", therend)
+    howmuch = None
+    if align == "left":
+      howmuch = 0
+    elif align == "ml":
+      m = re.search("([\d\.]+)em", alignValue)
       if m:
+        # indent left
+        howmuch = int(float(m.group(1)))
+      else:
         howmuch = 0
 
-    if m:
-      block[i] = self.qstack[-1] + " " * howmuch + thetext.strip()
+    if howmuch != None:
+      block[i] = config.FORMATTED_PREFIX + self.qstack[-1] + " " * howmuch + thetext.rstrip()
       handled = True
 
-    m = re.search("right", therend)
-    if m:
+    howmuch = None
+    if align == "right":
       howmuch = 0
-    else:
-      m = re.search("mr:([\d\.]+)em", therend)
+    elif align == "mr":
+      m = re.search("([\d\.]+)em", alignValue)
       if m:
         # indent right
         howmuch = int(float(m.group(1)))
       else:
-        m = re.search("mr:0", therend)
-        if m:
-          howmuch = 0
+        howmuch = 0
 
-    if m:
-      # rend="right" or rend="mr:0"
+    if howmuch != None:
+      # rend="right" or rend="mr:#em"
       rmar = config.LINE_WIDTH - len(self.qstack[-1]) - howmuch
-      fstr = "{:>" + str(rmar) + "}"
+      fstr = config.FORMATTED_PREFIX + "{:>" + str(rmar) + "}"
       block[i] = fstr.format(thetext.strip())
       handled = True
 
-    m = re.search("center", therend)
-    if m:
+    if align == "center":
       # center
-      #self.wb[i] = config.FORMATTED_PREFIX + '{:^{width}}'.format(thetext.strip(), width=config.LINE_WIDTH)
       replacements = self.centerL(thetext.strip())
       block[i:i+1] = replacements
       i += len(replacements)-1
       handled = True
 
-    m = re.search("triple", therend)
-    if m:
+    if "triple" in opts:
       pieces = thetext.split("|")
       if len(pieces) != 3:
         fatal("<l> triple alignment does not have three pieces: " + thetext)
@@ -4549,7 +4566,7 @@ class Text(Book): #{
 
     # Must be left
     if not handled:
-      block[i] = self.qstack[-1] + thetext.strip()
+      block[i] = config.FORMATTED_PREFIX + self.qstack[-1] + thetext.strip()
 
     return block
 
@@ -4615,21 +4632,12 @@ class Text(Book): #{
 
     if fmt != None:
       i = 0
+
       while i < len(block):
-        m = re.match(r"<l.*?>(.*?)</l>", block[i])
+        # Note all lines except <tb> match, due to markLines()
+        m = re.match(r"<l(.*?)>(.*?)</l>", block[i])
         if m:
-          if not empty.match(m.group(1)):
-            theline = self.detag(m.group(1))
-            if len(theline) > config.LINE_WRAP:
-              s = re.sub(config.HARD_SPACE, " ", theline)
-              if align == "left":
-                # Message for left comes out later as Wrapping line
-                dprint(1, "warning: long line:\n{}".format(s))
-              else:
-                cprint("warning (long line):\n{}".format(s))
-            block[i] = (config.FORMATTED_PREFIX + '{:' + fmt + '{width}}').format(theline, width=config.LINE_WIDTH)
-          else:
-            block[i] = config.FORMATTED_PREFIX
+          block[i:i+1] = self.oneL(opts, m.group(1), m.group(2))
         i += 1
       return
 
@@ -4781,6 +4789,7 @@ class Text(Book): #{
   # Center a single line enclosed in <l>...</l>
   # If it doesn't fit, break appropriately and center multiple lines
   def centerL(self, line):
+    line = re.sub(config.HARD_SPACE, " ", line)
     result = []
     # For some reason, saveFile wraps at 75 chars; but we want to center within LINE_WIDTH(72)
     # chars instead.
