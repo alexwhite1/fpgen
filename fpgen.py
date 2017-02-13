@@ -9,6 +9,8 @@ import codecs
 import platform
 import unittest
 import collections
+from userOptions import userOptions
+import config
 import footnote
 
 from parse import parseTagAttributes, parseOption, parseLineEntry, parseStandaloneTagBlock, \
@@ -47,42 +49,6 @@ import template
   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
-
-# class to save user options
-class userOptions(object):
-  def __init__(self):
-    self.opt = {}
-
-  def addopt(self,k,v):
-    # print("adding {}:{}".format(k, v))
-    self.opt[k] = v
-
-  def getopt(self,k):
-    if k in self.opt:
-      return self.opt[k]
-    else:
-      return ""
-
-  def getOptEnum(self, k, map, default):
-    tagValue = self.getopt(k)
-    if tagValue == '':
-      return default
-    elif tagValue in map:
-      return map[tagValue]
-    else:
-      fatal("Option " + k + ": Illegal value '" + tagValue +
-          "'. Legal values are: " + ', '.join(k for k in map))
-    return None
-
-  def isOpt(self, k, default):
-    if k in self.opt:
-      if self.opt[k] == "true":
-        return True
-      elif self.opt[k] == "false":
-        return False
-      else:
-        fatal("Option " + k + ": must be true or false, not " + self.opt[k])
-    return default
 
 empty = re.compile("^$")
 
@@ -210,6 +176,7 @@ class Book(object): #{
     self.umeta = self.userMeta()
     self.templates = template.createTemplates(fmt)
     self.supphd = [] # user's supplemental header lines
+    config.uopt.setGenType(fmt)
 
   def poetryIndent(self):
     return config.uopt.getOptEnum("poetry-style", {
@@ -451,16 +418,22 @@ class Book(object): #{
               i += len(numeral)
       return result
 
-  summaryStyle = "hang"
+  summaryHang = 1
+  summaryBlock = 2
+  summaryIndent = 3
+  summaryCenter = 4
+  summaryStyle = summaryHang
 
   def doSummary(self):
     self.dprint(1,"doSummary")
-    style = config.uopt.getopt("summary-style");
-    if style != "":
-      if style == "hang" or style == "block" or style == "indent":
-        self.summaryStyle = style
-      else:
-        fatal("option summary-style must be either hang, indent or block, not: " + style)
+    options = {
+      'hang':self.summaryHang,
+      'block':self.summaryBlock,
+      'indent':self.summaryIndent,
+      'center':self.summaryCenter,
+    }
+    self.summaryStyle = config.uopt.getOptEnum("summary-style", options, self.summaryHang);
+
     parseStandaloneTagBlock(self.wb, "summary", self.oneSummary)
 
   def doIndex(self):
@@ -1689,43 +1662,46 @@ class HTML(Book): #{
       self.lastLineRaw = thisLineRaw
     return s
 
+  def preprocessOneBlock(self, block):
+    i = 0
+    while i < len(block):
+
+      if not block[i].startswith(config.FORMATTED_PREFIX):
+        # protect special characters
+        block[i] = re.sub(r"\\ ", '⋀', block[i]) # escaped (hard) spaces
+        block[i] = re.sub(r" ",   '⋀', block[i]) # unicode 0xA0, non-breaking space
+        block[i] = re.sub(r"\\%", '⊐', block[i]) # escaped percent signs (macros)
+        block[i] = re.sub(r"\\#", '⊏', block[i]) # escaped octothorpes (page links)
+        block[i] = re.sub(r"\\<", '≼', block[i]) # escaped open tag marks
+        block[i] = re.sub(r"\\>", '≽', block[i]) # escaped close tag marks
+
+        block[i] = re.sub(r"<thinsp>", "\u2009", block[i])
+        block[i] = re.sub(r"<nnbsp>", "\u202f", block[i])
+        block[i] = re.sub(r"<wjoiner>", "\u2060", block[i])
+
+        # Line ending in period must join with subsequent line starting with periods
+        # We do not have agreement on this yet!
+#        if block[i].endswith('.') and  i + 1 < len(block) :
+#          m = re.match("^\. [\. ]+\W*", block[i+1])
+#          if m:
+#            leading = m.group(0)
+#            if leading != "":
+#              block[i] = block[i] + ' ' + leading.rstrip();
+#              block[i+1] = block[i+1][len(leading):]
+
+        while re.search(r"\. \.", block[i]):
+          block[i] = re.sub(r"\. \.",'.⋀.', block[i]) # spaces in spaced-out ellipsis
+        block[i] = re.sub(r"\\'",'⧗', block[i]) # escaped single quote
+        block[i] = re.sub(r'\\"','⧢', block[i]) # escaped double quote
+        block[i] = re.sub(r"&",'⧲', block[i]) # ampersand
+        block[i] = re.sub("<l\/>","<l></l>", block[i]) # allow user shortcut <l/> -> </l></l>
+      i += 1
+
   # HTML: preprocess text
   def preprocess(self):
     self.dprint(1,"preprocess")
 
-    i = 0
-    while i < len(self.wb):
-
-      if not self.wb[i].startswith(config.FORMATTED_PREFIX):
-        # protect special characters
-        self.wb[i] = re.sub(r"\\ ", '⋀', self.wb[i]) # escaped (hard) spaces
-        self.wb[i] = re.sub(r" ",   '⋀', self.wb[i]) # unicode 0xA0, non-breaking space
-        self.wb[i] = re.sub(r"\\%", '⊐', self.wb[i]) # escaped percent signs (macros)
-        self.wb[i] = re.sub(r"\\#", '⊏', self.wb[i]) # escaped octothorpes (page links)
-        self.wb[i] = re.sub(r"\\<", '≼', self.wb[i]) # escaped open tag marks
-        self.wb[i] = re.sub(r"\\>", '≽', self.wb[i]) # escaped close tag marks
-
-        self.wb[i] = re.sub(r"<thinsp>", "\u2009", self.wb[i])
-        self.wb[i] = re.sub(r"<nnbsp>", "\u202f", self.wb[i])
-        self.wb[i] = re.sub(r"<wjoiner>", "\u2060", self.wb[i])
-
-        # Line ending in period must join with subsequent line starting with periods
-        # We do not have agreement on this yet!
-#        if self.wb[i].endswith('.') and  i + 1 < len(self.wb) :
-#          m = re.match("^\. [\. ]+\W*", self.wb[i+1])
-#          if m:
-#            leading = m.group(0)
-#            if leading != "":
-#              self.wb[i] = self.wb[i] + ' ' + leading.rstrip();
-#              self.wb[i+1] = self.wb[i+1][len(leading):]
-
-        while re.search(r"\. \.", self.wb[i]):
-          self.wb[i] = re.sub(r"\. \.",'.⋀.', self.wb[i]) # spaces in spaced-out ellipsis
-        self.wb[i] = re.sub(r"\\'",'⧗', self.wb[i]) # escaped single quote
-        self.wb[i] = re.sub(r'\\"','⧢', self.wb[i]) # escaped double quote
-        self.wb[i] = re.sub(r"&",'⧲', self.wb[i]) # ampersand
-        self.wb[i] = re.sub("<l\/>","<l></l>", self.wb[i]) # allow user shortcut <l/> -> </l></l>
-      i += 1
+    self.preprocessOneBlock(self.wb)
 
     # TODO: Get rid of this silly method
     def lgBlock(lgopts, block):
@@ -1898,34 +1874,34 @@ class HTML(Book): #{
     for i,line in enumerate(self.wb):
       self.wb[i] = parseEmbeddedTagWithoutContent(line, "target", oneTarget)
 
-  def protectMarkup(self):
+  def protectMarkup(self, block):
     self.dprint(1,"protectMarkup")
-    for i,line in enumerate(self.wb):
-      self.wb[i] = re.sub("<em>",'⩤em⩥', self.wb[i])
-      self.wb[i] = re.sub("<\/em>",'⩤/em⩥', self.wb[i])
-      self.wb[i] = re.sub("<i>",'⩤i⩥', self.wb[i])
-      self.wb[i] = re.sub("<\/i>",'⩤/i⩥', self.wb[i])
-      self.wb[i] = re.sub("<sc>",'⩤sc⩥', self.wb[i])
-      self.wb[i] = re.sub("<\/sc>",'⩤/sc⩥', self.wb[i])
-      self.wb[i] = re.sub("<b>",'⩤b⩥', self.wb[i])
-      self.wb[i] = re.sub("<\/b>",'⩤/b⩥', self.wb[i])
-      self.wb[i] = re.sub("<u>",'⩤u⩥', self.wb[i])
-      self.wb[i] = re.sub("<\/u>",'⩤/u⩥', self.wb[i])
-      self.wb[i] = re.sub("<g>",'⩤g⩥', self.wb[i])
-      self.wb[i] = re.sub("<\/g>",'⩤/g⩥', self.wb[i])
-      self.wb[i] = re.sub("<r>",'⩤r⩥', self.wb[i])
-      self.wb[i] = re.sub("<\/r>",'⩤/r⩥', self.wb[i])
-      self.wb[i] = re.sub(r"<(fn id=['\"].*?['\"]/?)>",r'⩤\1⩥', self.wb[i])
+    for i,line in enumerate(block):
+      block[i] = re.sub("<em>",'⩤em⩥', block[i])
+      block[i] = re.sub("<\/em>",'⩤/em⩥', block[i])
+      block[i] = re.sub("<i>",'⩤i⩥', block[i])
+      block[i] = re.sub("<\/i>",'⩤/i⩥', block[i])
+      block[i] = re.sub("<sc>",'⩤sc⩥', block[i])
+      block[i] = re.sub("<\/sc>",'⩤/sc⩥', block[i])
+      block[i] = re.sub("<b>",'⩤b⩥', block[i])
+      block[i] = re.sub("<\/b>",'⩤/b⩥', block[i])
+      block[i] = re.sub("<u>",'⩤u⩥', block[i])
+      block[i] = re.sub("<\/u>",'⩤/u⩥', block[i])
+      block[i] = re.sub("<g>",'⩤g⩥', block[i])
+      block[i] = re.sub("<\/g>",'⩤/g⩥', block[i])
+      block[i] = re.sub("<r>",'⩤r⩥', block[i])
+      block[i] = re.sub("<\/r>",'⩤/r⩥', block[i])
+      block[i] = re.sub(r"<(fn id=['\"].*?['\"]/?)>",r'⩤\1⩥', block[i])
 
       # new inline tags 2014.01.27
-      self.wb[i] = re.sub("<(\/fs)>", r'⩤\1⩥', self.wb[i])
-      self.wb[i] = re.sub("<(fs:.+?)>", r'⩤\1⩥', self.wb[i])
+      block[i] = re.sub("<(\/fs)>", r'⩤\1⩥', block[i])
+      block[i] = re.sub("<(fs:.+?)>", r'⩤\1⩥', block[i])
 
       # overline 13-Apr-2014
-      if re.search("<ol>", self.wb[i]):
+      if re.search("<ol>", block[i]):
         self.css.addcss("[116] .ol { text-decoration:overline; }")
-      self.wb[i] = re.sub("<ol>", '⎧', self.wb[i]) # overline
-      self.wb[i] = re.sub("<\/ol>", '⎫', self.wb[i]) # overline
+      block[i] = re.sub("<ol>", '⎧', block[i]) # overline
+      block[i] = re.sub("<\/ol>", '⎫', block[i]) # overline
 
   # No paragraphs in this particular tag; for a tag which must start a line
   def skip(self, tag, wb, start):
@@ -2018,6 +1994,12 @@ class HTML(Book): #{
     indent = noIndentPara != None
 
     paragraphTag = defaultPara
+
+    noFormattingTags = [ "lg", "table", "illustration" ]
+
+    # No formatting inside footnotes if they are sidenotes
+    if footnote.getFootnoteStyle() == footnote.sidenote:
+      noFormattingTags.append("footnote")
 
     i = 0
     while i < len(wb):
@@ -2133,56 +2115,56 @@ class HTML(Book): #{
     'xs' : '⓲'
   }
 
-  def restoreMarkup(self):
+  def restoreMarkup(self, block):
     self.dprint(1,"restoreMarkup")
-    for i,line in enumerate(self.wb):
-      self.wb[i] = re.sub("⩤",'<', self.wb[i])
-      self.wb[i] = re.sub("⩥",'>', self.wb[i])
+    for i,line in enumerate(block):
+      block[i] = re.sub("⩤",'<', block[i])
+      block[i] = re.sub("⩥",'>', block[i])
 
-      if re.search("<i>", self.wb[i]):
+      if re.search("<i>", block[i]):
         self.css.addcss("[110] .it { font-style:italic; }")
-      self.wb[i] = re.sub("<i>","①", self.wb[i])
-      self.wb[i] = re.sub("</i>",'②', self.wb[i])
+      block[i] = re.sub("<i>","①", block[i])
+      block[i] = re.sub("</i>",'②', block[i])
 
-      if re.search("<b>", self.wb[i]):
+      if re.search("<b>", block[i]):
         self.css.addcss("[111] .bold { font-weight:bold; }")
-      self.wb[i] = re.sub("<b>","③", self.wb[i])
-      self.wb[i] = re.sub("</b>",'②', self.wb[i])
+      block[i] = re.sub("<b>","③", block[i])
+      block[i] = re.sub("</b>",'②', block[i])
 
-      if re.search("<sc>", self.wb[i]):
+      if re.search("<sc>", block[i]):
         self.css.addcss("[112] .sc { font-variant:small-caps; }")
-      self.wb[i] = re.sub("<sc>","④", self.wb[i])
-      self.wb[i] = re.sub("</sc>",'②', self.wb[i])
+      block[i] = re.sub("<sc>","④", block[i])
+      block[i] = re.sub("</sc>",'②', block[i])
 
-      if re.search("<u>", self.wb[i]):
+      if re.search("<u>", block[i]):
         self.css.addcss("[113] .ul { text-decoration:underline; }")
-      self.wb[i] = re.sub("<u>","⑤", self.wb[i])
-      self.wb[i] = re.sub("</u>",'②', self.wb[i])
+      block[i] = re.sub("<u>","⑤", block[i])
+      block[i] = re.sub("</u>",'②', block[i])
 
-      if re.search("<g>", self.wb[i]):
+      if re.search("<g>", block[i]):
         self.css.addcss("[114] .gesp { letter-spacing:0.2em; }")
-      self.wb[i] = re.sub("<g>","⑥", self.wb[i])
-      self.wb[i] = re.sub("</g>",'②', self.wb[i])
+      block[i] = re.sub("<g>","⑥", block[i])
+      block[i] = re.sub("</g>",'②', block[i])
 
-      if re.search("<r>", self.wb[i]):
+      if re.search("<r>", block[i]):
         self.css.addcss("[115] .red { color: red; }")
-      self.wb[i] = re.sub("<r>","⑦", self.wb[i])
-      self.wb[i] = re.sub("</r>",'②', self.wb[i])
+      block[i] = re.sub("<r>","⑦", block[i])
+      block[i] = re.sub("</r>",'②', block[i])
 
-      self.wb[i] = re.sub(r"⩤(fn id=['\"].*?['\"]/?)⩥",r'<\1>', self.wb[i])
+      block[i] = re.sub(r"⩤(fn id=['\"].*?['\"]/?)⩥",r'<\1>', block[i])
 
       # new inline tags 2014.01.27
       while True:
-        m = re.search(r"<fs:(.*?)>", self.wb[i])
+        m = re.search(r"<fs:(.*?)>", block[i])
         if not m:
           break
         size = m.group(1)
         if not size in self.fontmap:
           fatal("<fs> tag has an unknown or unsupported size " + size +
-              " in line " + self.wb[i])
-        self.wb[i] = self.wb[i][:m.start()] + self.fontmap[size] + self.wb[i][m.end():]
+              " in line " + block[i])
+        block[i] = block[i][:m.start()] + self.fontmap[size] + block[i][m.end():]
 
-      self.wb[i] = re.sub(r"<\/fs>",'⓳', self.wb[i])
+      block[i] = re.sub(r"<\/fs>",'⓳', block[i])
 
   def startHTML(self):
     self.dprint(1,"startHTML")
@@ -2512,15 +2494,19 @@ class HTML(Book): #{
   def oneSummary(self, openTag, block):
     if openTag != "":
       fatal("Badly formatted <summary>: <summary " + openTag + ">")
-    if self.summaryStyle == "hang":
+    if self.summaryStyle == self.summaryHang:
       self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:3em; padding-right:1.5em; text-indent:-1.5em; }")
       # div only applies to the first para.  For multi-para, regular code
       # will emit <p class="pindent">
       self.css.addcss("[1234] .summary .pindent { text-indent:-1.5em; }")
-    elif self.summaryStyle == "indent":
+    elif self.summaryStyle == self.summaryIndent:
       self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; text-indent:1.5em; }")
-    else: # summaryStyle == "block"
+    elif self.summaryStyle == self.summaryCenter:
+      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; text-indent:0em; text-align-last:center; }")
+      self.css.addcss("[1234] .summary .pindent { text-indent:0; text-align-last:center; }")
+    else: # summaryStyle == self.summaryBlock
       self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; }")
+      self.css.addcss("[1234] .summary .pindent { text-indent: 0; }")
     return [ "<div class='summary'>" ] + block + [ "</div>" ]
 
   indexN = 0
@@ -3201,7 +3187,7 @@ class HTML(Book): #{
             self.wb[i] = self.wb[i][0:m.start(0)] + "</a>" + self.wb[i][m.end(0):]
             break
           i += 1
-        if i == n or i > startSidenote+10:
+        if i == n or i > startSidenote+20:
           fatal("<sidenote> not terminated or excessively long")
       i += 1
 
@@ -3431,105 +3417,6 @@ class HTML(Book): #{
         self.wb[i] = self.m2h(self.wb[i], inPoetry, rendopts)
       i += 1
 
-  def emitFootnotes(self):
-    table = 1
-    paragraph = 2
-    options = {
-      'table':table,
-      'paragraph':paragraph,
-    }
-    mode = config.uopt.getOptEnum("footnote-style", options, table)
-
-    if mode == table:
-      self.footnotesToTable()
-    elif mode == paragraph:
-      self.footnotesToParagraph()
-
-  # anything particular for derived-class media (epub, mobi, PDF)
-  # can use this as an overridden method
-  def footnotesToTable(self):
-    # for HTML, gather footnotes into a table structure
-    matched = False
-    i = 0
-    while i < len(self.wb):
-      m = re.match("<div class='footnote-id' id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", self.wb[i])
-      if m:
-        matched = True
-        t = []
-        t.append("<div class='footnote'>")
-        t.append("<table summary='footnote_{}'>".format(m.group(1)))
-
-        t.append("<colgroup>")
-        t.append("<col span='1' class='footnoteid'/>")
-        t.append("<col span='1'/>")
-        t.append("</colgroup>")
-
-        t.append("<tr><td style='vertical-align:top;'>")
-        t.append(self.wb[i])
-        del(self.wb[i])
-        t.append("</td><td>")
-        while not re.search("<!-- footnote end -->",self.wb[i]):
-          t.append(self.wb[i])
-          del(self.wb[i])
-        del(self.wb[i]) # closing div
-        t.append("</td></tr>")
-        t.append("</table>")
-        t.append("</div>")
-        t.append("")
-        self.wb[i:i+1] = t
-        i += len(t)-1
-      i += 1
-
-    if matched:
-      if config.uopt.getopt("pstyle") == "indent":
-        # Single paragraph footnotes look strange with a paragraph indent
-        # on the first paragraph. Subsequent paragraphs look ok indented
-        self.css.addcss("[410] .footnote td p.pindent:first-child { text-indent: 0; }")
-      self.css.addcss("[411] .footnote { margin:0 4em 0 0; }")
-      self.css.addcss("[411] .footnoteid { width: 3em; }")
-
-  def footnotesToParagraph(self):
-    # for HTML, gather footnotes into paragraphs
-    matched = False
-    i = 0
-    while i < len(self.wb):
-      m = re.match("<div class='footnote-id' id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", self.wb[i])
-      if m:
-        matched = True
-        t = []
-        t.append("<div class='footnote'>")
-        t.append("<p class='footnote'>")
-        self.wb[i] = re.sub("div", "span", self.wb[i])
-        t.append(self.wb[i]) # <div id='f1_2'><a href='#r1_2'>[1]</a></div>
-        del(self.wb[i])
-
-        first = True
-        while not re.search("<!-- footnote end -->",self.wb[i]):
-
-          if first:
-            # Remove first paragraph tag
-            m = re.match("<p.*?>", self.wb[i])
-            if m:
-              self.wb[i] = self.wb[i][m.end():]
-              first = False
-          t.append(self.wb[i])
-          del(self.wb[i])
-        del(self.wb[i]) # closing div
-        t.append("</div>")
-        t.append("")
-        self.wb[i:i+1] = t
-        i += len(t)-1
-      i += 1
-
-    if matched:
-      self.css.addcss("[411] div.footnote { margin:0 .5em; }")
-      self.css.addcss("[411] p.footnote { text-indent:1.5em; }")
-      self.css.addcss(""" [411] .footnote-id {
-        text-indent:1.5em;
-        vertical-align:super;
-        font-size:smaller;
-      }""")
-
   def processPageNumDisp(self):
     inBlockElement = False
     for i,line in enumerate(self.wb):
@@ -3581,7 +3468,7 @@ class HTML(Book): #{
   def process(self):
     super().process()
     self.processPageNum()
-    self.protectMarkup()
+    self.protectMarkup(self.wb)
     self.preprocess()
     self.tweakSpacing()
     self.userToc()
@@ -3592,7 +3479,7 @@ class HTML(Book): #{
     from drama import DramaHTML
     DramaHTML(self.wb, self.css).doDrama();
     self.markPara()
-    self.restoreMarkup()
+    self.restoreMarkup(self.wb)
     self.startHTML()
 
     self.doHeadings()
@@ -3601,18 +3488,29 @@ class HTML(Book): #{
     self.doBreaks()
     self.doTables()
     self.doIllustrations()
-    footnote.footnotesToHtml(self.wb)
+    footnote.outOfBandFootnoteProcessing(self.processOneBlock)
+    footnote.footnotesToTags(self.wb)
     self.doSidenotes()
     self.doLineGroups()
     self.doLines()
 
     self.processPageNumDisp()
-    self.emitFootnotes()
+    footnote.emitFootnotes(self.wb, self.css)
     self.placeCSS()
     self.placeMeta()
     self.cleanup()
     self.plinks()
     self.endHTML()
+
+  # Footnotes may be removed from the main flow if they are converted to
+  # sidenotes, and only added back during footnotesToTags.
+  # Minimal processing here to handle only the allowed tags: i.e. textual ones
+  def processOneBlock(self, block):
+    self.preprocessOneBlock(block)
+    self.protectMarkup(block)
+    self.restoreMarkup(block)
+    # Note cleanup will be called in the normal course of things
+    return block
 
 #}
 # END OF CLASS HTML
@@ -4114,10 +4012,10 @@ class Text(Book): #{
   def oneSummary(self, openTag, block):
     if openTag != "":
       fatal("Badly formatted <summary>: <summary " + openTag + ">")
-    if self.summaryStyle == "hang":
+    if self.summaryStyle == self.summaryHang:
       lm = 2
       ti = 0
-    elif self.summaryStyle == "indent":
+    elif self.summaryStyle == self.summaryIndent:
       lm = 0
       ti = 2
     else:

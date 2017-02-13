@@ -16,6 +16,26 @@ footnoteMarkersText = [
   "star", "dagger", "doubledagger", "section", "parallelto", "pilcrow",
 ]
 
+noteMap = {}
+
+table = 1
+paragraph = 2
+sidenote = 3
+
+def getFootnoteStyle():
+  options = {
+    'table':table,
+    'paragraph':paragraph,
+    'sidenote':sidenote,
+  }
+  mode = config.uopt.getOptEnum("footnote-style", options, table)
+
+  # Note that for text, only paragraph is implemented
+  if config.uopt.getGenType() == 't':
+    mode = table
+  return mode
+
+
 # This method both relocates the <footnote> tags, and also normalizes
 # both <fn> and <footnote> to have both id= and target= attributes;
 # handing autoincrement (id='#').  Autoincrement needs to be handled here,
@@ -54,6 +74,7 @@ def relocateFootnotes(block):
   footnoteChapter = 1
   reset = (mode == headingReset or mode == asterisk)
   emitAtHeading = (mode == heading or reset)
+  emitAtReference = (getFootnoteStyle() == sidenote)
   matchFN = re.compile("<fn\s+(.*?)/?>")
 
   # When we hit a footnote block, accumulate it, and clear it from
@@ -97,6 +118,10 @@ def relocateFootnotes(block):
     # Recreate the block
     block.insert(0, "<footnote " + opts + ">")
     block.append("</footnote>")
+
+    if emitAtReference:
+      noteMap[target] = block
+      return []
 
     # If we aren't supposed to move footnotes, do nothing
     if mode == none:
@@ -162,7 +187,7 @@ def relocateFootnotes(block):
         emit = True
 
     # If there weren't any, forget it, nothing to do
-    if len(notes) == 0:
+    if len(notes) == 0 and not emitAtReference:
       emit = False
 
     if not emit:
@@ -182,6 +207,11 @@ def relocateFootnotes(block):
     return all
 
   def formatNotes(line):
+    nonlocal emitAtReference
+
+    if emitAtReference:
+      return [ line ] if line != None else []
+
     nonlocal notes
 
     # Emit a footnote mark, then all the footnotes, then a blank line,
@@ -248,8 +278,17 @@ def reformat(block):
 
     i += 1
 
-def footnotesToHtml(wb):
+# Allow for textual processing of sidenote footnotes which are no longer
+# in the normal flow. This makes sure that font changes, and special
+# character processing are handled.
+def outOfBandFootnoteProcessing(fn):
+  for k,v in noteMap.items():
+    noteMap[k] = fn(v)
 
+# Convert the footnote references <fn=...> into html.
+# Emit footnotes which are relocated to their references when we find those
+# tags.
+def FNtoHtml(wb):
   matchFN = re.compile("<fn\s+(.*?)/?>")
   footnotes = {}
 
@@ -258,6 +297,7 @@ def footnotesToHtml(wb):
   while i < len(wb):
     off = 0
     line = wb[i]
+    block = [ ]
     while True:
       m = matchFN.search(line, off)
       if not m:
@@ -269,17 +309,45 @@ def footnotesToHtml(wb):
         fatal("Missing internal target in fn: " + line)
       target = args["target"]
       dprint(1, "id: " + fmid + ", target: " + target)
-      if fmid in footnotes and footnotes[fmid] == target:
+      repl = "<sup><span style='font-size:0.9em'>" + fmid + "</span></sup>"
+
+      if target in noteMap:
+        # Note no link when we are co-locating the reference with the footnote
+        block.extend(noteMap[target])
+        del noteMap[target]
+      elif fmid in footnotes and footnotes[fmid] == target:
         cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
-        repl = "<a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
+        repl = "<a href='#f{0}' style='text-decoration:none'>{1}</a>".format(target, repl)
       else:
         footnotes[fmid] = target
-        repl = "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'><sup><span style='font-size:0.9em'>{1}</span></sup></a>".format(target, fmid)
+        repl = "<a id='r{0}'/><a href='#f{0}' style='text-decoration:none'>{1}</a>".format(target, repl)
+
       l = line[0:m.start(0)] + repl
       off = len(l)    # Next loop
       line = l + line[m.end(0):]
     wb[i] = line
+
+    # Emit the footnote, right before the line with the footnote reference
+    # If the line with the footnote reference is a paragraph start, need
+    # to emit the footnote between the paragraph tag, and the rest of the
+    # text on the first line of the paragraph
+    if len(block) > 0:
+      m = re.match("(<p.*?>)", wb[i])
+      if m:
+        block.insert(0, m.group(1))
+        wb[i] = wb[i][len(m.group(1)):]
+      wb[i:i] = block
+      i += len(block)
     i += 1
+
+def footnotesToTags(wb):
+  if getFootnoteStyle() == sidenote:
+    footnotesToSidenoteTags(wb)
+  else:
+    footnotesToHtmlTags(wb)
+
+def footnotesToHtmlTags(wb):
+  FNtoHtml(wb)
 
   # footnote targets and text
   i = 0
@@ -296,6 +364,156 @@ def footnotesToHtml(wb):
       wb[i] = "</div> <!-- footnote end -->"
     i += 1
 
+def footnotesToSidenoteTags(wb):
+  FNtoHtml(wb)
+
+  # footnote targets and text
+  i = 0
+  while i < len(wb):
+    m = re.match("<footnote\s+(.*?)>", wb[i])
+    if m:
+      opts = m.group(1)
+      args = parseTagAttributes("footnote", opts, [ "id", "target" ])
+      fnid = args["id"]
+      target = args["target"]
+      wb[i] = "<sidenote>" + fnid
+      while not re.match("<\/footnote>", wb[i]):
+        i += 1
+      wb[i] = "</sidenote>"
+    i += 1
+
+def emitFootnotes(wb, css):
+  mode = getFootnoteStyle()
+
+  if mode == table:
+    footnotesToTable(wb, css)
+  elif mode == paragraph:
+    footnotesToParagraph(wb, css)
+  elif mode == sidenote:
+    footnotesToSidenote(wb, css)
+
+# anything particular for derived-class media (epub, mobi, PDF)
+# can use this as an overridden method
+def footnotesToTable(wb, css):
+  # for HTML, gather footnotes into a table structure
+  matched = False
+  i = 0
+  while i < len(wb):
+    m = re.match("<div class='footnote-id' id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", wb[i])
+    if m:
+      matched = True
+      t = []
+      t.append("<div class='footnote'>")
+      t.append("<table summary='footnote_{}'>".format(m.group(1)))
+
+      t.append("<colgroup>")
+      t.append("<col span='1' class='footnoteid'/>")
+      t.append("<col span='1'/>")
+      t.append("</colgroup>")
+
+      t.append("<tr><td style='vertical-align:top;'>")
+      t.append(wb[i])
+      del(wb[i])
+      t.append("</td><td>")
+      while not re.search("<!-- footnote end -->", wb[i]):
+        t.append(wb[i])
+        del(wb[i])
+      del(wb[i]) # closing div
+      t.append("</td></tr>")
+      t.append("</table>")
+      t.append("</div>")
+      t.append("")
+      wb[i:i+1] = t
+      i += len(t)-1
+    i += 1
+
+  if matched:
+    if config.uopt.getopt("pstyle") == "indent":
+      # Single paragraph footnotes look strange with a paragraph indent
+      # on the first paragraph. Subsequent paragraphs look ok indented
+      css.addcss("[410] .footnote td p.pindent:first-child { text-indent: 0; }")
+    css.addcss("[411] .footnote { margin:0 4em 0 0; }")
+    css.addcss("[411] .footnoteid { width: 3em; }")
+
+def footnotesToParagraph(wb, css):
+  # for HTML, gather footnotes into paragraphs
+  matched = False
+  i = 0
+  while i < len(wb):
+    m = re.match("<div class='footnote-id' id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", wb[i])
+    if m:
+      matched = True
+      t = []
+      t.append("<div class='footnote'>")
+      t.append("<p class='footnote'>")
+      wb[i] = re.sub("div", "span", wb[i])
+      t.append(wb[i]) # <div id='f1_2'><a href='#r1_2'>[1]</a></div>
+      del(wb[i])
+
+      first = True
+      while not re.search("<!-- footnote end -->", wb[i]):
+
+        if first:
+          # Remove first paragraph tag
+          m = re.match("<p.*?>", wb[i])
+          if m:
+            wb[i] = wb[i][m.end():]
+            first = False
+        t.append(wb[i])
+        del(wb[i])
+      del(wb[i]) # closing div
+      t.append("</div>")
+      t.append("")
+      wb[i:i+1] = t
+      i += len(t)-1
+    i += 1
+
+  if matched:
+    css.addcss("[411] div.footnote { margin:0 .5em; }")
+    css.addcss("[411] p.footnote { text-indent:1.5em; }")
+    css.addcss(""" [411] .footnote-id {
+        text-indent:1.5em;
+        vertical-align:super;
+        font-size:smaller;
+      }""")
+
+def footnotesToSidenote(wb, css):
+  # for HTML, gather footnotes into paragraphs
+  matched = False
+  i = 0
+  while i < len(wb):
+    m = re.match("<div class='footnote-id' id='f(.+?)'><a href='#r.+?'>\[?.*?\]?<\/a>", wb[i])
+    if m:
+      matched = True
+      t = []
+      t.append("<sidenote>")
+
+      first = True
+      while not re.search("<!-- footnote end -->", wb[i]):
+
+        if first:
+          # Remove first paragraph tag
+          m = re.match("<p.*?>", wb[i])
+          if m:
+            wb[i] = wb[i][m.end():]
+            first = False
+        t.append(wb[i])
+        del(wb[i])
+      del(wb[i]) # closing div
+      t.append("</sidenote>")
+      t.append("")
+      wb[i:i+1] = t
+      i += len(t)-1
+    i += 1
+
+  if matched:
+    css.addcss("[411] div.footnote { margin:0 .5em; }")
+    css.addcss("[411] p.footnote { text-indent:1.5em; }")
+    css.addcss(""" [411] .footnote-id {
+      text-indent:1.5em;
+      vertical-align:super;
+      font-size:smaller;
+    }""")
 
 class TestFootnote(unittest.TestCase):
   def setUp(self):
@@ -695,7 +913,7 @@ class TestFootnote(unittest.TestCase):
       '</div> <!-- footnote end -->',
       '',
     ]
-    footnotesToHtml(input)
+    footnotesToHtmlTags(input)
     self.assertSequenceEqual(input, result)
 
   def test_footnote_heading_reset_manual2(self):
@@ -943,7 +1161,7 @@ class TestFootnote(unittest.TestCase):
     ]
 
     # TODO: Warning that id is twice, <footnote> link to the first
-    footnotesToHtml(input)
+    footnotesToHtmlTags(input)
     self.assertSequenceEqual(input, result)
 
   def test_footnote_no_id(self):

@@ -1,4 +1,4 @@
-from fpgen import userOptions
+from userOptions import userOptions
 
 from time import gmtime, strftime
 
@@ -130,8 +130,9 @@ uopt = userOptions()
 # 4.45c    Fixup error msgs in arg parsing code; find file automatically
 # 4.45d    Add page-break-inside:avoid to centered figures
 # 4.45e    Fix various <l> and <lg> related bugs in text output
+# 4.46     Add summary-style center and add footnote-style sidenote
 
-VERSION="4.45e"
+VERSION="4.46"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
