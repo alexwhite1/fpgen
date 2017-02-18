@@ -521,6 +521,7 @@ class TestFootnote(unittest.TestCase):
 
   def tearDown(self):
     config.uopt = userOptions()
+    config.uopt.setGenType('h')
 
   input1 = [
     "l1",
@@ -1182,3 +1183,11 @@ class TestFootnote(unittest.TestCase):
     with self.assertRaises(SystemExit) as cm:
       relocateFootnotes(input)
     self.assertEqual(cm.exception.code, 1)
+
+  def test_footnote_style(self):
+    input = [ "text<fn id='1'>" ]
+    config.uopt.addopt("footnote-style", "sidenote")
+    config.uopt.setGenType('h')
+    self.assertEqual(getFootnoteStyle(), sidenote)
+    config.uopt.setGenType('t')
+    self.assertEqual(getFootnoteStyle(), table)

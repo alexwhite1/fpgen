@@ -82,14 +82,14 @@ def wrap2h(s, lm, rm, li, l0, breakOnEmDash):  # 22-Feb-2014
   s = re.sub("—", "◠◠", s) # compensate long dash
   lines = wrapper.wrap(s)
   for i, line in enumerate(lines):
-      lines[i] = re.sub("◠◠", "—", lines[i]) # restore dash
-      lines[i] = re.sub("◮", " ", lines[i]) # restore spaces from gesperrt or ti
+      lines[i] = lines[i].replace("◠◠", "—") # restore dash
+      lines[i] = lines[i].replace("◮", " ") # restore spaces from gesperrt or ti
       lines[i] = " " * lm + lines[i]
   return lines
 
 def wrap2(s, lm=0, rm=0, li=0, ti=0, breakOnEmDash=False):  # 22-Feb-2014
   lines = []
-  while re.search("<br\/>", s):
+  while "<br/>" in s:
     m = re.search("(.*?)<br\/>(.*)", s)
     if m:
       lines += wrap2h(m.group(1).strip(), lm, rm, li, ti, breakOnEmDash)
@@ -223,7 +223,7 @@ class Book(object): #{
       for s in self.meta:
         # Hack to convert &, because we now steal the meta before
         # we run the html preprocess code
-        t.append("    " + re.sub("&", "&amp;", s))
+        t.append("    " + s.replace("&", "&amp;"))
       return t
 
     def get(self, tag):
@@ -638,8 +638,8 @@ class Book(object): #{
 
       # No section='head'; so just protect the block.
       for i, line in enumerate(block):
-        line = re.sub(r"<", '⨭', line) # literal open tag marks
-        line = re.sub(r">", '⨮', line) # literal close tag marks
+        line = line.replace("<", '⨭') # literal open tag marks
+        line = line.replace(">", '⨮') # literal close tag marks
         block[i] = config.FORMATTED_PREFIX + line
       return block
 
@@ -678,10 +678,10 @@ class Book(object): #{
         self.wb[i] = re.sub("<\/?I>", "", self.wb[i])
         self.wb[i] = re.sub("<\/?B>", "", self.wb[i])
       else:
-        self.wb[i] = re.sub("<I>", "<i>", self.wb[i])
-        self.wb[i] = re.sub("<B>", "<b>", self.wb[i])
-        self.wb[i] = re.sub("<\/I>", "</i>", self.wb[i])
-        self.wb[i] = re.sub("<\/B>", "</b>", self.wb[i])
+        self.wb[i] = self.wb[i].replace("<I>", "<i>")
+        self.wb[i] = self.wb[i].replace("<B>", "<b>")
+        self.wb[i] = self.wb[i].replace("</I>", "</i>")
+        self.wb[i] = self.wb[i].replace("</B>", "</b>")
       i += 1
 
     self.applyConditionals()
@@ -721,11 +721,11 @@ class Book(object): #{
 
     for i, line in enumerate(self.wb):
       # map drop caps requests
-      self.wb[i] = re.sub("<drop>", config.DROP_START, self.wb[i])
-      self.wb[i] = re.sub("<\/drop>", config.DROP_END, self.wb[i])
+      self.wb[i] = self.wb[i].replace("<drop>", config.DROP_START)
+      self.wb[i] = self.wb[i].replace("</drop>", config.DROP_END)
 
       # map <br> to be legal
-      self.wb[i] = re.sub("<br>", "<br/>", self.wb[i])
+      self.wb[i] = self.wb[i].replace("<br>", "<br/>")
 
     # normalize rend format to have trailing semicolons
     # honour <lit>...</lit> blocks
@@ -1669,15 +1669,15 @@ class HTML(Book): #{
       if not block[i].startswith(config.FORMATTED_PREFIX):
         # protect special characters
         block[i] = re.sub(r"\\ ", '⋀', block[i]) # escaped (hard) spaces
-        block[i] = re.sub(r" ",   '⋀', block[i]) # unicode 0xA0, non-breaking space
+        block[i] = block[i].replace(" ",   '⋀') # unicode 0xA0, non-breaking space
         block[i] = re.sub(r"\\%", '⊐', block[i]) # escaped percent signs (macros)
         block[i] = re.sub(r"\\#", '⊏', block[i]) # escaped octothorpes (page links)
         block[i] = re.sub(r"\\<", '≼', block[i]) # escaped open tag marks
         block[i] = re.sub(r"\\>", '≽', block[i]) # escaped close tag marks
 
-        block[i] = re.sub(r"<thinsp>", "\u2009", block[i])
-        block[i] = re.sub(r"<nnbsp>", "\u202f", block[i])
-        block[i] = re.sub(r"<wjoiner>", "\u2060", block[i])
+        block[i] = block[i].replace("<thinsp>", "\u2009")
+        block[i] = block[i].replace("<nnbsp>", "\u202f")
+        block[i] = block[i].replace("<wjoiner>", "\u2060")
 
         # Line ending in period must join with subsequent line starting with periods
         # We do not have agreement on this yet!
@@ -1877,31 +1877,31 @@ class HTML(Book): #{
   def protectMarkup(self, block):
     self.dprint(1,"protectMarkup")
     for i,line in enumerate(block):
-      block[i] = re.sub("<em>",'⩤em⩥', block[i])
-      block[i] = re.sub("<\/em>",'⩤/em⩥', block[i])
-      block[i] = re.sub("<i>",'⩤i⩥', block[i])
-      block[i] = re.sub("<\/i>",'⩤/i⩥', block[i])
-      block[i] = re.sub("<sc>",'⩤sc⩥', block[i])
-      block[i] = re.sub("<\/sc>",'⩤/sc⩥', block[i])
-      block[i] = re.sub("<b>",'⩤b⩥', block[i])
-      block[i] = re.sub("<\/b>",'⩤/b⩥', block[i])
-      block[i] = re.sub("<u>",'⩤u⩥', block[i])
-      block[i] = re.sub("<\/u>",'⩤/u⩥', block[i])
-      block[i] = re.sub("<g>",'⩤g⩥', block[i])
-      block[i] = re.sub("<\/g>",'⩤/g⩥', block[i])
-      block[i] = re.sub("<r>",'⩤r⩥', block[i])
-      block[i] = re.sub("<\/r>",'⩤/r⩥', block[i])
+      block[i] = block[i].replace("<em>",'⩤em⩥')
+      block[i] = block[i].replace("</em>",'⩤/em⩥')
+      block[i] = block[i].replace("<i>",'⩤i⩥')
+      block[i] = block[i].replace("</i>",'⩤/i⩥')
+      block[i] = block[i].replace("<sc>",'⩤sc⩥')
+      block[i] = block[i].replace("</sc>",'⩤/sc⩥')
+      block[i] = block[i].replace("<b>",'⩤b⩥')
+      block[i] = block[i].replace("</b>",'⩤/b⩥')
+      block[i] = block[i].replace("<u>",'⩤u⩥')
+      block[i] = block[i].replace("</u>",'⩤/u⩥')
+      block[i] = block[i].replace("<g>",'⩤g⩥')
+      block[i] = block[i].replace("</g>",'⩤/g⩥')
+      block[i] = block[i].replace("<r>",'⩤r⩥')
+      block[i] = block[i].replace("</r>",'⩤/r⩥')
       block[i] = re.sub(r"<(fn id=['\"].*?['\"]/?)>",r'⩤\1⩥', block[i])
 
       # new inline tags 2014.01.27
-      block[i] = re.sub("<(\/fs)>", r'⩤\1⩥', block[i])
+      block[i] = block[i].replace("</fs>", r'⩤/fs⩥')
       block[i] = re.sub("<(fs:.+?)>", r'⩤\1⩥', block[i])
 
       # overline 13-Apr-2014
-      if re.search("<ol>", block[i]):
+      if "<ol>" in block[i]:
         self.css.addcss("[116] .ol { text-decoration:overline; }")
-      block[i] = re.sub("<ol>", '⎧', block[i]) # overline
-      block[i] = re.sub("<\/ol>", '⎫', block[i]) # overline
+      block[i] = block[i].replace("<ol>", '⎧') # overline
+      block[i] = block[i].replace("</ol>", '⎫') # overline
 
   # No paragraphs in this particular tag; for a tag which must start a line
   def skip(self, tag, wb, start):
@@ -1923,7 +1923,7 @@ class HTML(Book): #{
     if wb[n].startswith("<" + tag):
       endTag = "</" + tag
       m = len(wb)
-      while wb[n].find(endTag) == -1:
+      while not endTag in wb[n]:
         n += 1
         if n >= m:
           fatal("Missing end tag: " + endTag + " starting near " + str(start))
@@ -2115,41 +2115,49 @@ class HTML(Book): #{
     'xs' : '⓲'
   }
 
+  # protectMarkup was used to hide just our known, inline font-related tags
+  # by converting <> into ⩤⩥.
+  #
+  # restoreMarkup converts the tags back to <>, and then converts the
+  # full tag into single character internal values.
+  #
+  # cleanup will then convert those single character internal values into 
+  # actual html strings.
   def restoreMarkup(self, block):
     self.dprint(1,"restoreMarkup")
     for i,line in enumerate(block):
-      block[i] = re.sub("⩤",'<', block[i])
-      block[i] = re.sub("⩥",'>', block[i])
+      block[i] = block[i].replace("⩤",'<')
+      block[i] = block[i].replace("⩥",'>')
 
-      if re.search("<i>", block[i]):
+      if "<i>" in block[i]:
         self.css.addcss("[110] .it { font-style:italic; }")
-      block[i] = re.sub("<i>","①", block[i])
-      block[i] = re.sub("</i>",'②', block[i])
+      block[i] = block[i].replace("<i>","①")
+      block[i] = block[i].replace("</i>",'②')
 
-      if re.search("<b>", block[i]):
+      if "<b>" in block[i]:
         self.css.addcss("[111] .bold { font-weight:bold; }")
-      block[i] = re.sub("<b>","③", block[i])
-      block[i] = re.sub("</b>",'②', block[i])
+      block[i] = block[i].replace("<b>","③")
+      block[i] = block[i].replace("</b>",'②')
 
-      if re.search("<sc>", block[i]):
+      if "<sc>" in block[i]:
         self.css.addcss("[112] .sc { font-variant:small-caps; }")
-      block[i] = re.sub("<sc>","④", block[i])
-      block[i] = re.sub("</sc>",'②', block[i])
+      block[i] = block[i].replace("<sc>","④")
+      block[i] = block[i].replace("</sc>",'②')
 
-      if re.search("<u>", block[i]):
+      if "<u>" in block[i]:
         self.css.addcss("[113] .ul { text-decoration:underline; }")
-      block[i] = re.sub("<u>","⑤", block[i])
-      block[i] = re.sub("</u>",'②', block[i])
+      block[i] = block[i].replace("<u>","⑤")
+      block[i] = block[i].replace("</u>",'②')
 
-      if re.search("<g>", block[i]):
+      if "<g>" in block[i]:
         self.css.addcss("[114] .gesp { letter-spacing:0.2em; }")
-      block[i] = re.sub("<g>","⑥", block[i])
-      block[i] = re.sub("</g>",'②', block[i])
+      block[i] = block[i].replace("<g>","⑥")
+      block[i] = block[i].replace("</g>",'②')
 
-      if re.search("<r>", block[i]):
+      if "<r>" in block[i]:
         self.css.addcss("[115] .red { color: red; }")
-      block[i] = re.sub("<r>","⑦", block[i])
-      block[i] = re.sub("</r>",'②', block[i])
+      block[i] = block[i].replace("<r>","⑦")
+      block[i] = block[i].replace("</r>",'②')
 
       block[i] = re.sub(r"⩤(fn id=['\"].*?['\"]/?)⩥",r'<\1>', block[i])
 
@@ -2164,7 +2172,7 @@ class HTML(Book): #{
               " in line " + block[i])
         block[i] = block[i][:m.start()] + self.fontmap[size] + block[i][m.end():]
 
-      block[i] = re.sub(r"<\/fs>",'⓳', block[i])
+      block[i] = block[i].replace("</fs>",'⓳')
 
   def startHTML(self):
     self.dprint(1,"startHTML")
@@ -2249,26 +2257,50 @@ class HTML(Book): #{
 
     self.wb = t + self.wb # prepend header
 
+  cleanTrans = "".maketrans({
+    '⧗': "'",    # escaped single quote
+    '⧢': '"',    # double quote
+    '⧲': '&amp;',# ampersand
+
+    '◻': '&ensp;',# wide space
+    '⋀': '&nbsp;',# non-breaking space
+
+    '▹': None,   # unprotect literal lines
+    '⧀': '<',    # protected tag braces
+    '⧁': '>',
+    '⊐': '%',    # escaped percent signs (macros)
+    '⊏': '#',    # escaped octothorpes (page links)
+    '≼': '&lt;', # escaped <
+    '≽': '&gt;', # escaped >
+
+    '⨭': '<',    # protected <
+    '⨮': '>',    # protected >
+    "①": "<span class='it'>",
+    "②": "</span>",
+    "③": "<span class='bold'>",
+    "④": "<span class='sc'>",
+    "⑤": "<span class='ul'>",
+    "⑥": "<span class='gesp'>",
+    "⑦": "<span class='red'>",
+
+    "⎧": "<span class='ol'>",
+    "⎫": "</span>",
+
+    # Inline font size changes
+    '⓯': "<span style='font-size:larger'>",
+    '⓰': "<span style='font-size:x-large'>",
+    '⓱': "<span style='font-size:smaller'>",
+    '⓲': "<span style='font-size:x-small'>",
+    '⓳': "</span>",     # </fs>
+
+    # Drop-cap code for no image
+    config.DROP_START: "<span style='float:left; clear: left; margin:0 0.1em 0 0; padding:0; line-height: 1.0em; font-size: 200%;'>",
+    config.DROP_END: "</span>",
+  })
+
   def cleanup(self):
     self.dprint(1,"cleanup")
     for i in range(len(self.wb)):
-      self.wb[i] = re.sub('⧗', "'", self.wb[i]) # escaped single quote
-      self.wb[i] = re.sub('⧢', '"', self.wb[i]) # double quote
-      self.wb[i] = re.sub('⧲', '&amp;', self.wb[i]) # ampersand
-
-      self.wb[i] = re.sub('◻', '&ensp;', self.wb[i]) # wide space
-      self.wb[i] = re.sub('⋀', '&nbsp;', self.wb[i]) # non-breaking space
-
-      self.wb[i] = re.sub('▹', '', self.wb[i]) # unprotect literal lines
-      self.wb[i] = re.sub('⧀', '<', self.wb[i]) # protected tag braces
-      self.wb[i] = re.sub('⧁', '>', self.wb[i])
-      self.wb[i] = re.sub('⊐', '%', self.wb[i]) # escaped percent signs (macros)
-      self.wb[i] = re.sub('⊏', '#', self.wb[i]) # escaped octothorpes (page links)
-      self.wb[i] = re.sub('≼', '&lt;', self.wb[i]) # escaped <
-      self.wb[i] = re.sub('≽', '&gt;', self.wb[i]) # escaped >
-
-      self.wb[i] = re.sub('⨭', '<', self.wb[i]) # protected <
-      self.wb[i] = re.sub('⨮', '>', self.wb[i]) # protected >
 
       # Handle drop-caps, which have images.
       # Each image must be mapped in a property to its image file;
@@ -2294,37 +2326,16 @@ class HTML(Book): #{
           "<img src='" + imgFile + "' style='float:left;' alt='" + letter + "'/>", \
           self.wb[i])
 
-      # Drop-cap code for no image
-      self.wb[i] = re.sub(config.DROP_START, "<span style='float:left; clear: left; margin:0 0.1em 0 0; padding:0; line-height: 1.0em; font-size: 200%;'>", self.wb[i])
-      self.wb[i] = re.sub(config.DROP_END, "</span>", self.wb[i])
+      self.wb[i] = self.wb[i].translate(self.cleanTrans)
 
-      self.wb[i] = re.sub("①","<span class='it'>", self.wb[i])
-      self.wb[i] = re.sub("②","</span>", self.wb[i])
-      self.wb[i] = re.sub("③","<span class='bold'>", self.wb[i])
-      self.wb[i] = re.sub("④","<span class='sc'>", self.wb[i])
-      self.wb[i] = re.sub("⑤","<span class='ul'>", self.wb[i])
-      self.wb[i] = re.sub("⑥","<span class='gesp'>", self.wb[i])
-      self.wb[i] = re.sub("⑦","<span class='red'>", self.wb[i])
-
-      self.wb[i] = re.sub("⎧","<span class='ol'>", self.wb[i])
-      self.wb[i] = re.sub("⎫","</span>", self.wb[i])
-
-    # superscripts, subscripts
-    for i in range(len(self.wb)):
+      # superscripts, subscripts
       # special cases first: ^{} and _{}
-      self.wb[i] = re.sub('\^\{\}', r'<sup>&#8203;</sup>', self.wb[i])
-      self.wb[i] = re.sub('_\{\}', r'<sub>&#8203;</sub>', self.wb[i])
+      # 8203 is ZERO WIDTH SPACE U+200B
+      self.wb[i] = self.wb[i].replace('^{}', r'<sup>&#8203;</sup>')
+      self.wb[i] = self.wb[i].replace('_{}', r'<sub>&#8203;</sub>')
       self.wb[i] = re.sub('\^\{(.*?)\}', r'<sup>\1</sup>', self.wb[i]) # superscript format 1: Rob^{t}
       self.wb[i] = re.sub('\^(.)', r'<sup>\1</sup>', self.wb[i]) # superscript format 2: Rob^t
       self.wb[i] = re.sub('_\{(.*?)\}', r'<sub>\1</sub>', self.wb[i]) # subscript: H_{2}O
-
-    # 2014.01.27 new font size inline
-    for i in range(len(self.wb)):
-      self.wb[i] = re.sub('⓯', "<span style='font-size:larger'>", self.wb[i])
-      self.wb[i] = re.sub('⓰', "<span style='font-size:x-large'>", self.wb[i])
-      self.wb[i] = re.sub('⓱', "<span style='font-size:smaller'>", self.wb[i])
-      self.wb[i] = re.sub('⓲', "<span style='font-size:x-small'>", self.wb[i])
-      self.wb[i] = re.sub('⓳', "</span>", self.wb[i])
 
   # page links
   # 2014.01.14 new in 3.02c
@@ -2350,11 +2361,10 @@ class HTML(Book): #{
   def placeCSS(self):
     self.dprint(1,"placeCSS")
     i = 0
-    notplaced = True
-    while i < len(self.wb) and notplaced:
+    while i < len(self.wb):
       if re.search("CSS PLACEHOLDER", self.wb[i]):
         self.wb[i:i+1] = self.css.show()
-        notplaced = False
+        break
       i += 1
 
   def placeMeta(self):
@@ -4819,15 +4829,15 @@ class Text(Book): #{
         l = ''.join(line)
 
       else:
-        l = re.sub(config.FORMATTED_PREFIX, "", l)
-        l = re.sub(config.HARD_SPACE, " ", l)
-        l = re.sub('⊐', '%', l) # escaped percent signs (macros)
-        l = re.sub('⊏', '#', l) # escaped octothorpes (page links)
-        l = re.sub("≼", "<", l) # <
-        l = re.sub("≽", ">", l) # >
+        l = l.replace(config.FORMATTED_PREFIX, "")
+        l = l.replace(config.HARD_SPACE, " ")
+        l = l.replace('⊐', '%') # escaped percent signs (macros)
+        l = l.replace('⊏', '#') # escaped octothorpes (page links)
+        l = l.replace("≼", "<") # <
+        l = l.replace("≽", ">") # >
 
-        l = re.sub("⨭", "<", l) # literal <
-        l = re.sub("⨮", ">", l) # literal >
+        l = l.replace("⨭", "<") # literal <
+        l = l.replace("⨮", ">") # literal >
 
         m = regexDrop.search(l)
         if m:

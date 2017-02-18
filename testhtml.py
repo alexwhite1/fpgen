@@ -9,6 +9,7 @@ from msgs import cprint
 class TestHTMLPara(unittest.TestCase):
   def setUp(self):
     self.html = HTML(None, None, 0, 'h')
+    config.uopt.setGenType('h')
 
   def tearDown(self):
     config.uopt = userOptions()
@@ -70,9 +71,27 @@ class TestHTMLPara(unittest.TestCase):
       "",
     ]);
 
+  def test_html_noblank(self):
+    self.html.wb = [
+        "",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "<l rend='center'>lll</l>",
+        "p2l1w1, p2l1w2",
+    ]
+    self.html.markPara();
+    self.assertSequenceEqual(self.html.wb, [
+      "",
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "<l rend='center'>lll</l>",
+      "<p>p2l1w1, p2l1w2</p>",
+    ]);
+
   def test_html_indent_nobreak(self):
     config.uopt = userOptions();
     config.uopt.addopt("pstyle", "indent");
+    config.uopt.setGenType('h')
     self.html.wb = [
         "",
         "p1l1w1, p1l1w2",
@@ -205,6 +224,7 @@ class TestHTMLPara(unittest.TestCase):
 
   def test_html_indent_hang(self):
     config.uopt = userOptions();
+    config.uopt.setGenType('h')
     config.uopt.addopt("pstyle", "indent");
     self.html.wb = [
         "",
@@ -277,9 +297,9 @@ class TestHTMLPara(unittest.TestCase):
       "",
       "<pb>",
     ]
-    self.html.protectMarkup()
+    self.html.protectMarkup(self.html.wb)
     self.html.markPara()
-    self.html.restoreMarkup()
+    self.html.restoreMarkup(self.html.wb)
     self.assertSequenceEqual(self.html.wb, [
       "<pb>",
       "",
