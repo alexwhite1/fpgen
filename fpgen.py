@@ -732,15 +732,17 @@ class Book(object): #{
     # FIX ME! This changes rend='...' when it is not inside <...>
     # TODO: Make all users of rend= use parseOption, and then remove this!
     in_pre = False
+    regexDouble = re.compile('rend="(.*?)"')
+    regexSingle = re.compile("rend='(.*?)'")
     for i,line in enumerate(self.wb):
       if "<lit" in line:
         in_pre = True
       if "</lit" in line:
         in_pre = False
-      m = re.search('rend="(.*?)"', line)
+      m = regexDouble.search(line)
       if m:
         self.wb[i] = re.sub('rend=".*?"', "rend='{}'".format(m.group(1)), self.wb[i])
-      m = re.search("rend='(.*?)'", self.wb[i])
+      m = regexSingle.search(self.wb[i])
       if not in_pre and m:
         therend = m.group(1)
         therend = re.sub(" ",";", therend)
@@ -1399,18 +1401,21 @@ class Lint(Book): #{
         reports.append("non-isolated <pb> tag:\nline number: {}".format(i))
 
       # all lines stand alone
-      if re.match("<l[> ]", line) and not re.search("<\/l>$", line):
-        reports.append("line missing closing </l>:\nline number: {}\n{}".format(i,line))
-      if not re.match("<l[> ]", line) and re.search("<\/l>$", line):
-        reports.append("line missing opening <l>:\nline number: {}\n{}".format(i,line))
+      standaloneL = line.startswith("<l ") or line.startswith("<l>")
+      if standaloneL:
+        if not re.search("<\/l>$", line):
+          reports.append("line missing closing </l>:\nline number: {}\n{}".format(i,line))
+      else:
+        if re.search("<\/l>$", line):
+          reports.append("line missing opening <l>:\nline number: {}\n{}".format(i,line))
 
       # no nested line groups
-      if re.match("<lg", line):
+      if line.startswith("<lg"):
         if inLineGroup:
           reports.append("line group error: unexpected <lg tag\nline number: {}\nunclosed lg started at line: {}".format(i,lineGroupStartLine))
         inLineGroup = True
         lineGroupStartLine = i
-      if re.match("<\/lg", line):
+      if line.startswith("</lg"):
         if not inLineGroup:
           reports.append("line group error: closing a </lg that is not open:\nline number: {}".format(i))
         inLineGroup = False
@@ -1420,13 +1425,8 @@ class Lint(Book): #{
       if inLineGroup:
         self.balanced(reports, line, i, lineGroupStartLine)
 
-      if re.match("<l[> ]", line) or re.match("<heading[> ]", line):
+      if standaloneL or re.match("<heading[> ]", line):
         self.balanced(reports, line, i, None)
-
-    # check for obsolete rend markup
-    for i,line in enumerate(self.wb):
-      if re.search("fs\d", line) or re.search("m[ltrb]\d", line):
-        reports.append("error:obsolete markup:\nline number: {}\n{}".format(i, line))
 
     logfile = "errorlog.txt"
     if len(reports) > 0:
@@ -1665,36 +1665,28 @@ class HTML(Book): #{
   def preprocessOneBlock(self, block):
     i = 0
     while i < len(block):
+      l = block[i]
 
-      if not block[i].startswith(config.FORMATTED_PREFIX):
+      if not l.startswith(config.FORMATTED_PREFIX):
         # protect special characters
-        block[i] = re.sub(r"\\ ", '⋀', block[i]) # escaped (hard) spaces
-        block[i] = block[i].replace(" ",   '⋀') # unicode 0xA0, non-breaking space
-        block[i] = re.sub(r"\\%", '⊐', block[i]) # escaped percent signs (macros)
-        block[i] = re.sub(r"\\#", '⊏', block[i]) # escaped octothorpes (page links)
-        block[i] = re.sub(r"\\<", '≼', block[i]) # escaped open tag marks
-        block[i] = re.sub(r"\\>", '≽', block[i]) # escaped close tag marks
+        l = l.replace("\\ ", '⋀') # escaped (hard) spaces
+        l = l.replace(" ",   '⋀') # unicode 0xA0, non-breaking space
+        l = l.replace("\\%", '⊐') # escaped percent signs (macros)
+        l = l.replace("\\#", '⊏') # escaped octothorpes (page links)
+        l = l.replace("\\<", '≼') # escaped open tag marks
+        l = l.replace("\\>", '≽') # escaped close tag marks
 
-        block[i] = block[i].replace("<thinsp>", "\u2009")
-        block[i] = block[i].replace("<nnbsp>", "\u202f")
-        block[i] = block[i].replace("<wjoiner>", "\u2060")
+        l = l.replace("<thinsp>", "\u2009")
+        l = l.replace("<nnbsp>", "\u202f")
+        l = l.replace("<wjoiner>", "\u2060")
 
-        # Line ending in period must join with subsequent line starting with periods
-        # We do not have agreement on this yet!
-#        if block[i].endswith('.') and  i + 1 < len(block) :
-#          m = re.match("^\. [\. ]+\W*", block[i+1])
-#          if m:
-#            leading = m.group(0)
-#            if leading != "":
-#              block[i] = block[i] + ' ' + leading.rstrip();
-#              block[i+1] = block[i+1][len(leading):]
-
-        while re.search(r"\. \.", block[i]):
-          block[i] = re.sub(r"\. \.",'.⋀.', block[i]) # spaces in spaced-out ellipsis
-        block[i] = re.sub(r"\\'",'⧗', block[i]) # escaped single quote
-        block[i] = re.sub(r'\\"','⧢', block[i]) # escaped double quote
-        block[i] = re.sub(r"&",'⧲', block[i]) # ampersand
-        block[i] = re.sub("<l\/>","<l></l>", block[i]) # allow user shortcut <l/> -> </l></l>
+        while ". ." in l:
+          l = l.replace(". .", '.⋀.') # spaces in spaced-out ellipsis
+        l = l.replace("\\'",'⧗') # escaped single quote
+        l = l.replace('\\"','⧢') # escaped double quote
+        l = l.replace(r"&",'⧲') # ampersand
+        l = l.replace("<l/>","<l></l>") # allow user shortcut <l/> -> </l></l>
+        block[i] = l
       i += 1
 
   # HTML: preprocess text
@@ -1738,12 +1730,12 @@ class HTML(Book): #{
 
     i = 1
     while i < len(self.wb)-1:
-      if re.match("<quote", self.wb[i]) and not empty.match(self.wb[i+1]):
+      if self.wb[i].startswith("<quote") and not empty.match(self.wb[i+1]):
         t = [self.wb[i], ""]
         # inject blank line
         self.wb[i:i+1] = t
         i += 1
-      if re.match("</quote>", self.wb[i]) and not empty.match(self.wb[i-1]):
+      if self.wb[i].startswith("</quote>") and not empty.match(self.wb[i-1]):
         t = ["", "</quote>"]
         # inject blank line
         self.wb[i:i+1] = t
@@ -2159,8 +2151,6 @@ class HTML(Book): #{
       block[i] = block[i].replace("<r>","⑦")
       block[i] = block[i].replace("</r>",'②')
 
-      block[i] = re.sub(r"⩤(fn id=['\"].*?['\"]/?)⩥",r'<\1>', block[i])
-
       # new inline tags 2014.01.27
       while True:
         m = re.search(r"<fs:(.*?)>", block[i])
@@ -2344,19 +2334,23 @@ class HTML(Book): #{
 
     # of the form #124:ch03#
     # displays 124, links to ch03
+    regex = re.compile(r"#\d+:.*?#")
     for i in range(len(self.wb)): # new 2014.01.13
-      m = re.search(r"#\d+:.*?#", self.wb[i])
-      while m:
+      while True:
+        m = regex.search(self.wb[i])
+        if not m:
+          break
         self.wb[i] = re.sub(r"#(\d+):(.*?)#", r"<a href='#\2'>\1</a>", self.wb[i],1)
-        m = re.search(r"#\d+\:.*?#", self.wb[i])
 
     # of the form #274#
     # displays 274, links to Page_274
+    regex = re.compile(r"#\d+#")
     for i in range(len(self.wb)):
-      m = re.search(r"#\d+#", self.wb[i])
-      while m:
+      while True:
+        m = regex.search(self.wb[i])
+        if not m:
+          break
         self.wb[i] = re.sub(r"#(\d+)#", r"<a href='#Page_\1'>\1</a>", self.wb[i],1)
-        m = re.search(r"#\d+#", self.wb[i])
 
   def placeCSS(self):
     self.dprint(1,"placeCSS")
