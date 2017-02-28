@@ -60,7 +60,10 @@ def parseEmbeddedTagWithoutContent(line, tag, function):
     line = leftPart + repl + rightPart
     off = len(leftPart) + len(repl)
 
-def parseEmbeddedSingleLineTagWithContent(line, tag, function):
+def parseStandaloneSingleLineTagWithContent(line, tag, function):
+  return parseEmbeddedSingleLineTagWithContent(line, tag, function, wholeLine = True)
+
+def parseEmbeddedSingleLineTagWithContent(line, tag, function, wholeLine = False):
   origLine = line
   startTag = "<" + tag
   startLen = len(startTag)
@@ -104,6 +107,11 @@ def parseEmbeddedSingleLineTagWithContent(line, tag, function):
     rightPart = line[endTagOff+endLen:]
     line = leftPart + repl + rightPart
     off = len(leftPart) + len(repl)
+    if wholeLine:
+      if leftPart != "" or rightPart != "":
+        fatal("Tag " + startTag +
+          ">: This tag must be alone on the line. Line: " + origLine +
+          " >>>" + leftPart + "<<<>>>" + rightPart + "<<<")
 
 # Extract the text on a line which looks like <tag>XXXX</tag>
 def parseLineEntry(tag, line):

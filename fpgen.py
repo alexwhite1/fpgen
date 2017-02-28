@@ -13,8 +13,11 @@ from userOptions import userOptions
 import config
 import footnote
 
-from parse import parseTagAttributes, parseOption, parseLineEntry, parseStandaloneTagBlock, \
-  parseEmbeddedSingleLineTagWithContent, parseEmbeddedTagWithoutContent
+from parse import parseTagAttributes, parseOption, parseLineEntry, \
+  parseStandaloneTagBlock, \
+  parseEmbeddedSingleLineTagWithContent, \
+  parseEmbeddedTagWithoutContent, \
+  parseStandaloneSingleLineTagWithContent
 from msgs import cprint, uprint, dprint, fatal
 import config
 import template
@@ -2420,11 +2423,8 @@ class HTML(Book): #{
 
   def doHeadings(self):
     self.dprint(1,"doHeadings")
-    regex = re.compile("<heading(.*?)>(.*?)<\/heading>")
-    for i,line in enumerate(self.wb):
-      m = regex.match(line)
-      if not m:
-        continue
+
+    def oneHeading(harg, htitle, orig):
 
       # Defaults
       htarget = ""
@@ -2434,9 +2434,6 @@ class HTML(Book): #{
       useclass = ""
       span = ""
       options = {}
-
-      harg = m.group(1)
-      htitle = m.group(2)
 
       # pn's have been converted
       m = re.search("⪦([^-]+)⪧", harg)
@@ -2488,19 +2485,24 @@ class HTML(Book): #{
         if self.gentype != 'h':
           # There will be a page break before the header; if we emit the pn anchor
           # before the <h1>, the TOC will link to the prior page
-          self.wb[i] = "<div><h1{}{}{}>{}{}</h1></div>".format(style, useclass, htarget, span, htitle)
+          l = "<div><h1{}{}{}>{}{}</h1></div>".format(style, useclass, htarget, span, htitle)
         else:
           # I don't know why the div for only the <h1>!
-          self.wb[i] = "<div>{}<h1{}{}{}>{}</h1></div>".format(span, style, useclass, htarget, htitle)
+          l = "<div>{}<h1{}{}{}>{}</h1></div>".format(span, style, useclass, htarget, htitle)
 
       if hlevel == 2:
-        self.wb[i] = "<h2{}{}{}>{}{}</h2>".format(style, useclass, htarget, span, htitle)
+        l = "<h2{}{}{}>{}{}</h2>".format(style, useclass, htarget, span, htitle)
 
       if hlevel == 3:
-        self.wb[i] = "<h3{}{}{}>{}{}</h3>".format(style, useclass, htarget, span, htitle)
+        l = "<h3{}{}{}>{}{}</h3>".format(style, useclass, htarget, span, htitle)
 
       if hlevel == 4:
-        self.wb[i] = "<h4{}{}{}>{}{}</h4>".format(style, useclass, htarget, span, htitle)
+        l = "<h4{}{}{}>{}{}</h4>".format(style, useclass, htarget, span, htitle)
+
+      return l
+
+    for i,line in enumerate(self.wb):
+      self.wb[i] = parseStandaloneSingleLineTagWithContent(line, "heading", oneHeading)
 
   def oneSummary(self, openTag, block):
     if openTag != "":
