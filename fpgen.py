@@ -2433,6 +2433,7 @@ class HTML(Book): #{
       style = ""
       useclass = ""
       span = ""
+      options = {}
 
       harg = m.group(1)
       htitle = m.group(2)
@@ -2445,16 +2446,18 @@ class HTML(Book): #{
         # Remove it
         harg = harg[0:m.start(0)] + harg[m.end(0):]
 
-      # Remove when parser handles token without value
+      # For historic reasons, nobreak can occur standalone, or as a rend option
       if "nobreak" in harg:
-        useclass = " class='nobreak'"
-        self.css.addcss("[427] h1.nobreak { page-break-before: avoid; }")
+        options["nobreak"] = ""
         harg = harg.replace("nobreak", "")
 
-      # Note rend is required to make rend='nobreak' work
       attributes = parseTagAttributes("heading", harg, [
         "nobreak", "hidden", "level", "id", "pn", "toc", "rend"
       ])
+
+      if "rend" in attributes:
+        rend = attributes["rend"]
+        options.update(parseOption("heading", rend, [ "hidden", "nobreak" ]))
 
       # Note: Earlier, we have ensured that all headers have ids, just
       # in case <tocloc> is in use.
@@ -2467,12 +2470,12 @@ class HTML(Book): #{
           fatal("<heading>: level must be a number between 1 and 4 in line: " +
               line)
 
-      if "hidden" in attributes:
+      if "hidden" in options:
         style = " style='visibility:hidden; margin:0; font-size:0;' "
 
-      if "nobreak" in attributes:
+      if "nobreak" in options:
         useclass = " class='nobreak'"
-        self.css.addcss("[427] h1.nobreak { page-break-before: avoid; }")
+        self.css.addcss("[427] .nobreak { page-break-before: avoid; }")
 
       if showpage: # visible page numbers
         if self.gentype != 'h': # other than browser HTML, just the link
