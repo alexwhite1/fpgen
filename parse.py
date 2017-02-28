@@ -25,7 +25,11 @@ from msgs import fatal, cprint
 # parseLineEntry:
 #   <tag>content</tag>
 
-def parseEmbeddedTagWithoutContent(line, tag, function):
+def parseEmbeddedTagWithoutContent(block, tag, function):
+  for i,line in enumerate(block):
+    block[i] = _parseEmbeddedTagWithoutContent(line, tag, function)
+
+def _parseEmbeddedTagWithoutContent(line, tag, function):
   origLine = line
   startTag = "<" + tag
   startLen = len(startTag)
@@ -60,10 +64,14 @@ def parseEmbeddedTagWithoutContent(line, tag, function):
     line = leftPart + repl + rightPart
     off = len(leftPart) + len(repl)
 
-def parseStandaloneSingleLineTagWithContent(line, tag, function):
-  return parseEmbeddedSingleLineTagWithContent(line, tag, function, wholeLine = True)
+def parseStandaloneSingleLineTagWithContent(block, tag, function):
+  return parseEmbeddedSingleLineTagWithContent(block, tag, function, wholeLine = True)
 
-def parseEmbeddedSingleLineTagWithContent(line, tag, function, wholeLine = False):
+def parseEmbeddedSingleLineTagWithContent(block, tag, function, wholeLine = False):
+  for i,line in enumerate(block):
+    block[i] = _parseEmbeddedSingleLineTagWithContent(line, tag, function, wholeLine)
+  
+def _parseEmbeddedSingleLineTagWithContent(line, tag, function, wholeLine = False):
   origLine = line
   startTag = "<" + tag
   startLen = len(startTag)
@@ -291,7 +299,7 @@ class TestParsing(unittest.TestCase):
       self.assertEquals(line, orig)
       self.assertEquals(arg, expectedArg[index])
       return replacement[index] if replacement != None else ""
-    result = parseEmbeddedTagWithoutContent(line, "tag", f)
+    result = _parseEmbeddedTagWithoutContent(line, "tag", f)
     self.assertEquals(self.callbackN, 1 if replacement == None else len(replacement))
     self.assertEquals(result, expectedResult)
 
@@ -357,7 +365,7 @@ class TestParsing(unittest.TestCase):
       self.assertEquals(content, expectedContent[index])
       return replacement[index] if replacement != None else ""
 
-    result = parseEmbeddedSingleLineTagWithContent(line, "tag", f)
+    result = _parseEmbeddedSingleLineTagWithContent(line, "tag", f)
     self.assertEquals(self.callbackN, 1 if replacement == None else len(replacement))
     self.assertEquals(result, expectedResult)
 

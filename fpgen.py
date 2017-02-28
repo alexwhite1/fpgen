@@ -1853,8 +1853,7 @@ class HTML(Book): #{
       target = attributes["target"]
       return "⩤a href='#" + target + "'⩥" + content + "⩤/a⩥"
 
-    for i,line in enumerate(self.wb):
-      self.wb[i] = parseEmbeddedSingleLineTagWithContent(line, "link", oneLink)
+    parseEmbeddedSingleLineTagWithContent(self.wb, "link", oneLink)
 
   def processTargets(self):
     self.dprint(1,"processTargets")
@@ -1866,8 +1865,7 @@ class HTML(Book): #{
       id = attributes["id"]
       return "⩤a id='" + id + "'⩥⩤/a⩥"
 
-    for i,line in enumerate(self.wb):
-      self.wb[i] = parseEmbeddedTagWithoutContent(line, "target", oneTarget)
+    parseEmbeddedTagWithoutContent(self.wb, "target", oneTarget)
 
   def protectMarkup(self, block):
     self.dprint(1,"protectMarkup")
@@ -2501,8 +2499,7 @@ class HTML(Book): #{
 
       return l
 
-    for i,line in enumerate(self.wb):
-      self.wb[i] = parseStandaloneSingleLineTagWithContent(line, "heading", oneHeading)
+    parseStandaloneSingleLineTagWithContent(self.wb, "heading", oneHeading)
 
   def oneSummary(self, openTag, block):
     if openTag != "":
