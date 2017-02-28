@@ -2423,77 +2423,81 @@ class HTML(Book): #{
     regex = re.compile("<heading(.*?)>(.*?)<\/heading>")
     for i,line in enumerate(self.wb):
       m = regex.match(line)
+      if not m:
+        continue
+
+      # Defaults
+      htarget = ""
+      hlevel = 0
+      showpage = False
+      style = ""
+      useclass = ""
+      span = ""
+
+      harg = m.group(1)
+      htitle = m.group(2)
+
+      # pn's have been converted
+      m = re.search("⪦([^-]+)⪧", harg)
       if m:
-        harg = m.group(1)
-        htitle = m.group(2)
-        htarget = ""
-        hlevel = 0
-        showpage = False
+        self.cpn = m.group(1)
+        showpage = True
+        # Remove it
+        harg = harg[0:m.start(0)] + harg[m.end(0):]
 
-        # Note: Earlier, we have ensured that all headers have ids, just
-        # in case <tocloc> is in use.
-        m = re.search("id=[\"'](.*?)[\"']", harg)
-        if m:
-          htarget = " id='" + m.group(1) + "'"
+      # Remove when parser handles token without value
+      if "nobreak" in harg:
+        useclass = " class='nobreak'"
+        self.css.addcss("[427] h1.nobreak { page-break-before: avoid; }")
+        harg = harg.replace("nobreak", "")
 
-        m = re.search("level=[\"'](.*?)[\"']", harg)
-        if m:
-          hlevel = int(m.group(1))
+      # Note rend is required to make rend='nobreak' work
+      attributes = parseTagAttributes("heading", harg, [
+        "nobreak", "hidden", "level", "id", "pn", "toc", "rend"
+      ])
 
-        m = re.search("⪦([^-]+)⪧", harg)
-        if m:
-          self.cpn = m.group(1)
-          showpage = True
+      # Note: Earlier, we have ensured that all headers have ids, just
+      # in case <tocloc> is in use.
+      if "id" in attributes:
+        htarget = " id='" + attributes["id"] + "'"
 
-        style = ""
-        m = re.search("hidden", harg)
-        if m:
-          style = " style='visibility:hidden; margin:0; font-size:0;' "
+      if "level" in attributes:
+        hlevel = int(attributes["level"])
+        if hlevel < 1 or hlevel > 4:
+          fatal("<heading>: level must be a number between 1 and 4 in line: " +
+              line)
 
-        useclass = ""
-        if re.search("nobreak", harg):
-          useclass = " class='nobreak'"
-          self.css.addcss("[427] h1.nobreak { page-break-before: avoid; }")
+      if "hidden" in attributes:
+        style = " style='visibility:hidden; margin:0; font-size:0;' "
 
-        if showpage: # visible page numbers
-          if self.gentype != 'h': # other than browser HTML, just the link
-            span = "<a name='Page_{0}' id='Page_{0}'></a>".format(self.cpn)
-          else:
-            span = "<span class='pageno' title='{0}' id='Page_{0}'></span>".format(self.cpn)
+      if "nobreak" in attributes:
+        useclass = " class='nobreak'"
+        self.css.addcss("[427] h1.nobreak { page-break-before: avoid; }")
+
+      if showpage: # visible page numbers
+        if self.gentype != 'h': # other than browser HTML, just the link
+          span = "<a name='Page_{0}' id='Page_{0}'></a>".format(self.cpn)
         else:
-          span = ''
+          span = "<span class='pageno' title='{0}' id='Page_{0}'></span>".format(self.cpn)
 
-        if hlevel == 1:
-          if self.gentype != 'h':
-            # There will be a page break before the header; if we emit the pn anchor
-            # before the <h1>, the TOC will link to the prior page
-            self.wb[i] = "<div><h1{}{}{}>{}{}</h1></div>".format(style, useclass, htarget, span, htitle)
-          else:
-            # I don't know why the div for only the <h1>!
-            self.wb[i] = "<div>{}<h1{}{}{}>{}</h1></div>".format(span, style, useclass, htarget, htitle)
-          self.css.addcss("[250] h1 { text-align:center; font-weight:normal;")
-          if self.gentype != 'h':
-            self.css.addcss("[251]  page-break-before:always; ")
-          self.css.addcss("[252]      font-size:1.2em; margin:2em auto 1em auto}")
+      self.css.addcss(headingCSS[hlevel])
+      if hlevel == 1:
+        if self.gentype != 'h':
+          # There will be a page break before the header; if we emit the pn anchor
+          # before the <h1>, the TOC will link to the prior page
+          self.wb[i] = "<div><h1{}{}{}>{}{}</h1></div>".format(style, useclass, htarget, span, htitle)
+        else:
+          # I don't know why the div for only the <h1>!
+          self.wb[i] = "<div>{}<h1{}{}{}>{}</h1></div>".format(span, style, useclass, htarget, htitle)
 
-        if hlevel == 2:
-          self.wb[i] = "<h2{}{}{}>{}{}</h2>".format(style, useclass, htarget, span, htitle)
-          self.css.addcss("[254] h2 { text-align:center; font-weight:normal;")
-          self.css.addcss("[255]      font-size:1.1em; margin:1em auto 0.5em auto}")
+      if hlevel == 2:
+        self.wb[i] = "<h2{}{}{}>{}{}</h2>".format(style, useclass, htarget, span, htitle)
 
-        if hlevel == 3:
-          self.wb[i] = "<h3{}{}{}>{}{}</h3>".format(style, useclass, htarget, span, htitle)
-          self.css.addcss("""[258] h3 { text-align:center; font-weight:normal;
-            font-size:1.0em; margin:1em auto 0.5em auto;
-            page-break-after:avoid;
-          }""")
+      if hlevel == 3:
+        self.wb[i] = "<h3{}{}{}>{}{}</h3>".format(style, useclass, htarget, span, htitle)
 
-        if hlevel == 4:
-          self.wb[i] = "<h4{}{}{}>{}{}</h4>".format(style, useclass, htarget, span, htitle)
-          self.css.addcss("""[260] h4 { text-align:center; font-weight:normal;
-            font-size:1.0em; margin:1em auto 0.5em auto;
-            page-break-after:avoid;
-          }""")
+      if hlevel == 4:
+        self.wb[i] = "<h4{}{}{}>{}{}</h4>".format(style, useclass, htarget, span, htitle)
 
   def oneSummary(self, openTag, block):
     if openTag != "":
@@ -6173,6 +6177,46 @@ illustrationCSS = {
     "right"  : illustrationRightCSS,
     "left"   : illustrationLeftCSS,
     "center" : illustrationCenterCSS,
+}
+
+headingCSS = {
+  1 : """[250]
+    h1 {
+      text-align:center;
+      font-weight:normal;
+      page-break-before: always;
+      font-size:1.2em; margin:2em auto 1em auto
+    }
+  """,
+
+  2 : """[254]
+    h2 {
+      text-align:center;
+      font-weight:normal;
+      font-size:1.1em;
+      margin:1em auto 0.5em auto;
+    }
+  """,
+
+  3: """[258]
+    h3 {
+      text-align:center;
+      font-weight:normal;
+      font-size:1.0em;
+      margin:1em auto 0.5em auto;
+      page-break-after:avoid;
+    }
+  """,
+
+  4 : """[260]
+    h4 {
+      text-align:center;
+      font-weight:normal;
+      font-size:1.0em;
+      margin:1em auto 0.5em auto;
+      page-break-after:avoid;
+    }
+  """
 }
 
 if __name__ == '__main__':

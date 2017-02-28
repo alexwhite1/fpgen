@@ -131,8 +131,9 @@ uopt = userOptions()
 # 4.45d    Add page-break-inside:avoid to centered figures
 # 4.45e    Fix various <l> and <lg> related bugs in text output
 # 4.46     Add summary-style center and add footnote-style sidenote
+# 4.46a    Better errors for <heading>
 
-VERSION="4.46"
+VERSION="4.46a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
