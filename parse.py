@@ -13,7 +13,7 @@ from msgs import fatal, cprint
 # parseEmbeddedSingleLineTagWithContent: (e.g. <link>)
 #   text<tag arg>content</tag>text
 #
-# parseStandaloneSingleLineTagWithContent: (e.g. <heading>) TODO
+# parseStandaloneSingleLineTagWithContent: (e.g. <heading>)
 #   <tag arg>content</tag>
 #
 # parseEmbeddedTagBlock:

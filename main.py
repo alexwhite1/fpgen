@@ -38,7 +38,7 @@ def main():
     sys.argv = sys.argv[:1]
     l = unittest.TestLoader();
     tests = []
-    from fpgen import TestParseTableColumn, TestMakeTable, TestTableCellFormat
+    from testtable import TestParseTableColumn, TestMakeTable, TestTableCellFormat
     from parse import TestParseTagAttributes, TestParsing
     from drama import TestDrama, TestOneDramaBlockMethod
     from testtext import TestTextInline, TestTextRewrap
