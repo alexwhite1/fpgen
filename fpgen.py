@@ -7,7 +7,6 @@ import re, sys, string, os, shutil
 import textwrap
 import codecs
 import platform
-import unittest
 import collections
 from userOptions import userOptions
 import config
@@ -52,6 +51,11 @@ import template
   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
+
+summaryHang = 1
+summaryBlock = 2
+summaryIndent = 3
+summaryCenter = 4
 
 empty = re.compile("^$")
 
@@ -421,21 +425,17 @@ class Book(object): #{
               i += len(numeral)
       return result
 
-  summaryHang = 1
-  summaryBlock = 2
-  summaryIndent = 3
-  summaryCenter = 4
   summaryStyle = summaryHang
 
   def doSummary(self):
     self.dprint(1,"doSummary")
     options = {
-      'hang':self.summaryHang,
-      'block':self.summaryBlock,
-      'indent':self.summaryIndent,
-      'center':self.summaryCenter,
+      'hang':summaryHang,
+      'block':summaryBlock,
+      'indent':summaryIndent,
+      'center':summaryCenter,
     }
-    self.summaryStyle = config.uopt.getOptEnum("summary-style", options, self.summaryHang);
+    self.summaryStyle = config.uopt.getOptEnum("summary-style", options, summaryHang);
 
     parseStandaloneTagBlock(self.wb, "summary", self.oneSummary)
 
@@ -1781,7 +1781,7 @@ class HTML(Book): #{
         return [ "<illustration" + args + "/>" ]
 
       # Have just the caption. Mark it up as text paragraphs.
-      self.markParaArray(block, self.captionPara, None)
+      self.markParaArray(block, "caption")
 
       # Turn the caption back into an illustration, for future reparsing in
       # the normal flow in doIllustrations(). Why can't we mark the paragraphs
@@ -1794,17 +1794,10 @@ class HTML(Book): #{
     parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)
 
   def markPara(self):
-    if config.uopt.getopt("pstyle") == "indent": # new 27-Mar-2014
-      self.css.addcss("[811] .pindent { margin-top:0; margin-bottom:0; text-indent:1.5em; }")
-      self.css.addcss("[812] .noindent { margin-top:0; margin-bottom:0; text-indent:0; }")
-      defaultPara = self.indentPara
-      noIndentPara = self.blockPara
-    else:
-      defaultPara = self.linePara
-      noIndentPara = None
-    self.css.addcss("[813] .hang { padding-left:1.5em; text-indent:-1.5em; }");
+    defaultStyle = "indent" if config.uopt.getopt("pstyle") == "indent" else "line"
+    self.css.addcss(paragraphCSS)
 
-    self.markParaArray(self.wb, defaultPara, noIndentPara)
+    self.markParaArray(self.wb, defaultStyle)
     self.markIllustrationPara()
 
   # The different tags we use for paragraphs
@@ -1813,6 +1806,15 @@ class HTML(Book): #{
   blockPara = "<p class='noindent'>"
   indentPara = "<p class='pindent'>"
   captionPara = "<p class='caption'>"
+
+  styleToHtml = {
+    "hang" : hangPara,
+    "indent" : indentPara,
+    "nobreak" : blockPara,
+    "list" : "XXX",
+    "line" : "<p>",
+    "caption" : captionPara,
+  }
 
   # At this point, all tags which are purely inside text have been converted
   # into internal codes. (i.e. font styles and sizes)
@@ -1829,12 +1831,11 @@ class HTML(Book): #{
   #
   # Most of the code this is involved in handling the paragraph-specific 
   # instructions: <hang>, <nobreak> and <pstyle>
-  def markParaArray(self, wb, defaultPara, noIndentPara):
+  def markParaArray(self, wb, globalStyle):
     self.dprint(1,"markPara")
 
-    indent = noIndentPara != None
-
-    paragraphTag = defaultPara
+    paragraphStyle = globalStyle
+    defaultStyle = globalStyle
 
     noFormattingTags = [ "lg", "table", "illustration" ]
 
@@ -1853,7 +1854,7 @@ class HTML(Book): #{
         continue
 
       # No formatting inside these tags
-      for tag in [ "lg", "table", "illustration" ]:
+      for tag in noFormattingTags:
         j = self.skip(tag, wb, i)
         if i != j:
           i = j
@@ -1863,43 +1864,44 @@ class HTML(Book): #{
       for tag in [ "sidenote" ]:
         j = self.skipSameline(tag, wb, i)
         if i != j:
-          i = j
-          continue
-
-      line = wb[i]
+          break
+      if i != j:
+        i = j
+        continue
 
       # <pstyle=XXX> alone on a line
+      # Sets defaultStyle either as specified, or to global default
       if line.startswith("<pstyle="):
-        rest = line[8:]
-        if rest == "hang>":
-          defaultPara = self.hangPara
-        elif rest == "default>":
-          if indent:
-            defaultPara = self.indentPara
-          else:
-            defaultPara = self.linePara
-        else:
+        defaultStyle = None
+        line = line.strip()
+        for j,style in enumerate(pstyleTags):
+          if line == style:
+            defaultStyle = paraStyles[j]
+            break
+        if defaultStyle == None:
           fatal("Bad pstyle: " + wb[i])
-        wb[i] = '' # Clear the tag
-        line = ''
-        paragraphTag = defaultPara
+        if defaultStyle == "default":
+          defaultStyle = globalStyle
 
-      # <nobreak> leading a line
-      if line.startswith("<nobreak>"): # new 27-Mar-2014
-        if not indent:
-          self.fatal("<nobreak> only legal with option pstyle set to indent")
-        paragraphTag = noIndentPara
-        line = line[9:]
-        wb[i] = line
+        # Next paragraph will be this style
+        paragraphStyle = defaultStyle
 
-      # If the line has a drop cap, don't indent
-      if re.search("☊", line) and indent:
-        paragraphTag = noIndentPara
+        # Remove <pstyle> line completely
+        del(wb[i])
+        if i > 0:
+          i -= 1
+        continue
 
-      if line.startswith("<hang>"):
-        paragraphTag = self.hangPara
-        line = line[6:]
-        wb[i] = line
+      # See if there is a single-paragraph style
+      if line.startswith("<"):
+        line = line.strip()
+        for j,tag in enumerate(paraTags):
+          if line.startswith(tag):
+            line = line[len(tag):]
+            wb[i] = line
+            # Override for next paragraph
+            paragraphStyle = paraStyles[j]
+            break
 
       # outside of tables and line groups, no double blank lines
       if wb[i-1] == "" and line == "":
@@ -1916,8 +1918,8 @@ class HTML(Book): #{
       # Ignore lines with tags; note that textual tags like <i> have been
       # converted into special characters, not <
       if line[0] == '<' and line != "<br/>":
-          i += 1
-          continue
+        i += 1
+        continue
 
       # A paragraph starts on a non-blank line,
       # and ends at:
@@ -1926,18 +1928,39 @@ class HTML(Book): #{
       # - end of file
       # - a paragraph tag: <nobreak>, <hang>, <pstyle>, drop-cap
       # - any other tag!
-      wb[i] = paragraphTag + line
+      block = [ ]
       n = len(wb)
+      start = i
       while i < n:
-        if i+1 == n or self.isParaBreak(wb[i+1]):
-          wb[i] += "</p>"
+        if self.isParaBreak(wb[i]):
           break
+        block.append(wb[i])
         i += 1
 
-      # Revert to default paragraph style
-      paragraphTag = defaultPara
+      # Paragraph now accumulated into block[]
+      if paragraphStyle == "list":
+        self.css.addcss(paragraphListCSS)
+        w = block[0].split(" ")
+        l = "<span class='listTag'>" + w[0] + "</span>" + \
+          "<p class='listPara'>" + " ".join(w[1:])
+        block[0] = l
+        block[-1] += "</p>"
+        block.insert(0, "<div class='listEntry'>")
+        block.append("</div>")
+      else:
+        # If the line has a drop cap, don't indent
+        if "☊" in block[0] and paragraphStyle == "indent":
+          paragraphStyle = "nobreak"
+        tag = self.styleToHtml[paragraphStyle]
+        block[0] = tag + block[0]
+        block[-1] += "</p>"
 
-      i += 1
+      wb[start:i] = block
+      i = start + len(block)
+
+      # After emitting paragraph, revert to default paragraph style
+      paragraphStyle = defaultStyle
+
     return wb
 
   def isParaBreak(self, line):
@@ -2352,19 +2375,7 @@ class HTML(Book): #{
   def oneSummary(self, openTag, block):
     if openTag != "":
       fatal("Badly formatted <summary>: <summary " + openTag + ">")
-    if self.summaryStyle == self.summaryHang:
-      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:3em; padding-right:1.5em; text-indent:-1.5em; }")
-      # div only applies to the first para.  For multi-para, regular code
-      # will emit <p class="pindent">
-      self.css.addcss("[1234] .summary .pindent { text-indent:-1.5em; }")
-    elif self.summaryStyle == self.summaryIndent:
-      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; text-indent:1.5em; }")
-    elif self.summaryStyle == self.summaryCenter:
-      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; text-indent:0em; text-align-last:center; }")
-      self.css.addcss("[1234] .summary .pindent { text-indent:0; text-align-last:center; }")
-    else: # summaryStyle == self.summaryBlock
-      self.css.addcss("[1234] .summary { margin-top:1em; margin-bottom:1em; padding-left:1.5em; padding-right:1.5em; }")
-      self.css.addcss("[1234] .summary .pindent { text-indent: 0; }")
+    self.css.addcss(summaryCSS[self.summaryStyle])
     return [ "<div class='summary'>" ] + block + [ "</div>" ]
 
   indexN = 0
@@ -3733,16 +3744,19 @@ class Text(Book): #{
     i = 0
     matchFN = re.compile("<fn\s+(.*?)/?>")
     while i < len(self.wb):
-      self.wb[i] = re.sub("<nobreak>", "", self.wb[i])  # 28-Mar-2014
-      self.wb[i] = re.sub("<hang>", "", self.wb[i])  # 05-Jun-2014
-      self.wb[i] = re.sub("<pstyle=.*>", "", self.wb[i])  # 21-Feb-2015
+      line = self.wb[i]
 
-      self.wb[i] = re.sub("#(\d+)#", r'\1', self.wb[i]) # page number links
-      self.wb[i] = re.sub("#(\d+):.*?#", r'\1', self.wb[i]) # page number links type 2 2014.01.14
+      # Remove all paragraph style tags, all ignored in text output
+      for tag in paraTags:
+        line = line.replace(tag, "")
+      for tag in pstyleTags:
+        line = line.replace(tag, "")
+
+      line = re.sub("#(\d+)#", r'\1', line) # page number links
+      line = re.sub("#(\d+):.*?#", r'\1', line) # page number links type 2 2014.01.14
 
       # Replace <fn> markers
       off = 0
-      line = self.wb[i]
       while True:
         m = matchFN.search(line, off)
         if not m:
@@ -3869,10 +3883,10 @@ class Text(Book): #{
   def oneSummary(self, openTag, block):
     if openTag != "":
       fatal("Badly formatted <summary>: <summary " + openTag + ">")
-    if self.summaryStyle == self.summaryHang:
+    if self.summaryStyle == summaryHang:
       lm = 2
       ti = 0
-    elif self.summaryStyle == self.summaryIndent:
+    elif self.summaryStyle == summaryIndent:
       lm = 0
       ti = 2
     else:
@@ -5563,6 +5577,83 @@ headingCSS = {
       page-break-after:avoid;
     }
   """
+}
+
+paragraphCSS = """[811]
+.pindent { margin-top:0; margin-bottom:0; text-indent:1.5em; }
+.noindent { margin-top:0; margin-bottom:0; text-indent:0; }
+.hang { padding-left:1.5em; text-indent:-1.5em; }"""
+
+paragraphListCSS = """[815]
+    .listTag {
+        padding-right:.5em;
+        text-align:right;
+        display:table-cell;
+    }
+    .listPara {
+      display:table-cell;
+    }
+    .listEntry {
+      display:table-row;
+    }
+"""
+
+paraStyles = [
+  "hang",
+  "indent",
+  "nobreak",
+  "list",
+  "default"
+]
+
+paraTags = [ "<" + style + ">" for style in paraStyles ]
+pstyleTags = [ "<pstyle=" + style + ">" for style in paraStyles ]
+
+summaryCSS = {
+  # div only applies to the first para.  For multi-para, regular code
+  # will emit <p class="pindent">
+  summaryHang : """[1234]
+  .summary {
+    margin-top:1em;
+    margin-bottom:1em;
+    padding-left:3em;
+    padding-right:1.5em;
+    text-indent:-1.5em;
+  }
+  .summary .pindent {
+    text-indent:-1.5em;
+  }""",
+  summaryIndent : """[1234]
+  .summary {
+    margin-top:1em;
+    margin-bottom:1em;
+    padding-left:1.5em;
+    padding-right:1.5em;
+    text-indent:1.5em;
+  }""",
+  summaryCenter : """[1234]
+  .summary {
+    margin-top:1em;
+    margin-bottom:1em;
+    padding-left:1.5em;
+    padding-right:1.5em;
+    text-indent:0em;
+    text-align-last:center;
+  }
+  .summary .pindent {
+    text-indent:0;
+    text-align-last:center;
+  }""",
+  summaryBlock : """[1234]
+  .summary {
+    margin-top:1em;
+    margin-bottom:1em;
+    padding-left:1.5em;
+    padding-right:1.5em;
+  }
+  .summary .pindent {
+    text-indent: 0;
+  }"""
 }
 
 if __name__ == '__main__':

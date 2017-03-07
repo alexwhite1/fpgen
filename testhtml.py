@@ -20,15 +20,15 @@ class TestHTMLPara(unittest.TestCase):
   # - multiple blank lines
 
   def test_html_start_file(self):
-    self.html.wb = [
+    wb = [
         "p1l1w1, p1l1w2",
         "p1l2w1",
         "",
         "p2l1",
         ""
     ]
-    self.html.markPara();
-    self.assertSequenceEqual(self.html.wb, [
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
       "",
@@ -37,15 +37,15 @@ class TestHTMLPara(unittest.TestCase):
     ]);
 
   def test_html_end_file(self):
-    self.html.wb = [
+    wb = [
         "",
         "p1l1w1, p1l1w2",
         "p1l2w1",
         "",
         "p2l1",
     ]
-    self.html.markPara();
-    self.assertSequenceEqual(self.html.wb, [
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
       "",
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -54,7 +54,7 @@ class TestHTMLPara(unittest.TestCase):
     ]);
 
   def test_html_simple(self):
-    self.html.wb = [
+    wb = [
         "",
         "p1l1w1, p1l1w2",
         "p1l2w1",
@@ -62,8 +62,8 @@ class TestHTMLPara(unittest.TestCase):
         "p2l1",
         ""
     ]
-    self.html.markPara();
-    self.assertSequenceEqual(self.html.wb, [
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
       "",
@@ -72,15 +72,15 @@ class TestHTMLPara(unittest.TestCase):
     ]);
 
   def test_html_noblank(self):
-    self.html.wb = [
+    wb = [
         "",
         "p1l1w1, p1l1w2",
         "p1l2w1",
         "<l rend='center'>lll</l>",
         "p2l1w1, p2l1w2",
     ]
-    self.html.markPara();
-    self.assertSequenceEqual(self.html.wb, [
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
       "",
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -110,7 +110,7 @@ class TestHTMLPara(unittest.TestCase):
     ]);
 
   def test_html_nobreak(self):
-    self.html.wb = [
+    wb = [
         "",
         "p1l1w1, p1l1w2",
         "p1l2w1",
@@ -118,17 +118,81 @@ class TestHTMLPara(unittest.TestCase):
         "<nobreak>p2l1",
         ""
     ]
-    # <nobreak> only legal with option pstyle set to indent.
-    with self.assertRaises(SystemExit) as cm:
-      self.html.markPara();
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<p class='noindent'>p2l1</p>",
+      "",
+    ]);
+
+  def test_html_indent(self):
+    wb = [
+        "",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "",
+        "<indent>p2l1",
+        ""
+    ]
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<p class='pindent'>p2l1</p>",
+      "",
+    ]);
+
+  def test_html_list(self):
+    wb = [
+        "",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "",
+        "<list>p2l1 p2l1w2",
+        "p2l2",
+        ""
+    ]
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<div class='listEntry'>",
+      "<span class='listTag'>p2l1</span><p class='listPara'>p2l1w2",
+      "p2l2</p>",
+      "</div>",
+      "",
+    ]);
 
   def test_html_hang(self):
-    self.html.wb = [
+    wb = [
         "",
         "p1l1w1, p1l1w2",
         "p1l2w1",
         "",
         "<hang>p2l1",
+        ""
+    ]
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<p class='hang'>p2l1</p>",
+      "",
+    ]);
+
+  def test_html_hang_blank(self):
+    self.html.wb = [
+        "",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "",
+        "<hang>",
+        "p2l1",
         ""
     ]
     self.html.markPara();
@@ -137,6 +201,71 @@ class TestHTMLPara(unittest.TestCase):
       "p1l2w1</p>",
       "",
       "<p class='hang'>p2l1</p>",
+      "",
+    ]);
+
+  def test_html_hang_multi_blank(self):
+    self.html.wb = [
+        "",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "",
+        "<hang>",
+        "",
+        "",
+        "p2l1",
+        ""
+    ]
+    self.html.markPara();
+    self.assertSequenceEqual(self.html.wb, [
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<p class='hang'>p2l1</p>",
+      "",
+    ]);
+
+  def test_html_last_wins(self):
+    wb = [
+        "",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "",
+        "<nobreak>",
+        "",
+        "<hang>",
+        "",
+        "p2l1",
+        ""
+    ]
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<p class='hang'>p2l1</p>",
+      "",
+    ]);
+
+  def test_html_last_wins2(self):
+    wb = [
+        "",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "",
+        "<hang>",
+        "",
+        "<nobreak>",
+        "",
+        "p2l1",
+        ""
+    ]
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
+      "<p>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<p class='noindent'>p2l1</p>",
       "",
     ]);
 
@@ -173,7 +302,7 @@ class TestHTMLPara(unittest.TestCase):
     ]);
 
   def test_html_hang_and_revert(self):
-    self.html.wb = [
+    wb = [
         "",
         "<pstyle=hang>",
         "p1l1w1, p1l1w2",
@@ -185,9 +314,34 @@ class TestHTMLPara(unittest.TestCase):
         "p3l1",
         ""
     ]
-    self.html.markPara();
-    self.assertSequenceEqual(self.html.wb, [
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
       "<p class='hang'>p1l1w1, p1l1w2",
+      "p1l2w1</p>",
+      "",
+      "<p class='hang'>p2l1</p>",
+      "",
+      "<p>p3l1</p>",
+      ""
+    ]);
+
+  def test_html_pstyle_with_override(self):
+    wb = [
+        "",
+        "<pstyle=hang>",
+        "<nobreak>",
+        "p1l1w1, p1l1w2",
+        "p1l2w1",
+        "",
+        "p2l1",
+        "",
+        "<pstyle=default>",
+        "p3l1",
+        ""
+    ]
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
+      "<p class='noindent'>p1l1w1, p1l1w2",
       "p1l2w1</p>",
       "",
       "<p class='hang'>p2l1</p>",
@@ -728,7 +882,7 @@ class TestHTMLPara(unittest.TestCase):
     ]);
 
   def test_html_leading_blanks(self):
-    self.html.wb = [
+    wb = [
         "",
         "",
         "",
@@ -737,8 +891,8 @@ class TestHTMLPara(unittest.TestCase):
         "l4",
         "",
     ]
-    self.html.markPara();
-    self.assertSequenceEqual(self.html.wb, [
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
       "<p>l1",
       "l3",
       "l4</p>",
@@ -746,7 +900,7 @@ class TestHTMLPara(unittest.TestCase):
     ]);
 
   def test_html_multi_blank(self):
-    self.html.wb = [
+    wb = [
         "l1",
         "",
         "",
@@ -754,8 +908,8 @@ class TestHTMLPara(unittest.TestCase):
         "l4",
         "",
     ]
-    self.html.markPara();
-    self.assertSequenceEqual(self.html.wb, [
+    result = self.html.markParaArray(wb, "line");
+    self.assertSequenceEqual(result, [
       "<p>l1</p>",
       "",
       "<p>l3",
