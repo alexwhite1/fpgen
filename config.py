@@ -133,8 +133,9 @@ uopt = userOptions()
 # 4.46     Add summary-style center and add footnote-style sidenote
 # 4.46a    Better errors for <heading>
 # 4.47     Rewrite paragraph styles; introduce list style
+# 4.47a    Remove leading quote in <drop> without property
 
-VERSION="4.47"
+VERSION="4.47a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

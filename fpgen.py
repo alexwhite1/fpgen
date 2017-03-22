@@ -2171,7 +2171,7 @@ class HTML(Book): #{
       if m:
         letter = m.group(1)
         # Check for an open double-quote before the letter
-        hasquote = re.match('“.*', letter)
+        hasquote = letter.startswith("“")
         if hasquote:
           letter = letter[1:]
         # See if the property is there, if it isn't the old code which just
@@ -2187,6 +2187,10 @@ class HTML(Book): #{
           self.wb[i] = re.sub("☊.*☋", \
           "<img src='" + imgFile + "' style='float:left;' alt='" + letter + "'/>", \
           self.wb[i])
+        elif hasquote:
+          # If starts with a double-quote, remove it completely, or it will
+          # be very large and look funny. This is what most printed texts do.
+          self.wb[i] = self.wb[i][0:m.start(1)] + letter + self.wb[i][m.end(1):]
 
       self.wb[i] = self.wb[i].translate(self.cleanTrans)
 
