@@ -134,8 +134,9 @@ uopt = userOptions()
 # 4.46a    Better errors for <heading>
 # 4.47     Rewrite paragraph styles; introduce list style
 # 4.47a    Remove leading quote in <drop> without property
+# 4.47b    Move dropcap css from style to class
 
-VERSION="4.47a"
+VERSION="4.47b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

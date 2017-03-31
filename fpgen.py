@@ -264,6 +264,9 @@ class Book(object): #{
         d[name] = value
       return d
 
+  def addcss(self, css):
+    pass
+
   def shortHeading(self):
     self.dprint(1, "shortHeadings")
     # allow shortcut heading
@@ -722,13 +725,20 @@ class Book(object): #{
     self.blankLines("<illustration", True, False)
     self.blankLines("</illustration", False, True)
 
+    dropEncountered = False
     for i, line in enumerate(self.wb):
       # map drop caps requests
-      self.wb[i] = self.wb[i].replace("<drop>", config.DROP_START)
-      self.wb[i] = self.wb[i].replace("</drop>", config.DROP_END)
+      if dropEncountered == False:
+        if "<drop>" in self.wb[i]:
+          dropEncountered = True
+      if dropEncountered:
+        self.wb[i] = self.wb[i].replace("<drop>", config.DROP_START)
+        self.wb[i] = self.wb[i].replace("</drop>", config.DROP_END)
 
       # map <br> to be legal
       self.wb[i] = self.wb[i].replace("<br>", "<br/>")
+    if dropEncountered:
+      self.addcss(dropCapCSS)
 
     # normalize rend format to have trailing semicolons
     # honour <lit>...</lit> blocks
@@ -1337,6 +1347,9 @@ class HTML(Book): #{
         for l in lines:
           t.append("      " + l)
       return t
+
+  def addcss(self, css):
+    self.css.addcss(css)
 
   # translate marked-up line to HTML
   # input:
@@ -2156,7 +2169,7 @@ class HTML(Book): #{
     '⓳': "</span>",     # </fs>
 
     # Drop-cap code for no image
-    config.DROP_START: "<span style='float:left; clear: left; margin:0 0.1em 0 0; padding:0; line-height: 1.0em; font-size: 200%;'>",
+    config.DROP_START: "<span class='dropcap'>",
     config.DROP_END: "</span>",
   })
 
@@ -5659,6 +5672,18 @@ summaryCSS = {
     text-indent: 0;
   }"""
 }
+
+dropCapCSS = """[3333]
+  .dropcap {
+    float:left;
+    clear: left;
+    margin:0 0.1em 0 0;
+    padding:0;
+    line-height: 1.0em;
+    font-size: 200%;
+  }
+"""
+
 
 if __name__ == '__main__':
   from main import main
