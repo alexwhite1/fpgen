@@ -524,13 +524,16 @@ class Book(object): #{
       if self.wb[i].startswith("//"): # line starts with "//"
         del self.wb[i]
         continue
-      if self.wb[i].startswith("<!--") and self.wb[i].find("-->") > 0:
+      if self.wb[i].startswith("<!--") and "-->" in self.wb[i]:
         del self.wb[i]
         continue
       # multi-line
       if self.wb[i].startswith("<!--"):
-        while not re.search("-->", self.wb[i]):
+        while not "-->" in self.wb[i]:
           del self.wb[i]
+          if i == len(self.wb):
+            fatal("Open comment marker <!-- found at line " + str(i) + \
+                " with no closing marker. Check for a typo in closing -->");
           continue
         del self.wb[i]
       # ANSI standard
@@ -544,8 +547,11 @@ class Book(object): #{
         continue
       # multi-line (must be last)
       if self.wb[i].startswith("/*"):
-        while not re.search("\*\/", self.wb[i]):
+        while not "*/" in self.wb[i]:
           del self.wb[i]
+          if i == len(self.wb):
+            fatal("Open comment marker /* found at line " + str(i) + \
+                " with no closing marker. Check for a typo in closing */");
           continue
         del self.wb[i] # closing comment line
         continue

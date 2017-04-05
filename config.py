@@ -135,8 +135,9 @@ uopt = userOptions()
 # 4.47     Rewrite paragraph styles; introduce list style
 # 4.47a    Remove leading quote in <drop> without property
 # 4.47b    Move dropcap css from style to class
+# 4.47c    Handle missing comment close with an error message, not stacktrace
 
-VERSION="4.47b"
+VERSION="4.47c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
