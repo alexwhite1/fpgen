@@ -136,8 +136,9 @@ uopt = userOptions()
 # 4.47a    Remove leading quote in <drop> without property
 # 4.47b    Move dropcap css from style to class
 # 4.47c    Handle missing comment close with an error message, not stacktrace
+# 4.48     Add custom font support
 
-VERSION="4.47c"
+VERSION="4.48"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -155,3 +156,9 @@ HARD_SPACE = "□"
 DROP_START = "☊"
 DROP_END = "☋"
 pn_cover = ""
+
+# Used for <font:xx>...</font>
+# <font:xx> becomes FONT_BASE + font index
+# </font> becomes FONT_END
+FONT_BASE = 0xEF00
+FONT_END = "\uEFFF"

@@ -104,6 +104,22 @@ def main():
   except FileNotFoundError:
     fatal(options.infile + ": File not found")
 
+def getConvertArgs(modelArgs, infile, outfile, hb):
+  args = []
+  args.append("ebook-convert")
+  args.append(infile)
+  args.append(outfile)
+  if config.pn_cover != "":
+    args.append("--cover")
+    args.append(config.pn_cover)
+
+  fonts = hb.getFonts()
+  if len(fonts) > 0:
+    args.append("--embed-all-fonts")
+
+  args.extend(modelArgs)
+  return args
+
 def processFile(options, bn):
 
   # run Lint for every format specified
@@ -120,10 +136,6 @@ def processFile(options, bn):
   #  --remove-paragraph-spacing removed
   #  --remove-first-image removed
   OPT_EPUB_ARGS = [
-   "ebook-convert",
-   "",
-   "",
-   "--cover", "\"images/cover.jpg\"",
    #"--flow-size", "500",
    "--change-justification", "\"left\"",
    "--chapter-mark", "\"none\"",
@@ -134,31 +146,11 @@ def processFile(options, bn):
    "--sr1-search", "\"<br\/><br\/>\"",
    "--sr1-replace", "—",
    "--chapter", "\"//*[(name()='h1' or name()='h2')]\"",
-   "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\""
-  ]
-
-  # unused kindle options
-  # "--change-justification", "left", (destroys centered blocks)
-  # "--mobi-file-type", "new",
-  #
-  OPT_KINDLE_ARGS = [
-    "ebook-convert",
-    "",
-    "",
-    "--cover", "\"images/cover.jpg\"",
-    "--no-inline-toc",
-    "--sr1-search", "\"<hr class=.pbk./>\"",
-    "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
-    "--sr1-search", "\"<br\/><br\/>\"",
-    "--sr1-replace", "—",
-    "--chapter", "\"//*[(name()='h1' or name()='h2')]\""
+   "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\"",
+   "--embed-all-fonts",
   ]
 
   OPT_PDF_ARGS = [
-   "ebook-convert",
-   "",
-   "",
-   "--cover", "\"images/cover.jpg\"",
    "--paper-size", "\"a5\"",
    "--pdf-default-font-size", "\"13\"",
    "--margin-left", "\"20\"",
@@ -195,21 +187,18 @@ def processFile(options, bn):
     hb = HTML(options.infile, outfile, options.debug, 'e')
     print("creating Epub")
     hb.run()
-    OPT_EPUB_ARGS[1] = "{}-e.html".format(bn)
-    OPT_EPUB_ARGS[2] = "{}.epub".format(bn)
-    if config.pn_cover != "":
-      OPT_EPUB_ARGS[4] = config.pn_cover
+    args = getConvertArgs(OPT_EPUB_ARGS, outfile, "{}.epub".format(bn), hb)
 
     if config.uopt.getopt('epub-margin-left') != "": # added 27-Mar-2014
-      OPT_EPUB_ARGS.append("--margin-left")
-      OPT_EPUB_ARGS.append("{}".format(config.uopt.getopt('epub-margin-left')))
+      args.append("--margin-left")
+      args.append("{}".format(config.uopt.getopt('epub-margin-left')))
 
     if config.uopt.getopt('epub-margin-right') != "": # added 27-Mar-2014
-      OPT_EPUB_ARGS.append("--margin-right")
-      OPT_EPUB_ARGS.append("{}".format(config.uopt.getopt('epub-margin-right')))
+      args.append("--margin-right")
+      args.append("{}".format(config.uopt.getopt('epub-margin-right')))
 
     # call(OPT_EPUB_ARGS, shell=False)
-    js = " ".join(OPT_EPUB_ARGS)
+    js = " ".join(args)
     msgs.dprint(1, js)
     os.system(js)
 
@@ -223,12 +212,10 @@ def processFile(options, bn):
     outfile = "{}-e2.html".format(bn)
     hb = HTML(options.infile, outfile, options.debug, 'k')
     hb.run()
-    OPT_EPUB_ARGS[1] = "{}-e2.html".format(bn)
-    OPT_EPUB_ARGS[2] = "{}-e2.epub".format(bn)
-    if config.pn_cover != "":
-      OPT_EPUB_ARGS[4] = config.pn_cover
+    args = getConvertArgs(OPT_EPUB_ARGS, outfile, "{}-e2.epub".format(bn), hb)
+
     # call(OPT_EPUB_ARGS, shell=False)
-    js = " ".join(OPT_EPUB_ARGS)
+    js = " ".join(args)
     msgs.dprint(1, js)
     os.system(js)
 
@@ -246,26 +233,22 @@ def processFile(options, bn):
     hb = HTML(options.infile, outfile, options.debug, 'p')
     print("creating PDF")
     hb.run()
-    OPT_PDF_ARGS[1] = "{}-p.html".format(bn)
-    OPT_PDF_ARGS[2] = "{}-a5.pdf".format(bn)
+    args = getConvertArgs(OPT_PDF_ARGS, outfile, "{}-a5.pdf".format(bn), hb)
 
     if config.uopt.getopt('pdf-default-font-size') != "":
-      OPT_PDF_ARGS.append("--pdf-default-font-size")
-      OPT_PDF_ARGS.append("{}".format(config.uopt.getopt('pdf-default-font-size')))
+      args.append("--pdf-default-font-size")
+      args.append("{}".format(config.uopt.getopt('pdf-default-font-size')))
 
     if config.uopt.getopt('pdf-margin-left') != "":
-      OPT_PDF_ARGS.append("--margin-left")
-      OPT_PDF_ARGS.append("{}".format(config.uopt.getopt('pdf-margin-left')))
+      args.append("--margin-left")
+      args.append("{}".format(config.uopt.getopt('pdf-margin-left')))
 
     if config.uopt.getopt('pdf-margin-right') != "":
-      OPT_PDF_ARGS.append("--margin-right")
-      OPT_PDF_ARGS.append("{}".format(config.uopt.getopt('pdf-margin-right')))
-
-    if config.pn_cover != "":
-      OPT_PDF_ARGS[4] = config.pn_cover
+      args.append("--margin-right")
+      args.append("{}".format(config.uopt.getopt('pdf-margin-right')))
 
     # call(OPT_PDF_ARGS, shell=False)
-    js = " ".join(OPT_PDF_ARGS)
+    js = " ".join(args)
 
     msgs.dprint(1, js)
     os.system(js)

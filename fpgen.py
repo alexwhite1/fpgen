@@ -11,6 +11,7 @@ import collections
 from userOptions import userOptions
 import config
 import footnote
+import font
 
 from parse import parseTagAttributes, parseOption, parseLineEntry, \
   parseStandaloneTagBlock, \
@@ -190,6 +191,23 @@ class Book(object): #{
         "left":"left",
         "center":"center"
       }, "left");
+
+  def getFonts(self):
+    fonts = {}
+    for key,value in self.uprop.prop.items():
+      if key.startswith("font-"):
+        fonts[key[5:]] = value
+    return fonts
+
+  def getFontIndex(self, name):
+    keyname = "font-" + name
+    index = 0
+    for key in self.uprop.prop.keys():
+      if key.startswith(keyname):
+        return index
+      if key.startswith("font-"):
+        index += 1
+    fatal("<font:> tag has an unknown font: " + name + ". Font must have a property named " + keyname + ".")
 
   # display (fatal) error and exit
   def fatal(self, message):
@@ -1757,6 +1775,9 @@ class HTML(Book): #{
       block[i] = block[i].replace("</fs>", r'⩤/fs⩥')
       block[i] = re.sub("<(fs:.+?)>", r'⩤\1⩥', block[i])
 
+      block[i] = block[i].replace("</font>", r'⩤/font⩥')
+      block[i] = re.sub("<(font:.+?)>", r'⩤\1⩥', block[i])
+
       # overline 13-Apr-2014
       if "<ol>" in block[i]:
         self.css.addcss("[116] .ol { text-decoration:overline; }")
@@ -1988,7 +2009,7 @@ class HTML(Book): #{
     if line[0] == config.FORMATTED_PREFIX: # preformatted
       return True
     if line[0] == '<' and line != "<br/>":
-        return True
+      return True
     return False
 
   fontmap = {
@@ -2008,6 +2029,9 @@ class HTML(Book): #{
   # actual html strings.
   def restoreMarkup(self, block):
     self.dprint(1,"restoreMarkup")
+    reFS = re.compile(r"<fs:(.*?)>")
+    reFont = re.compile(r"<font:(.*?)>")
+    allFonts = None
     for i,line in enumerate(block):
       block[i] = block[i].replace("⩤",'<')
       block[i] = block[i].replace("⩥",'>')
@@ -2044,7 +2068,7 @@ class HTML(Book): #{
 
       # new inline tags 2014.01.27
       while True:
-        m = re.search(r"<fs:(.*?)>", block[i])
+        m = reFS.search(block[i])
         if not m:
           break
         size = m.group(1)
@@ -2053,7 +2077,17 @@ class HTML(Book): #{
               " in line " + block[i])
         block[i] = block[i][:m.start()] + self.fontmap[size] + block[i][m.end():]
 
+      while True:
+        m = reFont.search(block[i])
+        if not m:
+          break
+        font = m.group(1)
+        fontChar = config.FONT_BASE + self.getFontIndex(font)
+        dprint(1, "Using font " + str(fontChar) + " to " + font)
+        block[i] = block[i][:m.start()] + str(chr(fontChar)) + block[i][m.end():]
+
       block[i] = block[i].replace("</fs>",'⓳')
+      block[i] = block[i].replace("</font>", config.FONT_END)
 
   def startHTML(self):
     self.dprint(1,"startHTML")
@@ -2138,7 +2172,7 @@ class HTML(Book): #{
 
     self.wb = t + self.wb # prepend header
 
-  cleanTrans = "".maketrans({
+  cleanTrans = {
     '⧗': "'",    # escaped single quote
     '⧢': '"',    # double quote
     '⧲': '&amp;',# ampersand
@@ -2174,13 +2208,25 @@ class HTML(Book): #{
     '⓲': "<span style='font-size:x-small'>",
     '⓳': "</span>",     # </fs>
 
+    config.FONT_END: "</span>",
+
     # Drop-cap code for no image
     config.DROP_START: "<span class='dropcap'>",
     config.DROP_END: "</span>",
-  })
+  }
 
   def cleanup(self):
     self.dprint(1,"cleanup")
+
+    # Add the mapping for any font properties
+    fonts = self.getFonts().keys()
+    index = config.FONT_BASE
+    for font in fonts:
+      dprint(1, "Adding entry for " + str(index) + ": " + font)
+      self.cleanTrans[str(chr(index))] = """<span style="font-family:'{}';">""".format(font)
+      index += 1
+
+    trans = "".maketrans(self.cleanTrans)
     for i in range(len(self.wb)):
 
       # Handle drop-caps, which have images.
@@ -2211,7 +2257,7 @@ class HTML(Book): #{
           # be very large and look funny. This is what most printed texts do.
           self.wb[i] = self.wb[i][0:m.start(1)] + letter + self.wb[i][m.end(1):]
 
-      self.wb[i] = self.wb[i].translate(self.cleanTrans)
+      self.wb[i] = self.wb[i].translate(trans)
 
       # superscripts, subscripts
       # special cases first: ^{} and _{}
@@ -2252,7 +2298,7 @@ class HTML(Book): #{
     i = 0
     while i < len(self.wb):
       if re.search("CSS PLACEHOLDER", self.wb[i]):
-        self.wb[i:i+1] = self.css.show()
+        self.wb[i:i+1] = self.css.show() + font.formatFonts(self.getFonts())
         break
       i += 1
 
@@ -3631,6 +3677,8 @@ class Text(Book): #{
     regexFS = re.compile("<\/?fs>")
     regexFS1 = re.compile("<fs:.+?>")
     regexG = re.compile(r"<g>(.*?)<\/g>")
+    regexFont = re.compile("<font:.+?>")
+    regexFontEnd = re.compile("<\/?font>")
 
     # A set of characters to be removed.  In case somebody is tweaking
     # the spacing of the html output, we don't want it in the text output,
@@ -3679,6 +3727,8 @@ class Text(Book): #{
         # <fs:xs> ... </fs>
         self.wb[i] = regexFS.sub("", self.wb[i])
         self.wb[i] = regexFS1.sub("", self.wb[i])
+        self.wb[i] = regexFont.sub("", self.wb[i])
+        self.wb[i] = regexFontEnd.sub("", self.wb[i])
 
         # remove table super/subscript balance tokens
         self.wb[i] = re.sub('\^\{\}', '', self.wb[i])
