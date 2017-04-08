@@ -44,7 +44,7 @@ def getGoogleFont(name):
   # Turn something like Tangerine:bold into Tangerine-bold
   #basename = re.sub(":", "-", name)
   basename = name.replace(":", "-")
-  localFile = "font-" + basename + ".ttf"
+  localFile = "images/font-" + basename + ".ttf"
   with open(localFile, "wb") as f:
     f.write(ttf)
     f.close()
