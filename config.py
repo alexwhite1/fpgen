@@ -137,8 +137,9 @@ uopt = userOptions()
 # 4.47b    Move dropcap css from style to class
 # 4.47c    Handle missing comment close with an error message, not stacktrace
 # 4.48     Add custom font support
+# 4.48a    Fix PDF margins broken by calibre 2.83
 
-VERSION="4.48"
+VERSION="4.48a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

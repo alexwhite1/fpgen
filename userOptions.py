@@ -15,11 +15,11 @@ class userOptions(object):
     # print("adding {}:{}".format(k, v))
     self.opt[k] = v
 
-  def getopt(self,k):
+  def getopt(self,k,v = ""):
     if k in self.opt:
       return self.opt[k]
     else:
-      return ""
+      return v
 
   def getOptEnum(self, k, map, default):
     tagValue = self.getopt(k)

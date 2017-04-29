@@ -117,6 +117,7 @@ def getConvertArgs(modelArgs, infile, outfile, hb):
   if len(fonts) > 0:
     args.append("--embed-all-fonts")
 
+  args.extend(OPT_COMMON_ARGS)
   args.extend(modelArgs)
   return args
 
@@ -131,41 +132,6 @@ def processFile(options, bn):
   if re.search('h|k|e|p', options.formats):
     lint = Lint(options.infile, "", options.debug, 'h')
     lint.run()
-
-  # set defaults
-  #  --remove-paragraph-spacing removed
-  #  --remove-first-image removed
-  OPT_EPUB_ARGS = [
-   #"--flow-size", "500",
-   "--change-justification", "\"left\"",
-   "--chapter-mark", "\"none\"",
-   "--disable-remove-fake-margins",
-   "--page-breaks-before", "\"//h:div[@style='page-break-before:always'] | //*[(name()='h1' or name()='h2') and not(@class='nobreak')]\"",
-   "--sr1-search", "\"<hr class=.pbk./>\"",
-   "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
-   "--sr1-search", "\"<br\/><br\/>\"",
-   "--sr1-replace", "—",
-   "--chapter", "\"//*[(name()='h1' or name()='h2')]\"",
-   "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\"",
-   "--embed-all-fonts",
-  ]
-
-  OPT_PDF_ARGS = [
-   "--paper-size", "\"a5\"",
-   "--pdf-default-font-size", "\"13\"",
-   "--margin-left", "\"20\"",
-   "--margin-right", "\"20\"",
-   "--margin-top", "\"20\"",
-   "--margin-bottom", "\"20\"",
-   "--chapter-mark", "\"none\"",
-   "--disable-remove-fake-margins",
-   "--page-breaks-before", "\"//h:div[@style='page-break-before:always'] | //*[(name()='h1' or name()='h2') and not(@class='nobreak')]\"",
-   "--sr1-search", "\"<hr class=.pbk./>\"",
-   "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
-   "--sr1-search", "\"<br\/><br\/>\"",
-   "--sr1-replace", "—",
-   "--level1-toc \"//h:h1\"", "--level2-toc \"//h:h2\"",
-  ]
 
   # generate desired output formats
 
@@ -235,17 +201,10 @@ def processFile(options, bn):
     hb.run()
     args = getConvertArgs(OPT_PDF_ARGS, outfile, "{}-a5.pdf".format(bn), hb)
 
-    if config.uopt.getopt('pdf-default-font-size') != "":
-      args.append("--pdf-default-font-size")
-      args.append("{}".format(config.uopt.getopt('pdf-default-font-size')))
-
-    if config.uopt.getopt('pdf-margin-left') != "":
-      args.append("--margin-left")
-      args.append("{}".format(config.uopt.getopt('pdf-margin-left')))
-
-    if config.uopt.getopt('pdf-margin-right') != "":
-      args.append("--margin-right")
-      args.append("{}".format(config.uopt.getopt('pdf-margin-right')))
+    # fpgen option -> [ebook-convert option, value]
+    for k,v in PDF_CONFIG_OPTS.items():
+      args.append(v[0])
+      args.append(config.uopt.getopt(k, v[1]))
 
     # call(OPT_PDF_ARGS, shell=False)
     js = " ".join(args)
@@ -276,6 +235,43 @@ def processFile(options, bn):
         print("Adding image: " + image)
         zip.write(image)
     zip.close()
+
+# set defaults
+#  --remove-paragraph-spacing removed
+#  --remove-first-image removed
+OPT_EPUB_ARGS = [
+ #"--flow-size", "500",
+ "--change-justification", "\"left\"",
+ "--embed-all-fonts",
+]
+
+OPT_PDF_ARGS = [
+ "--paper-size", "\"a5\"",
+ "--pdf-page-margin-right", "20",
+ "--pdf-page-margin-left", "20",
+ "--pdf-page-margin-top", "20",
+ "--pdf-page-margin-bottom", "20",
+]
+
+PDF_CONFIG_OPTS = {
+  # fpgen option             : [ebook-convert option, value]
+  'pdf-default-font-size'     : [ '--pdf-default-font-size', "13" ],
+  'pdf-margin-left'           : [ '--pdf-page-margin-left', "20" ],
+  'pdf-margin-right'          : [ '--pdf-page-margin-right', "20" ],
+}
+
+OPT_COMMON_ARGS = [
+ "--chapter-mark", "\"none\"",
+ "--disable-remove-fake-margins",
+ "--page-breaks-before", "\"//h:div[@style='page-break-before:always'] | //*[(name()='h1' or name()='h2') and not(@class='nobreak')]\"",
+ "--sr1-search", "\"<hr class=.pbk./>\"",
+ "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
+ "--sr1-search", "\"<br\/><br\/>\"",
+ "--sr1-replace", "—",
+ "--chapter", "\"//*[(name()='h1' or name()='h2')]\"",
+ "--level1-toc", "\"//h:h1\"",
+ "--level2-toc", "\"//h:h2\"",
+]
 
 if __name__ == '__main__':
   main()
