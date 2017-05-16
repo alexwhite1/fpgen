@@ -80,10 +80,10 @@ convert(basename, ".epub", [
 
 convert(basename, "-a5.pdf", [
   "--paper-size", "a5",
-  "--margin-left", "20",
-  "--margin-right", "20",
-  "--margin-top", "20",
-  "--margin-bottom", "20",
+  "--pdf-page-margin-left", "20",
+  "--pdf-page-margin-right", "20",
+  "--pdf-page-margin-top", "20",
+  "--pdf-page-margin-bottom", "20",
   "--change-justification", "left",
   ]
 )

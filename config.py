@@ -138,8 +138,9 @@ uopt = userOptions()
 # 4.47c    Handle missing comment close with an error message, not stacktrace
 # 4.48     Add custom font support
 # 4.48a    Fix PDF margins broken by calibre 2.83
+# 4.48b    Fix PDF margins in gen.py as well
 
-VERSION="4.48a"
+VERSION="4.48b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
