@@ -2229,34 +2229,7 @@ class HTML(Book): #{
     trans = "".maketrans(self.cleanTrans)
     for i in range(len(self.wb)):
 
-      # Handle drop-caps, which have images.
-      # Each image must be mapped in a property to its image file;
-      # e.g. <property name='drop-T' content='images/T.jpg'>
-      m = re.search('☊(.*)☋', self.wb[i])
-      if m:
-        letter = m.group(1)
-        # Check for an open double-quote before the letter
-        hasquote = letter.startswith("“")
-        if hasquote:
-          letter = letter[1:]
-        # See if the property is there, if it isn't the old code which just
-        # makes a large letter will be used
-        if "drop-"+letter in self.uprop.prop:
-          # Yes, property is there.  Image will be used.
-          # If leading quote, generate special code to put it in the margin
-          if hasquote:
-            self.wb[i] = \
-              '<div style="position:absolute;margin-left:-.5em; font-size:150%;">“</div>' + \
-              self.wb[i]
-          imgFile = self.uprop.prop["drop-" + letter]
-          self.wb[i] = re.sub("☊.*☋", \
-          "<img src='" + imgFile + "' style='float:left;' alt='" + letter + "'/>", \
-          self.wb[i])
-        elif hasquote:
-          # If starts with a double-quote, remove it completely, or it will
-          # be very large and look funny. This is what most printed texts do.
-          self.wb[i] = self.wb[i][0:m.start(1)] + letter + self.wb[i][m.end(1):]
-
+      self.wb[i] = self.formatDropCap(self.wb[i])
       self.wb[i] = self.wb[i].translate(trans)
 
       # superscripts, subscripts
@@ -2267,6 +2240,63 @@ class HTML(Book): #{
       self.wb[i] = re.sub('\^\{(.*?)\}', r'<sup>\1</sup>', self.wb[i]) # superscript format 1: Rob^{t}
       self.wb[i] = re.sub('\^(.)', r'<sup>\1</sup>', self.wb[i]) # superscript format 2: Rob^t
       self.wb[i] = re.sub('_\{(.*?)\}', r'<sub>\1</sub>', self.wb[i]) # subscript: H_{2}O
+
+  dropCycles = {}
+
+  def formatDropCap(self, line):
+    # Handle drop-caps, which have images.
+    # Each image must be mapped in a property to its image file;
+    # e.g. <property name='drop-T' content='images/T.jpg'>
+    m = re.search('☊(.*)☋', line)
+    if not m:
+      return line
+
+    letter = m.group(1)
+    # Check for an open double-quote before the letter
+    hasquote = letter.startswith("“")
+    if hasquote:
+      letter = letter[1:]
+
+    # See if the property is there, if it isn't the old code which just
+    # makes a large letter will be used
+    if "drop-"+letter in self.uprop.prop:
+      # Yes, property is there.  Image will be used.
+      # If leading quote, generate special code to put it in the margin
+      if hasquote:
+        line = \
+          '<div style="position:absolute;margin-left:-.5em; font-size:150%;">“</div>' + \
+          line
+
+      # Figure out the image file name. Normally just drop-X, but if there
+      # is an or-bar, then we cycle through all the names
+      imgFile = self.uprop.prop["drop-" + letter]
+      if "|" in imgFile:
+        files = imgFile.split("|")
+        off = self.dropCycles[letter] if letter in self.dropCycles else 0
+        imgFile = files[off]
+        off += 1
+        if off >= len(files):
+          off = 0
+        self.dropCycles[letter] = off
+
+      if "drop-width-"+letter in self.uprop.prop:
+        width = "width:" + self.uprop.prop["drop-width-" + letter]
+      elif "drop-width" in self.uprop.prop:
+        width = "width:" + self.uprop.prop["drop-width"]
+      else:
+        width = ""
+      line = re.sub("☊.*☋", \
+        "<img src='" + imgFile + "' style='float:left;" + width + \
+        "' alt='" + letter + "'/>", \
+        line)
+    elif hasquote:
+      # If starts with a double-quote, remove it completely, or it will
+      # be very large and look funny. This is what most printed texts do.
+      line = line[0:m.start(1)] + letter + line[m.end(1):]
+
+    # If there are still drop start and stop characters,
+    # they will convert to <span> in the translate table
+    return line
 
   # page links
   # 2014.01.14 new in 3.02c

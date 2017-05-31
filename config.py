@@ -139,8 +139,9 @@ uopt = userOptions()
 # 4.48     Add custom font support
 # 4.48a    Fix PDF margins broken by calibre 2.83
 # 4.48b    Fix PDF margins in gen.py as well
+# 4.48c    Add drop-width; cycles in drop-X
 
-VERSION="4.48b"
+VERSION="4.48c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
