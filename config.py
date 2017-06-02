@@ -140,8 +140,9 @@ uopt = userOptions()
 # 4.48a    Fix PDF margins broken by calibre 2.83
 # 4.48b    Fix PDF margins in gen.py as well
 # 4.48c    Add drop-width; cycles in drop-X
+# 4.49     Rewrite drop-cap code to allow src&rend
 
-VERSION="4.48c"
+VERSION="4.49"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -156,8 +157,6 @@ debug = 0
 FORMATTED_PREFIX = "▹"
 NO_WRAP_PREFIX = "\u2135"
 HARD_SPACE = "□"
-DROP_START = "☊"
-DROP_END = "☋"
 pn_cover = ""
 
 # Used for <font:xx>...</font>

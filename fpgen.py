@@ -749,20 +749,10 @@ class Book(object): #{
     self.blankLines("<illustration", True, False)
     self.blankLines("</illustration", False, True)
 
-    dropEncountered = False
     for i, line in enumerate(self.wb):
-      # map drop caps requests
-      if dropEncountered == False:
-        if "<drop>" in self.wb[i]:
-          dropEncountered = True
-      if dropEncountered:
-        self.wb[i] = self.wb[i].replace("<drop>", config.DROP_START)
-        self.wb[i] = self.wb[i].replace("</drop>", config.DROP_END)
-
       # map <br> to be legal
-      self.wb[i] = self.wb[i].replace("<br>", "<br/>")
-    if dropEncountered:
-      self.addcss(dropCapCSS)
+      line = line.replace("<br>", "<br/>")
+      self.wb[i] = line
 
     # normalize rend format to have trailing semicolons
     # honour <lit>...</lit> blocks
@@ -1414,7 +1404,7 @@ class HTML(Book): #{
         thestyle += self.marginMap[key] + ":" + value + ";"
     return thestyle
 
-  def m2h(self, s, pf='False', lgr=''):
+  def m2h(self, s, pf=False, lgr=''):
     incoming = s
     m = re.match("<l(.*?)>(.*?)<\/l>",s)
     if not m:
@@ -1536,7 +1526,14 @@ class HTML(Book): #{
       self.css.addcss("[511] div.lgp p.line0 { text-indent:-3em; margin:0 auto 0 3em; }")
       if alignLast:
         thetext = "<span class='poetry-align-last'>" + self.lastLineRaw + "</span>" + thetext
-      s =  "<p class='line0' {} {}>".format(hstyle,hid) + thetext + "</p>"
+      paraStart = "<p class='line0' {} {}>".format(hstyle,hid)
+      if self.dropCapQuoteMarker in thetext:
+        s = thetext.replace(self.dropCapQuoteMarker, paraStart)
+      else:
+        s = paraStart + thetext
+      if self.dropCapMarkerA in s:
+        s = s.replace(self.dropCapMarkerA, "")
+      s += "</p>"
     else:
       self.css.addcss("[510] p.line { text-indent:0; margin-top:0; margin-bottom:0; }")
       s =  "<p class='line' {} {}>".format(hstyle,hid) + thetext + "</p>"
@@ -1608,7 +1605,7 @@ class HTML(Book): #{
             continue
           if not re.match("^\s*<l", line) or re.match("<link", line): # already marked?
             line = "<l>" + line.rstrip() + "</l>"
-            m = re.match(r"(<l.*?>)(\s+)(.*?)<\/l>", line)
+            m = re.match(r"(<l[^>]*>)(\s+)(.*?)<\/l>", line)
             if m:
               line = m.group(1) + "◻"*len(m.group(2)) + m.group(3) + "</l>"
             block[i] = line
@@ -1739,6 +1736,74 @@ class HTML(Book): #{
       return "⩤a href='#" + target + "'⩥" + content + "⩤/a⩥"
 
     parseEmbeddedSingleLineTagWithContent(self.wb, "link", oneLink)
+
+  #
+  # These tags are real hacks--used for two things
+  # a) To put the paragraph marker in the correct place when we have a leading
+  # quote; since we want the quote as a <div> in the margin; not part of the
+  # paragraph.  Perhaps we could instead insert a new line prior to the
+  # paragraph with a FORMATTED_PREFIX?
+  #
+  # b) When a paragraph begins with a drop cap, then we don't want to
+  # indent the paragraph. i.e. put in <nobreak> before the paragraph.
+  # Could we do that somehow by putting <nobreak> before the line? But we
+  # don't have the line here...
+  #
+  dropCapQuoteMarker = '<!--quote-->'
+  dropCapMarker = '⩤!--dropcap--⩥'
+  dropCapMarkerA = '<!--dropcap-->'
+  def processDropCaps(self):
+    self.dprint(1,"DropCaps")
+
+    def oneDrop(arg, letter, orig):
+      attributes = parseTagAttributes("drop", arg, [ "src", "rend" ])
+
+      hasquote = letter.startswith("“")
+      if hasquote:
+        letter = letter[1:]
+
+      imgFile = None
+      if "drop-"+letter in self.uprop.prop:
+        imgFile = self.uprop.prop["drop-" + letter]
+      else:
+        if "src" in attributes:
+          imgFile = attributes["src"]
+
+      # No image file? Generate simply a large letter
+      if imgFile == None:
+        self.addcss(dropCapCSS)
+
+        # If starts with a double-quote, this will remove it completely,
+        # or it will be very large and look funny.
+        # This is what most printed texts do.
+        return self.dropCapMarker + "⩤span class='dropcap'⩥" + letter + "⩤/span⩥"
+
+      # Width is, in priority
+      # a) rend='w:XX%'
+      # b) property drop-width-Letter
+      # c) property drop-width
+      # d) unspecified, i.e. pixel width of image
+      width = None
+      if "rend" in attributes:
+        # Only a width
+        rendAtt = parseOption("drop", attributes["rend"], [ "w" ])
+        if "w" in rendAtt:
+          width = "width:" + rendAtt["w"] + ";"
+      if width == None:
+        if "drop-width-"+letter in self.uprop.prop:
+          width = "width:" + self.uprop.prop["drop-width-" + letter]
+        elif "drop-width" in self.uprop.prop:
+          width = "width:" + self.uprop.prop["drop-width"]
+        else:
+          width = ""
+
+      # For image-based, we add an open quote in the left margin
+      quote = '⩤div style="position:absolute;margin-left:-.5em; font-size:150%;"⩥“⩤/div⩥' + self.dropCapQuoteMarker if hasquote else ""
+
+      return self.dropCapMarker + quote + "⩤img src='" + imgFile + "' style='float:left;" + \
+        width + "' alt='" + letter + "'/⩥"
+
+    parseEmbeddedSingleLineTagWithContent(self.wb, "drop", oneDrop)
 
   def processTargets(self):
     self.dprint(1,"processTargets")
@@ -1989,10 +2054,14 @@ class HTML(Book): #{
         block.append("</div>")
       else:
         # If the line has a drop cap, don't indent
-        if "☊" in block[0] and paragraphStyle == "indent":
+        if self.dropCapMarker in block[0] and paragraphStyle == "indent":
           paragraphStyle = "nobreak"
+        block[0] = block[0].replace(self.dropCapMarker, "")
         tag = self.styleToHtml[paragraphStyle]
-        block[0] = tag + block[0]
+        if self.dropCapQuoteMarker in block[0]:
+          block[0] = block[0].replace(self.dropCapQuoteMarker, tag)
+        else:
+          block[0] = tag + block[0]
         block[-1] += "</p>"
 
       wb[start:i] = block
@@ -2209,10 +2278,6 @@ class HTML(Book): #{
     '⓳': "</span>",     # </fs>
 
     config.FONT_END: "</span>",
-
-    # Drop-cap code for no image
-    config.DROP_START: "<span class='dropcap'>",
-    config.DROP_END: "</span>",
   }
 
   def cleanup(self):
@@ -2229,7 +2294,6 @@ class HTML(Book): #{
     trans = "".maketrans(self.cleanTrans)
     for i in range(len(self.wb)):
 
-      self.wb[i] = self.formatDropCap(self.wb[i])
       self.wb[i] = self.wb[i].translate(trans)
 
       # superscripts, subscripts
@@ -2240,63 +2304,6 @@ class HTML(Book): #{
       self.wb[i] = re.sub('\^\{(.*?)\}', r'<sup>\1</sup>', self.wb[i]) # superscript format 1: Rob^{t}
       self.wb[i] = re.sub('\^(.)', r'<sup>\1</sup>', self.wb[i]) # superscript format 2: Rob^t
       self.wb[i] = re.sub('_\{(.*?)\}', r'<sub>\1</sub>', self.wb[i]) # subscript: H_{2}O
-
-  dropCycles = {}
-
-  def formatDropCap(self, line):
-    # Handle drop-caps, which have images.
-    # Each image must be mapped in a property to its image file;
-    # e.g. <property name='drop-T' content='images/T.jpg'>
-    m = re.search('☊(.*)☋', line)
-    if not m:
-      return line
-
-    letter = m.group(1)
-    # Check for an open double-quote before the letter
-    hasquote = letter.startswith("“")
-    if hasquote:
-      letter = letter[1:]
-
-    # See if the property is there, if it isn't the old code which just
-    # makes a large letter will be used
-    if "drop-"+letter in self.uprop.prop:
-      # Yes, property is there.  Image will be used.
-      # If leading quote, generate special code to put it in the margin
-      if hasquote:
-        line = \
-          '<div style="position:absolute;margin-left:-.5em; font-size:150%;">“</div>' + \
-          line
-
-      # Figure out the image file name. Normally just drop-X, but if there
-      # is an or-bar, then we cycle through all the names
-      imgFile = self.uprop.prop["drop-" + letter]
-      if "|" in imgFile:
-        files = imgFile.split("|")
-        off = self.dropCycles[letter] if letter in self.dropCycles else 0
-        imgFile = files[off]
-        off += 1
-        if off >= len(files):
-          off = 0
-        self.dropCycles[letter] = off
-
-      if "drop-width-"+letter in self.uprop.prop:
-        width = "width:" + self.uprop.prop["drop-width-" + letter]
-      elif "drop-width" in self.uprop.prop:
-        width = "width:" + self.uprop.prop["drop-width"]
-      else:
-        width = ""
-      line = re.sub("☊.*☋", \
-        "<img src='" + imgFile + "' style='float:left;" + width + \
-        "' alt='" + letter + "'/>", \
-        line)
-    elif hasquote:
-      # If starts with a double-quote, remove it completely, or it will
-      # be very large and look funny. This is what most printed texts do.
-      line = line[0:m.start(1)] + letter + line[m.end(1):]
-
-    # If there are still drop start and stop characters,
-    # they will convert to <span> in the translate table
-    return line
 
   # page links
   # 2014.01.14 new in 3.02c
@@ -3443,6 +3450,7 @@ class HTML(Book): #{
     self.doIndex()
     self.doMulticol()
     self.processLinks()
+    self.processDropCaps()
     self.processTargets()
     from drama import DramaHTML
     DramaHTML(self.wb, self.css).doDrama();
@@ -3830,7 +3838,7 @@ class Text(Book): #{
         continue
       i += 1
 
-  # strip links and targets
+  # strip links and targets and dropcaps
   def stripLinks(self):
     self.dprint(1,"stripLinks")
     i = 0
@@ -3838,6 +3846,20 @@ class Text(Book): #{
       self.wb[i] = re.sub("<\/?link.*?>", "", self.wb[i])
       self.wb[i] = re.sub("<target.*?>", "", self.wb[i])
       i += 1
+
+  # Dropcap in text either is stripped or replaced with property text
+  def processDropCaps(self):
+    self.dprint(1,"DropCaps")
+
+    def oneDrop(arg, letter, orig):
+
+      if "drop-text-"+letter in self.uprop.prop:
+        repl = self.uprop.prop["drop-text-"+letter]
+      else:
+        repl = letter
+      return repl
+
+    parseEmbeddedSingleLineTagWithContent(self.wb, "drop", oneDrop)
 
   # simplify footnotes, move <l> to left, unadorn page links
   # preformat hr+footnotemark
@@ -4757,7 +4779,6 @@ class Text(Book): #{
     regexU = re.compile("\[\[\/?u\]\]")
     regexSC = re.compile("\[\[\/?sc\]\]")
     regexRS = re.compile(".rs (\d+)")
-    regexDrop = re.compile(config.DROP_START + "(.*)" + config.DROP_END)
 
     i = 0
     while i < len(self.wb):
@@ -4772,7 +4793,7 @@ class Text(Book): #{
         line = []
         for c in l:
           # ?? or start or end dropcap
-          if c == config.FORMATTED_PREFIX or c == config.DROP_START or c == config.DROP_END:
+          if c == config.FORMATTED_PREFIX:
             continue
           elif c == config.HARD_SPACE:
             c = " "
@@ -4802,15 +4823,6 @@ class Text(Book): #{
 
         l = l.replace("⨭", "<") # literal <
         l = l.replace("⨮", ">") # literal >
-
-        m = regexDrop.search(l)
-        if m:
-          letter = m.group(1)
-          if "drop-text-"+letter in self.uprop.prop:
-            repl = self.uprop.prop["drop-text-"+letter]
-          else:
-            repl = letter
-          l = l[0:m.start(0)] + repl + l[m.end(0):]
 
       l = l.rstrip()
       m = regexRS.match(l)
@@ -4848,6 +4860,7 @@ class Text(Book): #{
     self.processInline()
     self.processPageNum()
     self.stripLinks()
+    self.processDropCaps()
     self.preProcess()
     self.protectInline() # should be superfluous as of 19-Sep-13
     self.illustrations()
