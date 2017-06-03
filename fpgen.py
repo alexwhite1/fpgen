@@ -1527,8 +1527,8 @@ class HTML(Book): #{
       if alignLast:
         thetext = "<span class='poetry-align-last'>" + self.lastLineRaw + "</span>" + thetext
       paraStart = "<p class='line0' {} {}>".format(hstyle,hid)
-      if self.dropCapQuoteMarker in thetext:
-        s = thetext.replace(self.dropCapQuoteMarker, paraStart)
+      if self.dropCapParaMarker in thetext:
+        s = thetext.replace(self.dropCapParaMarker, paraStart)
       else:
         s = paraStart + thetext
       if self.dropCapMarkerA in s:
@@ -1749,7 +1749,7 @@ class HTML(Book): #{
   # Could we do that somehow by putting <nobreak> before the line? But we
   # don't have the line here...
   #
-  dropCapQuoteMarker = '<!--quote-->'
+  dropCapParaMarker = '<!--para-->'
   dropCapMarker = '⩤!--dropcap--⩥'
   dropCapMarkerA = '<!--dropcap-->'
   def processDropCaps(self):
@@ -1784,11 +1784,14 @@ class HTML(Book): #{
       # c) property drop-width
       # d) unspecified, i.e. pixel width of image
       width = None
+      sliced = False
       if "rend" in attributes:
         # Only a width
         rendAtt = parseOption("drop", attributes["rend"], [ "w" ])
         if "w" in rendAtt:
           width = "width:" + rendAtt["w"] + ";"
+        if "sliced" in rendAtt:
+          sliced = True
       if width == None:
         if "drop-width-"+letter in self.uprop.prop:
           width = "width:" + self.uprop.prop["drop-width-" + letter]
@@ -1797,11 +1800,60 @@ class HTML(Book): #{
         else:
           width = ""
 
-      # For image-based, we add an open quote in the left margin
-      quote = '⩤div style="position:absolute;margin-left:-.5em; font-size:150%;"⩥“⩤/div⩥' + self.dropCapQuoteMarker if hasquote else ""
+      # Either a single image, or the assembling vertically of multiple
+      # horizontal image slices.  sliceimage.py should already have been
+      # run to create the slices in a fixed set of names
+      img = ""
+      root, ext = os.path.splitext(imgFile)
+      pattern = root + ",[0-9][0-9],w=*" + ext
+      import glob
+      files = sorted(glob.glob(pattern))
+      if files:
+        img += "⩤div class='dropslice' style='" + width + "'⩥"
+        widths = []
 
-      return self.dropCapMarker + quote + "⩤img src='" + imgFile + "' style='float:left;" + \
-        width + "' alt='" + letter + "'/⩥"
+        # Find the largest width, in pixels
+        imageWidth = 0
+        for file in files:
+          m = re.search(r"w=([0-9][0-9]*)\.", file)
+          if not m:
+            cprint("Failed to match width on file " + file)
+            continue
+          w = int(m.group(1))
+          widths.append(w)
+          if w > imageWidth:
+            imageWidth = w
+        if imageWidth == 0:
+          fatal("Can't figure out image width for sliced image " + imgFile)
+
+        for i,file in enumerate(files):
+          file = file.replace("\\", "/") # gen on windows glob uses backslash
+          cprint(file);
+          w = widths[i]
+          percent = 100 * float(w) / imageWidth
+          img += "⩤img src='" + file + \
+            "' style='float:left;width:" + str(percent) + "%' alt='" + \
+            letter + "'/⩥"
+        img += "⩤/div⩥"
+        img += self.dropCapParaMarker
+        needPara = False
+      else:
+        img += "⩤img src='" + imgFile + "' style='float:left;" + \
+          width + "' alt='" + letter + "'/⩥"
+        needPara = True
+
+      # For image-based, we add an open quote in the left margin
+      # Note: Need to add the paragraph tag *after* all <div>s; so
+      # if only a quote, after it; if both quote and slices; after both;
+      # if only slices after slices.
+      ret = self.dropCapMarker
+      if hasquote:
+        ret += '⩤div style="position:absolute;margin-left:-.5em; font-size:150%;"⩥“⩤/div⩥'
+        if needPara:
+          ret += self.dropCapParaMarker
+      ret += img
+
+      return ret;
 
     parseEmbeddedSingleLineTagWithContent(self.wb, "drop", oneDrop)
 
@@ -2058,8 +2110,8 @@ class HTML(Book): #{
           paragraphStyle = "nobreak"
         block[0] = block[0].replace(self.dropCapMarker, "")
         tag = self.styleToHtml[paragraphStyle]
-        if self.dropCapQuoteMarker in block[0]:
-          block[0] = block[0].replace(self.dropCapQuoteMarker, tag)
+        if self.dropCapParaMarker in block[0]:
+          block[0] = block[0].replace(self.dropCapParaMarker, tag)
         else:
           block[0] = tag + block[0]
         block[-1] += "</p>"

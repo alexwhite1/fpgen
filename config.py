@@ -141,8 +141,9 @@ uopt = userOptions()
 # 4.48b    Fix PDF margins in gen.py as well
 # 4.48c    Add drop-width; cycles in drop-X
 # 4.49     Rewrite drop-cap code to allow src&rend
+# 4.50     Drop-cap slicing
 
-VERSION="4.49"
+VERSION="4.50"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
