@@ -28,10 +28,11 @@ def manualMerge(slices):
       # Range of slices
       start = int(l[0])
       end = int(l[1])
-      newSlice = [ slices[start][0], slices[end][1], slices[start][2] ]
+      newSlice = [ slices[start][0], slices[end][1], 0, 9999 ]
       for i in range(start, end+1):
         slice = slices[i]
         newSlice[2] = max(newSlice[2], slice[2])
+        newSlice[3] = min(newSlice[3], slice[3])
       print("Slice {} from {} through {}: {}".format(len(newSlices), start, end, newSlice))
       newSlices.append(newSlice)
     else:
@@ -58,6 +59,7 @@ def merge(slices):
             ", height=" + str(w[1]-w[0]) + ")")
         w[1] = w1[1]
         w[2] = max(w[2], w1[2])
+        w[3] = min(w[3], w1[3])
         del slices[i+1]
         mod = True
       else:
@@ -71,8 +73,8 @@ def merge(slices):
 def contour(file):
 
   maxslices = int(options.maxslices)
-  rightPixels = int(options.rightPixels)
-  print("maxslices={}, rightPixels={}, mergeDistancePixels={}, minHeightPixels={}".format(maxslices, rightPixels, options.mergeDistancePixels, options.minHeightPixels))
+  padding = int(options.padding)
+  print("maxslices={}, padding={}, mergeDistancePixels={}, minHeightPixels={}".format(maxslices, padding, options.mergeDistancePixels, options.minHeightPixels))
 
   print(file + ":")
   if file[-4:] != ".jpg":
@@ -87,6 +89,7 @@ def contour(file):
   contours = measure.find_contours(gT, .8)
 
   imageHeight = gT.shape[0]
+  imageWidth = gT.shape[1]
   print("Image height: " + str(imageHeight))
   sliceHeight = int(gT.shape[0] / maxslices)
   print(str(maxslices) + " slices each with height: " + str(sliceHeight))
@@ -99,19 +102,29 @@ def contour(file):
     if ryEnd + maxslices > imageHeight:
       ryEnd = imageHeight
     maxx = 0
+    minx = 9999
     for contour in contours:
       for a in contour:
         x = a[1]
         y = a[0]
+        # If this contour point is in this slice
         if y >= ry and y < ryEnd:
+          # See if it is further to the right
           if x > maxx:
             maxx = x
-    print("Slice {}: Start Y: {}, End Y: {}, Width: {}".format(i, ry, ryEnd, maxx))
+          if x < minx:
+            minx = x
+    print("Slice {}: Start Y: {}, End Y: {}, Right X: {}, Left X: {}".format(i, ry, ryEnd, maxx, minx))
     #left.vlines(maxx + 5, ry, ry+height, linestyles='dotted', color='r')
-    width = int(maxx) + rightPixels
+    rightX = int(maxx) + padding
+    leftX = int(minx)
+    if leftX > padding:
+      leftX -= padding
+    else:
+      leftX = 0
 
     distance = 0
-    slices.append([ry, ryEnd, width])
+    slices.append([ry, ryEnd, rightX, leftX])
 
     ry = ryEnd
     if ryEnd == imageHeight:
@@ -141,13 +154,19 @@ def contour(file):
   for slice in slices:
     ry = slice[0]
     ryEnd = slice[1]
-    width = slice[2]
-    slice = T[ry:ryEnd, 0:width]
+    if options.left:
+      rightX = slice[2]
+      slice = T[ry:ryEnd, 0:rightX]
+      w = rightX
+    else:
+      leftX = slice[3]
+      slice = T[ry:ryEnd, leftX:imageWidth]
+      w = imageWidth - leftX
 
     # Assume no more than 99 slices, fill with leading zero, so fpgen can
     # sort without alpha.  ,w=size allows figuring out width percent
     file = basename + "," + str(sliceNumber).zfill(2) + \
-        ",w=" + str(width) + ".jpg"
+        ",w=" + str(w) + ".jpg"
     print("Writing new slice: " + file)
     plt.imsave(file, slice, format="jpg")
 
@@ -180,6 +199,10 @@ becomes a slice file:
     sliceimage -g --maxslices 10 --merge 1-6,7-9 images/p123.jpg
 """
 parser = OptionParser(conflict_handler="resolve", usage=usage)
+parser.add_option("-l", "--left", dest="left", default=True,
+  action="store_true", help="Slice based on image at the left")
+parser.add_option("-r", "--right", dest="left", default=True,
+  action="store_false", help="Slice based on image at the right")
 parser.add_option("-g", "--gui", dest="gui", default=False,
   action="store_true", help="Show results in a GUI")
 parser.add_option("-m", "--manual", dest="manual", default=False,
@@ -189,8 +212,8 @@ parser.add_option("--merge", dest="merge",
   help="Slices to merge: #-#,#,#-#...")
 parser.add_option("-s", "--maxslices", dest="maxslices", default=30,
   help="Start by slicing image vertically into this number of images")
-parser.add_option("-r", "--right", dest="rightPixels", default=5,
-  help="Number of pixels to add to right of contour")
+parser.add_option("--padding", dest="padding", default=5,
+  help="Number of pixels to add to right or left of contour")
 parser.add_option("-d", "--mergedistance", dest="mergeDistancePixels",
   default=50,
   help="Two slices within this number of pixels of width are merged")
