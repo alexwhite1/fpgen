@@ -1790,8 +1790,6 @@ class HTML(Book): #{
         rendAtt = parseOption("drop", attributes["rend"], [ "w" ])
         if "w" in rendAtt:
           width = "width:" + rendAtt["w"] + ";"
-        if "sliced" in rendAtt:
-          sliced = True
       if width == None:
         if "drop-width-"+letter in self.uprop.prop:
           width = "width:" + self.uprop.prop["drop-width-" + letter]
@@ -1800,34 +1798,12 @@ class HTML(Book): #{
         else:
           width = ""
 
-      # Either a single image, or the assembling vertically of multiple
-      # horizontal image slices.  sliceimage.py should already have been
-      # run to create the slices in a fixed set of names
+      files, widths, imageWidth = self.getImageSlices(imgFile)
+
       img = ""
-      root, ext = os.path.splitext(imgFile)
-      pattern = root + ",[0-9][0-9],w=*" + ext
-      import glob
-      files = sorted(glob.glob(pattern))
       if files:
         img += "⩤div class='dropslice' style='" + width + "'⩥"
-        widths = []
-
-        # Find the largest width, in pixels
-        imageWidth = 0
-        for file in files:
-          m = re.search(r"w=([0-9][0-9]*)\.", file)
-          if not m:
-            cprint("Failed to match width on file " + file)
-            continue
-          w = int(m.group(1))
-          widths.append(w)
-          if w > imageWidth:
-            imageWidth = w
-        if imageWidth == 0:
-          fatal("Can't figure out image width for sliced image " + imgFile)
-
         for i,file in enumerate(files):
-          file = file.replace("\\", "/") # gen on windows glob uses backslash
           cprint(file);
           w = widths[i]
           percent = 100 * float(w) / imageWidth
@@ -1856,6 +1832,37 @@ class HTML(Book): #{
       return ret;
 
     parseEmbeddedSingleLineTagWithContent(self.wb, "drop", oneDrop)
+
+  def getImageSlices(self, imgFile):
+    # Either a single image, or the assembling vertically of multiple
+    # horizontal image slices.  sliceimage.py should already have been
+    # run to create the slices in a fixed set of names
+    root, ext = os.path.splitext(imgFile)
+    pattern = root + ",[0-9][0-9],w=*" + ext
+    import glob
+    files = sorted(glob.glob(pattern))
+    if not files:
+      return None, None, None
+
+    # glob on windows uses backslash, need forward in html
+    files[:] = [file.replace("\\", "/") for file in files]
+
+    widths = []
+
+    # Find the largest width, in pixels
+    imageWidth = 0
+    for file in files:
+      m = re.search(r"w=([0-9][0-9]*)\.", file)
+      if not m:
+        cprint("Failed to match width on file " + file)
+        continue
+      w = int(m.group(1))
+      widths.append(w)
+      if w > imageWidth:
+        imageWidth = w
+    if imageWidth == 0:
+      fatal("Can't figure out image width for sliced image " + imgFile)
+    return files, widths, imageWidth
 
   def processTargets(self):
     self.dprint(1,"processTargets")
@@ -3052,13 +3059,13 @@ class HTML(Book): #{
     def oneIllustration(args, block):
       attr = parseTagAttributes("illustration", args, illustrationAttributes)
 
-      # set i_filename ("content" or "src")
-      i_filename = ""
+      # set imgFile ("content" or "src")
+      imgFile = ""
       if "content" in attr:
-        i_filename = attr["content"]
+        imgFile = attr["content"]
       elif "src" in attr:
-        i_filename = attr["src"]
-      if i_filename == "":
+        imgFile = attr["src"]
+      if imgFile == "":
         self.fatal("no image filename specified in {}".format(args))
 
       # --------------------------------------------------------------------
@@ -3109,7 +3116,7 @@ class HTML(Book): #{
       # if so, link is to filename+f in images folder.
       i_link = "" # assume no link
       if "link" in opts:
-        i_link = re.sub(r"\.", "f.", i_filename)
+        i_link = re.sub(r"\.", "f.", imgFile)
 
       # --------------------------------------------------------------------
       # illustration may be on one line (/>) or three (>)
@@ -3119,16 +3126,44 @@ class HTML(Book): #{
       # --------------------------------------------------------------------
       #
       t = []
-      style="width:{};height:{};".format(i_w, i_h)
-      t.append("<div class='fig{}'{}>".format(i_posn, i_occupy))
 
       # handle link to larger images in HTML only
-      s0 = ""
-      s1 = ""
+      s0 = None
+      s1 = None
       if 'h' == self.gentype and i_link != "":
         s0 = "<a href='{}'>".format(i_link)
         s1 = "</a>"
-      t.append("{}<img src='{}' alt='' id='{}' style='{}'/>{}".format(s0, i_filename, i_id, style, s1))
+
+      if not os.path.isfile(imgFile):
+        cprint("Warning: Image file {} does not exist".format(imgFile))
+
+      # Handles slices
+      files, widths, imageWidth = self.getImageSlices(imgFile)
+      if files:
+        cprint("Illustration " + imgFile + " sliced:")
+        if i_w[-1] != '%':
+          self.fatal(imgFile + ": Image width must be a percent for slicing")
+        if i_posn != 'left':
+          self.fatal(imgFile + ": Cannot do sliced image except left")
+        sourceWidth = float(i_w[:-1]) / 100
+        self.css.addcss(illustrationLeftSlicedCSS)
+        t.append("<div class='figLeftSliced'" + i_occupy + ">")
+        for i,file in enumerate(files):
+          cprint("->" + file);
+          w = widths[i]
+          percent = 100 * float(w) / imageWidth
+          percent *= sourceWidth
+          style="clear:both;float:left;height:{};width:{}%;".format(i_h, percent)
+          t.append("<img src='{}' style='{}' alt=''/>".format(file, style))
+      else:
+        if s0:
+          t.append(s0)
+        t.append("<div class='fig{}'{}>".format(i_posn, i_occupy))
+        style="width:{};height:{};".format(i_w, i_h)
+        t.append("<img src='{}' alt='' id='{}' style='{}'/>".format(imgFile, i_id, style))
+
+      if s1:
+        t.append(s1)
       if i_caption != "":
         self.css.addcss("[392] p.caption { text-align:center; margin:0 auto; width:100%; }")
         # markPara will now tag each paragraph with class='caption'
@@ -5698,6 +5733,18 @@ illustrationCenterCSS = """[386]
   text-align:center;
   margin:1em auto;
   page-break-inside: avoid;
+}
+"""
+
+illustrationLeftSlicedCSS = """[387]
+.figLeftSliced {
+  clear:left;
+  margin-right:1em;
+  margin-bottom:1em;
+  margin-top:1em;
+  margin-left:0;
+  padding:0;
+  text-align:center;
 }
 """
 
