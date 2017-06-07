@@ -1804,7 +1804,7 @@ class HTML(Book): #{
       if files:
         img += "⩤div class='dropslice' style='" + width + "'⩥"
         for i,file in enumerate(files):
-          cprint(file);
+          dprint(1,file);
           w = widths[i]
           percent = 100 * float(w) / imageWidth
           img += "⩤img src='" + file + \
@@ -3107,9 +3107,9 @@ class HTML(Book): #{
       if i_h == None:
         i_h = "auto"
       if i_occupy != None:
-        i_occupy = " style='width:" + i_occupy + "'"
+        occupyStyle = " style='width:" + i_occupy + "'"
       else:
-        i_occupy = ""
+        occupyStyle = ""
 
       # --------------------------------------------------------------------
       # determine if link to larger image is requested.
@@ -3140,25 +3140,32 @@ class HTML(Book): #{
       # Handles slices
       files, widths, imageWidth = self.getImageSlices(imgFile)
       if files:
-        cprint("Illustration " + imgFile + " sliced:")
+        dprint(1,"Illustration " + imgFile + " sliced:")
         if i_w[-1] != '%':
           self.fatal(imgFile + ": Image width must be a percent for slicing")
-        if i_posn != 'left':
-          self.fatal(imgFile + ": Cannot do sliced image except left")
+        if i_posn != 'left' and i_posn != 'right':
+          self.fatal(imgFile + ": Cannot do sliced center image; only floating left/right")
         sourceWidth = float(i_w[:-1]) / 100
-        self.css.addcss(illustrationLeftSlicedCSS)
-        t.append("<div class='figLeftSliced'" + i_occupy + ">")
+        self.css.addcss(illustrationLeftSlicedCSS if i_posn=='left' else illustrationRightSlicedCSS)
+        if i_posn == 'left':
+          t.append("<div class='figLeftSliced'" + occupyStyle + ">")
+        else:
+          t.append("<div class='figRightSliced'>")
         for i,file in enumerate(files):
-          cprint("->" + file);
+          dprint(1,"->" + file);
           w = widths[i]
           percent = 100 * float(w) / imageWidth
           percent *= sourceWidth
-          style="clear:both;float:left;height:{};width:{}%;".format(i_h, percent)
+          if i_posn == 'right':
+            dprint(1,"Right, occupy: " + i_occupy)
+            if i_occupy[-1] == '%':
+              percent *= int(i_occupy[0:-1])/100
+          style="clear:both;float:{};height:{};width:{}%;".format(i_posn, i_h, percent)
           t.append("<img src='{}' style='{}' alt=''/>".format(file, style))
       else:
         if s0:
           t.append(s0)
-        t.append("<div class='fig{}'{}>".format(i_posn, i_occupy))
+        t.append("<div class='fig{}'{}>".format(i_posn, occupyStyle))
         style="width:{};height:{};".format(i_w, i_h)
         t.append("<img src='{}' alt='' id='{}' style='{}'/>".format(imgFile, i_id, style))
 
@@ -5740,9 +5747,18 @@ illustrationLeftSlicedCSS = """[387]
 .figLeftSliced {
   clear:left;
   margin-right:1em;
-  margin-bottom:1em;
-  margin-top:1em;
   margin-left:0;
+  padding:0;
+  text-align:center;
+}
+"""
+
+illustrationRightSlicedCSS = """[388]
+.figRightSliced {
+  width:99%;
+  clear:right;
+  margin-right:0em;
+  margin-left:1em;
   padding:0;
   text-align:center;
 }

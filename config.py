@@ -142,8 +142,9 @@ uopt = userOptions()
 # 4.48c    Add drop-width; cycles in drop-X
 # 4.49     Rewrite drop-cap code to allow src&rend
 # 4.50     Drop-cap slicing
+# 4.51     Illustration slicing, preserve-margins option
 
-VERSION="4.50"
+VERSION="4.51"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

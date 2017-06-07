@@ -153,15 +153,21 @@ def processFile(options, bn):
     hb = HTML(options.infile, outfile, options.debug, 'e')
     print("creating Epub")
     hb.run()
+
+    preserveMargins = (config.uopt.getopt('preserve-margins', 'false') == 'true')
     args = getConvertArgs(OPT_EPUB_ARGS, outfile, "{}.epub".format(bn), hb)
 
     if config.uopt.getopt('epub-margin-left') != "": # added 27-Mar-2014
       args.append("--margin-left")
       args.append("{}".format(config.uopt.getopt('epub-margin-left')))
+    elif preserveMargins:
+      args.append("--margin-left -1")
 
     if config.uopt.getopt('epub-margin-right') != "": # added 27-Mar-2014
       args.append("--margin-right")
       args.append("{}".format(config.uopt.getopt('epub-margin-right')))
+    elif preserveMargins:
+      args.append("--margin-right -1")
 
     # call(OPT_EPUB_ARGS, shell=False)
     js = " ".join(args)
@@ -178,7 +184,10 @@ def processFile(options, bn):
     outfile = "{}-e2.html".format(bn)
     hb = HTML(options.infile, outfile, options.debug, 'k')
     hb.run()
+    preserveMargins = (config.uopt.getopt('preserve-margins', 'false') == 'true')
     args = getConvertArgs(OPT_EPUB_ARGS, outfile, "{}-e2.epub".format(bn), hb)
+    if preserveMargins:
+      args.extend(OPT_PRESERVE_MARGINS)
 
     # call(OPT_EPUB_ARGS, shell=False)
     js = " ".join(args)
@@ -199,17 +208,24 @@ def processFile(options, bn):
     hb = HTML(options.infile, outfile, options.debug, 'p')
     print("creating PDF")
     hb.run()
+    preserveMargins = (config.uopt.getopt('preserve-margins', 'false') == 'true')
     args = getConvertArgs(OPT_PDF_ARGS, outfile, "{}-a5.pdf".format(bn), hb)
 
-    # fpgen option -> [ebook-convert option, value]
-    for k,v in PDF_CONFIG_OPTS.items():
-      args.append(v[0])
-      args.append(config.uopt.getopt(k, v[1]))
+    if preserveMargins:
+      args.extend(OPT_PRESERVE_MARGINS)
+      args.append('--pdf-default-font-size')
+      args.append(config.uopt.getopt('pdf-default-font-size', "13"))
+    else:
+      args.extend(OPT_PDF_ARGS_RL)
+      # fpgen option -> [ebook-convert option, value]
+      for k,v in PDF_CONFIG_OPTS.items():
+        args.append(v[0])
+        args.append(config.uopt.getopt(k, v[1]))
 
     # call(OPT_PDF_ARGS, shell=False)
     js = " ".join(args)
 
-    msgs.dprint(1, js)
+    msgs.dprint(0, js)
     os.system(js)
 
     if not options.saveint:
@@ -247,10 +263,14 @@ OPT_EPUB_ARGS = [
 
 OPT_PDF_ARGS = [
  "--paper-size", "\"a5\"",
- "--pdf-page-margin-right", "20",
- "--pdf-page-margin-left", "20",
  "--pdf-page-margin-top", "20",
  "--pdf-page-margin-bottom", "20",
+# "--pdf-serif-family", "tahoma",
+]
+
+OPT_PDF_ARGS_RL = [
+ "--pdf-page-margin-right", "20",
+ "--pdf-page-margin-left", "20",
 ]
 
 PDF_CONFIG_OPTS = {
@@ -271,6 +291,11 @@ OPT_COMMON_ARGS = [
  "--chapter", "\"//*[(name()='h1' or name()='h2')]\"",
  "--level1-toc", "\"//h:h1\"",
  "--level2-toc", "\"//h:h2\"",
+]
+
+OPT_PRESERVE_MARGINS = [
+ "--margin-left", "-1",
+ "--margin-right", "-1",
 ]
 
 if __name__ == '__main__':
