@@ -619,8 +619,12 @@ class Book(object): #{
         fatal("Badly formatted <if> conditional")
 
       conditional_type = m.group(1)
-      if conditional_type == "!t": # 08-Sep-2013
-        conditional_type = 'hepk' # 26-Mar-2014
+      if "!" in conditional_type:
+        all = "hepkt"
+        for type in conditional_type:
+          if type in all:
+            all = all.replace(type, '')
+        conditional_type = all
       if self.gentype in conditional_type:
         return block
       else:
