@@ -1567,6 +1567,7 @@ class HTML(Book): #{
 
         l = l.replace("<thinsp>", "\u2009")
         l = l.replace("<nnbsp>", "\u202f")
+        l = l.replace("<shy>", "\u00ad")        # soft-hyphen
         l = l.replace("<wjoiner>", "\u2060")
 
         while ". ." in l:
@@ -1657,7 +1658,10 @@ class HTML(Book): #{
           if cpn != "":
             # increment page number by specified amount
             if cpn.isdigit():
-              cpn = str(int(cpn) + int(m.group(2)))
+              try:
+                cpn = str(int(cpn) + int(m.group(2)))
+              except:
+                self.fatal("Bad page number: " + self.wb[i])
             else:
               increment = int(m.group(2))
               cpn = self.int_to_roman(self.roman_to_int(cpn) + increment)
@@ -2109,8 +2113,11 @@ class HTML(Book): #{
       if paragraphStyle == "list":
         self.css.addcss(paragraphListCSS)
         w = block[0].split(" ")
-        l = "<span class='listTag'>" + w[0] + "</span>" + \
-          "<p class='listPara'>" + " ".join(w[1:])
+        if w[0] == "":
+          l = ''
+        else:
+          l = "<span class='listTag'>" + w[0] + "</span>"
+        l += "<p class='listPara'>" + " ".join(w[1:])
         block[0] = l
         block[-1] += "</p>"
         block.insert(0, "<div class='listEntry'>")
@@ -4037,7 +4044,7 @@ class Text(Book): #{
       s = re.sub("<(\/?g)>", r"[[\1]]", s) # gesperrt
       s = re.sub("<(\/?u)>", r"[[\1]]", s) # underline
       s = re.sub(r"\\ ", config.HARD_SPACE, s) # hard spaces
-      s = re.sub(r"<thinsp>|<nnbsp>|<wjoiner>", "", s) # remove special tags
+      s = re.sub(r"<shy>|<thinsp>|<nnbsp>|<wjoiner>", "", s) # remove special tags
       s = re.sub(r" ", config.HARD_SPACE, s) # unicode 0xA0, non-breaking space
       while re.search(r"\. \.", s):
         s = re.sub(r"\. \.", ".□.", s) # spaces in ellipsis

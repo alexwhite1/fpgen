@@ -143,8 +143,9 @@ uopt = userOptions()
 # 4.49     Rewrite drop-cap code to allow src&rend
 # 4.50     Drop-cap slicing
 # 4.51     Illustration slicing, preserve-margins option
+# 4.52     <shy>, couple of minor bugs
 
-VERSION="4.51"
+VERSION="4.52"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
