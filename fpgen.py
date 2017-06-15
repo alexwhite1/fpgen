@@ -3174,9 +3174,9 @@ class HTML(Book): #{
           style="clear:both;float:{};height:{};width:{}%;".format(i_posn, i_h, percent)
           t.append("<img src='{}' style='{}' alt=''/>".format(file, style))
       else:
+        t.append("<div class='fig{}'{}>".format(i_posn, occupyStyle))
         if s0:
           t.append(s0)
-        t.append("<div class='fig{}'{}>".format(i_posn, occupyStyle))
         style="width:{};height:{};".format(i_w, i_h)
         t.append("<img src='{}' alt='' id='{}' style='{}'/>".format(imgFile, i_id, style))
 
