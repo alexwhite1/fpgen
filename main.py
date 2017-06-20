@@ -119,6 +119,11 @@ def getConvertArgs(modelArgs, infile, outfile, hb):
 
   args.extend(OPT_COMMON_ARGS)
   args.extend(modelArgs)
+
+  extra = os.environ.get('FPGEN_EBOOK_CONVERT_EXTRA_ARGS')
+  if extra:
+    print("Extra conversion args: " + extra)
+    args.append(extra)
   return args
 
 def processFile(options, bn):
@@ -221,6 +226,11 @@ def processFile(options, bn):
       for k,v in PDF_CONFIG_OPTS.items():
         args.append(v[0])
         args.append(config.uopt.getopt(k, v[1]))
+
+    extra = os.environ.get('FPGEN_EBOOK_CONVERT_EXTRA_ARGS_PDF')
+    if extra:
+      print("Extra pdf conversion args: " + extra)
+      args.append(extra)
 
     # call(OPT_PDF_ARGS, shell=False)
     js = " ".join(args)
