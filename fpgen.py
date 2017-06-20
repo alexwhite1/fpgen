@@ -3134,6 +3134,10 @@ class HTML(Book): #{
       i_caption = self.getCaption(block)
       i_caption = re.sub("<br>", "<br/>", i_caption) # honor hard breaks in captions
 
+      # Caption may be omitted automatically in html
+      if "embeddedcaption" in opts:
+        i_caption = ""
+
       # --------------------------------------------------------------------
       #
       t = []
@@ -5581,6 +5585,7 @@ illustrationRendOptions = [
   "left", "right", "center",
   "occupy",
   "link",
+  "embeddedcaption",
 ]
 
 # legal attributes on <tb>

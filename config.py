@@ -144,8 +144,9 @@ uopt = userOptions()
 # 4.50     Drop-cap slicing
 # 4.51     Illustration slicing, preserve-margins option
 # 4.52     <shy>, couple of minor bugs
+# 4.53     embeddedcaption in <illustration>
 
-VERSION="4.52"
+VERSION="4.53"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
