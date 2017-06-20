@@ -316,7 +316,7 @@ def FNtoHtml(wb):
         block.extend(noteMap[target])
         del noteMap[target]
       elif fmid in footnotes and footnotes[fmid] == target:
-        cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first.")
+        cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first. Line: >>>" + line + "<<<")
         repl = "<a href='#f{0}' style='text-decoration:none'>{1}</a>".format(target, repl)
       else:
         footnotes[fmid] = target
