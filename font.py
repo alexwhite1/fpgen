@@ -10,6 +10,8 @@ def formatFonts(fonts):
     return []
   block = []
   for localname,googlename in fonts.items():
+    if getFontClass(localname):
+      continue
     dprint(1, localname + ": " + googlename)
     googlename = googlename.replace(' ', '+')
     localFile = getGoogleFont(googlename)
@@ -51,3 +53,14 @@ def getGoogleFont(name):
   dprint(1, "Brought google font into " + localFile)
 
   return localFile
+
+def getFontClass(font):
+  if font.endswith("-class"):
+    return font[:-6]
+  return None
+
+def getFontSpan(font, value):
+  clazz = getFontClass(font)
+  if clazz:
+    return """<span class="{}">""".format(clazz)
+  return """<span style="font-family:'{}';">""".format(font)

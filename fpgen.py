@@ -201,13 +201,14 @@ class Book(object): #{
 
   def getFontIndex(self, name):
     keyname = "font-" + name
+    keynameclass = "font-" + name + "-class"
     index = 0
     for key in self.uprop.prop.keys():
-      if key.startswith(keyname):
+      if key == keyname or key == keynameclass:
         return index
       if key.startswith("font-"):
         index += 1
-    fatal("<font:> tag has an unknown font: " + name + ". Font must have a property named " + keyname + ".")
+    fatal("<font:> tag has an unknown font: " + name + ". Font must have a property named " + keyname + ", or " + keyname + "-class.")
 
   # display (fatal) error and exit
   def fatal(self, message):
@@ -2354,11 +2355,11 @@ class HTML(Book): #{
     self.dprint(1,"cleanup")
 
     # Add the mapping for any font properties
-    fonts = self.getFonts().keys()
+    fonts = self.getFonts()
     index = config.FONT_BASE
-    for font in fonts:
-      dprint(1, "Adding entry for " + str(index) + ": " + font)
-      self.cleanTrans[str(chr(index))] = """<span style="font-family:'{}';">""".format(font)
+    for name,value in fonts.items():
+      dprint(1, "Adding entry for " + str(index) + ": " + name)
+      self.cleanTrans[str(chr(index))] = font.getFontSpan(name, value)
       index += 1
 
     trans = "".maketrans(self.cleanTrans)

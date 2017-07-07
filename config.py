@@ -145,8 +145,9 @@ uopt = userOptions()
 # 4.51     Illustration slicing, preserve-margins option
 # 4.52     <shy>, couple of minor bugs
 # 4.53     embeddedcaption in <illustration>
+# 4.54     Add property font-XXX-class
 
-VERSION="4.53"
+VERSION="4.54"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
