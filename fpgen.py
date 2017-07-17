@@ -4196,6 +4196,14 @@ class Text(Book): #{
             del self.wb[j]
       i += 1
 
+  def last(self, i):
+    while True:
+      i -= 1;
+      if i == 0:
+        return ""
+      if self.wb[i]:
+        return "\nPrevious lines: " + "\n".join(self.wb[i-5:i])
+    return ""
 
   # rewrap
   # doesn't touch lines that are already formatted
@@ -4229,7 +4237,7 @@ class Text(Book): #{
       if re.match("<\/quote>", self.wb[i]):
         self.qstack.pop()
         if len(self.qstack) == 0:
-          fatal("</quote> encounted without matching open <quote>")
+          fatal("</quote> encounted without matching open <quote>" + self.last(i))
         del(self.wb[i])
         continue
 

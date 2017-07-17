@@ -62,5 +62,5 @@ def getFontClass(font):
 def getFontSpan(font, value):
   clazz = getFontClass(font)
   if clazz:
-    return """<span class="{}">""".format(clazz)
+    return """<span class="{}">""".format(value)
   return """<span style="font-family:'{}';">""".format(font)

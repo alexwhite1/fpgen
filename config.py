@@ -146,8 +146,9 @@ uopt = userOptions()
 # 4.52     <shy>, couple of minor bugs
 # 4.53     embeddedcaption in <illustration>
 # 4.54     Add property font-XXX-class
+# 4.54a    font-XXX-class had a bug.
 
-VERSION="4.54"
+VERSION="4.54a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
