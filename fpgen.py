@@ -2840,6 +2840,7 @@ class HTML(Book): #{
     self.css.addcss("[560] table.center { margin:0.5em auto; border-collapse: collapse; padding:3px; }")
     self.css.addcss("[560] table.left { margin:0.5em 1.2em; border-collapse: collapse; padding:3px; }")
     self.css.addcss("[560] table.flushleft { margin:0.5em 0em; border-collapse: collapse; padding:3px; }")
+    self.css.addcss("[560] table { page-break-inside: avoid; }")
 
     # pull the pattern
     columns = parseTablePattern(openTag, True, self.uprop)
