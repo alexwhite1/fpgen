@@ -18,7 +18,7 @@ from parse import parseTagAttributes, parseOption, parseLineEntry, \
   parseEmbeddedSingleLineTagWithContent, \
   parseEmbeddedTagWithoutContent, \
   parseStandaloneSingleLineTagWithContent
-from msgs import cprint, uprint, dprint, fatal
+from msgs import cprint, uprint, dprint, fatal, wprint, setWarnings
 import config
 import template
 
@@ -425,6 +425,8 @@ class Book(object): #{
         del self.wb[i]
         continue
       i += 1
+
+    setWarnings(config.uopt.getopt("warning-suppress"))
 
   numeral_map = tuple(zip(
       (1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1),
@@ -2915,7 +2917,10 @@ class HTML(Book): #{
     if userWidth:
       t.append("<colgroup>")
       for col in columns:
-        t.append("<col span='1' style='width: {}em;'/>".format(col.width//2))
+        n = col.width//2
+        if col.width%2 == 1:
+          n += .5
+        t.append("<col span='1' style='width: {}em;'/>".format(n))
       t.append("</colgroup>")
 
     # Parse the table
@@ -3672,7 +3677,7 @@ class Text(Book): #{
           continue
         firstline = " " * userindent + t[0:sliceat].strip()
         f1.write( "{:s}{}".format(firstline,lineEnd) )
-        cprint("warning: Wrapping line: [" + t + "]. ", end="")
+        wprint('wrapping', "warning: Wrapping line: [" + t + "]. ", end="")
         t = t[sliceat:].strip()
         nwrapped += 1
         while len(t) > 0:
@@ -3689,10 +3694,10 @@ class Text(Book): #{
             f1.write( " " * userindent + "  {:s}{}".format(nextline,lineEnd) )
             t = t[sliceat:].strip()
             nwrapped += 1
-        cprint("")
+        wprint('wrapping', "")
     f1.close()
     if nwrapped > 0:
-      cprint ("info: {} lines rewrapped in text file.".format(nwrapped))
+      wprint('wrapping', "info: {} lines rewrapped in text file.".format(nwrapped))
 
   # 19-Sep-2013 this should be superfluous.
   # removes tags or converts to text representation
@@ -4670,7 +4675,7 @@ class Text(Book): #{
 
       maxwidth -= 3
       if maxwidth > 70:
-        cprint("warning (long poetry line {} chars)".format(maxwidth))
+        wprint('longpoetry', "warning (long poetry line {} chars)".format(maxwidth))
         self.dprint(1,"  " + maxline) # shown in debug in internal form
 
       lastLine = None
@@ -5120,7 +5125,8 @@ class TableFormatter: #{
       # calculate tindent from max table width
       self.tindent = (config.LINE_WRAP - totalwidth) // 2
     else:
-      cprint("Wide table: " + str(totalwidth) + ": " + self.tableLine)
+      wprint('widetable',
+          "Wide table: " + str(totalwidth) + ": " + self.tableLine)
       self.tindent = 0
 
 

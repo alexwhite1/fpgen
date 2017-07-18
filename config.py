@@ -147,8 +147,9 @@ uopt = userOptions()
 # 4.53     embeddedcaption in <illustration>
 # 4.54     Add property font-XXX-class
 # 4.54a    font-XXX-class had a bug.
+# 4.54b    table column width rounding; warning suppression
 
-VERSION="4.54a"
+VERSION="4.54b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
