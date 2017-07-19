@@ -149,8 +149,9 @@ uopt = userOptions()
 # 4.54a    font-XXX-class had a bug.
 # 4.54b    table column width rounding; warning suppression
 # 4.54c    page-break-inside: avoid for tables
+# 4.54d    option preserve-line-height
 
-VERSION="4.54c"
+VERSION="4.54d"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

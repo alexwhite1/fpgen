@@ -120,6 +120,15 @@ def getConvertArgs(modelArgs, infile, outfile, hb):
   args.extend(OPT_COMMON_ARGS)
   args.extend(modelArgs)
 
+  if config.uopt.getopt('preserve-line-height', 'false') == 'true':
+    args.append("--minimum-line-height")
+    args.append("0")
+
+  extra = config.uopt.getopt('extra-css')
+  if extra:
+    args.append("--extra-css")
+    args.append("\"" + extra + "\"")
+
   extra = os.environ.get('FPGEN_EBOOK_CONVERT_EXTRA_ARGS')
   if extra:
     print("Extra conversion args: " + extra)
