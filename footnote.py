@@ -4,7 +4,7 @@ import unittest
 import re
 from parse import parseStandaloneTagBlock, parseTagAttributes
 from fpgen import userOptions
-from msgs import fatal, cprint, dprint
+from msgs import fatal, cprint, dprint, wprint
 
 # If more than 6 in a chapter, it will start using numbers
 # This list comes from "Note (typography)" on wikipedia.
@@ -316,7 +316,7 @@ def FNtoHtml(wb):
         block.extend(noteMap[target])
         del noteMap[target]
       elif fmid in footnotes and footnotes[fmid] == target:
-        cprint("warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first. Line: >>>" + line + "<<<")
+        wprint('multifootnote', "warning: footnote id <fn id='" + fmid + "'> occurs multiple times.  <footnote> link will be to the first. Line: >>>" + line + "<<<")
         repl = "<a href='#f{0}' style='text-decoration:none'>{1}</a>".format(target, repl)
       else:
         footnotes[fmid] = target
