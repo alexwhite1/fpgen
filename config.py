@@ -2,7 +2,7 @@ from userOptions import userOptions
 
 from time import gmtime, strftime
 
-uopt = userOptions()
+#uopt = userOptions()
 
 # 20140214 bugfix: handle mixed quotes in toc entry
 #          added level='3' to headings for subsections
@@ -150,8 +150,9 @@ uopt = userOptions()
 # 4.54b    table column width rounding; warning suppression
 # 4.54c    page-break-inside: avoid for tables
 # 4.54d    option preserve-line-height
+# 4.54e    fix option bug: options preserved over multiple formats
 
-VERSION="4.54d"
+VERSION="4.54e"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

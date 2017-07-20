@@ -172,6 +172,7 @@ class Book(object): #{
   wb = []
 
   def __init__(self, ifile, ofile, d, fmt):
+    config.uopt = userOptions()
     config.debug = d # numeric, 0=no debug, 1=function level, 2=line level
     self.debug = d # numeric, 0=no debug, 1=function level, 2=line level
     self.srcfile = ifile
