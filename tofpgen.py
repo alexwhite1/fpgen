@@ -47,6 +47,9 @@ regexFNRef = re.compile("\[([ABCD0-9][0-9]*)\]")
 sidenoteRE = re.compile("\[Sidenote: (.*)\]$")
 
 def quote(line):
+  if line == "<pn='+1'>":
+    return line;
+
   # Leading or trailing double or single quotes on the line
   if line[0] == '"':
     line = '“' + line[1:]
