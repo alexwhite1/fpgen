@@ -46,6 +46,77 @@ regexIllNoCap = re.compile("^\[Illustration]$")
 regexFNRef = re.compile("\[([ABCD0-9][0-9]*)\]")
 sidenoteRE = re.compile("\[Sidenote: (.*)\]$")
 
+
+postamble = """
+<l rend='center mt:3em'>THE END</l>
+
+<heading level='1'>TRANSCRIBER NOTES</heading>
+
+Mis-spelled words and printer errors have been fixed.
+
+Inconsistency in hyphenation has been retained.
+
+Inconsistency in accents has been fixed.
+Inconsistency in accents has been retained.
+
+Because of copyright considerations, the illustrations by X (y-z) have been omitted from this etext.
+
+Illustrations have been relocated due to using a non-page layout.
+
+Some photographs have been enhanced to be more legible.
+
+When nested quoting was encountered, nested double quotes were
+changed to single quotes.
+
+Space between paragraphs varied greatly. The thought-breaks which
+have been inserted attempt to agree with the larger paragraph
+spacing, but it is quite possible that this was simply the methodology
+used by the typesetter, and that there should be no thought-breaks.
+
+<nobreak>[End of TITLE, by AUTHOR]
+
+/* end of work-src */
+"""
+
+preamble = """/* This is file-src as of 02-Jul-2017 */
+
+<property name="cover image" content="images/cover.jpg">
+
+<option name="pdf-default-font-size" content="16">
+<option name="pstyle" content="indent">
+<option name="footnote-location" content="heading-reset">
+
+<meta name="DC.Creator" content="AUTHOR">
+<meta name="DC.Title" content="TITLE">
+<meta name="DC.Language" content="en">
+<meta name="DC.Created" content="DATE">
+<meta name="DC.date.issued" content="DATE">
+<meta name="DC.Subject" content="SUBJECT">
+<meta name="Tags" content="SUBJECT">
+<meta name="Series" content="SERIES [15]">
+<meta name="generator" content="fpgen 4.54e">
+
+<lit section="head">
+    <style type="text/css">
+	.poetry-container { margin-top:.5em; margin-bottom:.5em }
+	.literal-container { margin-top:.5em; margin-bottom:.5em }
+	div.lgc { margin-top:.5em; margin-bottom:.5em }
+	p { margin-top:0em; margin-bottom:0em; }
+    </style>
+</lit>
+
+<if type='h'>
+<illustration rend="w:80%" src="images/cover.jpg"/>
+
+<pb>
+
+</if>
+
+
+"""
+
+
+
 def quote(line):
   if line == "<pn='+1'>":
     return line;
@@ -100,7 +171,7 @@ def quote(line):
   line = re.sub(r'([\'"‘’“”])([\'"‘’“”])', r'\1<nnbsp>\2', line)
 
   if "'" in line or '"' in line:
-    sys.stderr.write("QUOTE: " + line + '\n')
+    sys.stderr.write("CHECK QUOTE: " + line + '\n')
 
   return line
 
@@ -184,6 +255,7 @@ sys.stderr.write("converting " + src + " into file out\n")
 
 with open(src, "r", encoding=encoding) as input:
   with open("out", "w", encoding="UTF-8") as output:
+    output.write(preamble)
     blanks = 0
     for line in input:
       line = line.rstrip()
@@ -210,6 +282,7 @@ with open(src, "r", encoding=encoding) as input:
 
       blanks = 0
       output.write(line + "\n")
+    output.write(postamble)
 
 if inFN:
   sys.stderr.write("END OF FILE in a footnote\n")

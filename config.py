@@ -152,8 +152,9 @@ from time import gmtime, strftime
 # 4.54d    option preserve-line-height
 # 4.54e    fix option bug: options preserved over multiple formats
 # 4.54f    add option sidenote-breaks-paragraphs, default true
+# 4.54g    fix 4.54f: sidenote break broke other cases
 
-VERSION="4.54f"
+VERSION="4.54g"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

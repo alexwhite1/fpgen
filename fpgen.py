@@ -2012,7 +2012,7 @@ class HTML(Book): #{
 
     paragraphStyle = globalStyle
     defaultStyle = globalStyle
-    sidenoteBreak = (config.uopt.getopt('sidenote-breaks-paragraphs', True) == 'false')
+    sidenoteBreak = (config.uopt.getopt('sidenote-breaks-paragraphs', True) == True)
 
     noFormattingTags = [ "lg", "table", "illustration" ]
 
@@ -2152,7 +2152,10 @@ class HTML(Book): #{
       return True
     if line[0] == config.FORMATTED_PREFIX: # preformatted
       return True
-    if line[0] == '<' and line != "<br/>" and sidenoteBreak and line[0:10] != "<sidenote>":
+    if line[0] == '<' and line != "<br/>":
+      if line[0:10] == "<sidenote>":
+        # sidenote causes a para break depending on option
+        return sidenoteBreak
       return True
     return False
 
