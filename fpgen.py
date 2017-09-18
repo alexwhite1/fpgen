@@ -608,7 +608,8 @@ class Book(object): #{
           break
         macroName = m.group(1)
         if not macroName in macro: # is this in our list of macros already defined?
-          self.fatal("macro %{}% undefined in line\n{}".format(macroName, self.wb[i]))
+          wprint('macro', "warning: macro %{}% undefined in line\n>>>{}<<<\nIgnoring, may simply be two percent signs on the line.".format(macroName, self.wb[i]))
+          break
         line = line[0:m.start(0)] + macro[macroName] + line[m.end(0):]
         self.wb[i] = line
       i += 1

@@ -78,7 +78,7 @@ used by the typesetter, and that there should be no thought-breaks.
 /* end of work-src */
 """
 
-preamble = """/* This is file-src as of 02-Jul-2017 */
+preamble = """/* This is file-src as of 02-Sep-2017 */
 
 <property name="cover image" content="images/cover.jpg">
 
@@ -94,7 +94,7 @@ preamble = """/* This is file-src as of 02-Jul-2017 */
 <meta name="DC.Subject" content="SUBJECT">
 <meta name="Tags" content="SUBJECT">
 <meta name="Series" content="SERIES [15]">
-<meta name="generator" content="fpgen 4.54e">
+<meta name="generator" content="fpgen 4.54h">
 
 <lit section="head">
     <style type="text/css">
@@ -136,7 +136,8 @@ def quote(line):
 
   # space quote, starts sentence
   # em-dash quote, starts sentence?
-  line = re.sub('([ —])"', r'\1“', line)
+  # open paren, quote starts sent
+  line = re.sub('([ —(])"', r'\1“', line)
 
   # Punctuation or lower-case letter, followed by quote, ends a sentence
   line = re.sub(r'([\.,!?a-z])"', r'\1”', line)
@@ -164,7 +165,7 @@ def quote(line):
   line = re.sub(r"([\.,!?a-z])'", r"\1’", line)
 
   # Common, non-ambiguous contractions
-  for word in [ "em", "Twas", "twas" ]:
+  for word in [ "em", "Twas", "twas", "Tis", "tis", "Twould", "twould", "Twill", "twill" ]:
     line = re.sub(r'([ “]|^)‘' + word + r'([ !,\.?—:]|$)', r'\1’' + word + r'\2', line)
 
   # Insert narrow non-breaking space between adjacent quotes
