@@ -1650,11 +1650,18 @@ class HTML(Book): #{
   def processPageNum(self):
     self.dprint(1,"processPageNum")
 
+    rePrefix = re.compile(r"<pnprefix=['\"](.+?)['\"]>")
+    rePN = re.compile(r"pn=['\"](\+?)(.+?)['\"]")
+    pnPrefix = None
     cpn = ""
     for i, line in enumerate(self.wb):
       if line.startswith(config.FORMATTED_PREFIX): # no page numbers in preformatted text
         continue
-      m = re.search(r"pn=['\"](\+?)(.+?)['\"]", self.wb[i])
+      m = rePrefix.match(self.wb[i])
+      if m:
+        pnPrefix = m.group(1)
+
+      m = rePN.search(self.wb[i])
       if m:
         self.showPageNumbers = True
         if not m.group(1):
@@ -1672,7 +1679,11 @@ class HTML(Book): #{
               cpn = self.int_to_roman(self.roman_to_int(cpn) + increment)
           else:
             self.fatal("no starting page number" + self.wb[i])
-        self.wb[i] = re.sub(r"pn=['\"](\+?)(.+?)['\"]", "⪦{}⪧".format(cpn), self.wb[i], 1)
+        displayPN = cpn
+        pn = cpn
+        if pnPrefix:
+          pn = pnPrefix + "_" + cpn
+        self.wb[i] = re.sub(r"pn=['\"](\+?)(.+?)['\"]", "⪦{},{}⪧".format(pn, displayPN), self.wb[i], 1)
         if "heading" not in self.wb[i]:
           self.wb[i] = re.sub("<⪦","⪦", self.wb[i])
           self.wb[i] = re.sub("⪧>","⪧", self.wb[i])
@@ -2402,12 +2413,26 @@ class HTML(Book): #{
     # of the form #274#
     # displays 274, links to Page_274
     regex = re.compile(r"#\d+#")
-    for i in range(len(self.wb)):
+    tag = "Page_"
+    pnPrefix = None
+    repl = r"<a href='#" + tag + r"\1'>\1</a>"
+    rePrefix = re.compile(r"<pnprefix=['\"](.+?)['\"]>")
+    i = 0
+    while i < len(self.wb):
+      m = rePrefix.match(self.wb[i])
+      if m:
+        pnPrefix = m.group(1)
+        tag = "Page_" + pnPrefix + "_"
+        repl = r"<a href='#" + tag + r"\1'>\1</a>"
+        del self.wb[i]
+        continue
+
       while True:
         m = regex.search(self.wb[i])
         if not m:
           break
-        self.wb[i] = re.sub(r"#(\d+)#", r"<a href='#Page_\1'>\1</a>", self.wb[i],1)
+        self.wb[i] = re.sub(r"#(\d+)#", repl, self.wb[i], 1)
+      i += 1
 
   def placeCSS(self):
     self.dprint(1,"placeCSS")
@@ -2492,7 +2517,11 @@ class HTML(Book): #{
       # pn's have been converted
       m = re.search("⪦([^-]+)⪧", harg)
       if m:
-        self.cpn = m.group(1)
+        s = m.group(1)
+        l = s.split(',')
+        pn = l[0]
+        displayPN = l[1]
+
         showpage = True
         # Remove it
         harg = harg[0:m.start(0)] + harg[m.end(0):]
@@ -2530,9 +2559,9 @@ class HTML(Book): #{
 
       if showpage: # visible page numbers
         if self.gentype != 'h': # other than browser HTML, just the link
-          span = "<a name='Page_{0}' id='Page_{0}'></a>".format(self.cpn)
+          span = "<a name='Page_{0}' id='Page_{0}'></a>".format(pn)
         else:
-          span = "<span class='pageno' title='{0}' id='Page_{0}'></span>".format(self.cpn)
+          span = "<span class='pageno' title='{1}' id='Page_{0}'></span>".format(pn, displayPN)
 
       self.css.addcss(headingCSS[hlevel])
       if hlevel == 1:
@@ -3521,15 +3550,18 @@ class HTML(Book): #{
         inBlockElement = True
       m = re.search("⪦([^-]+)⪧", self.wb[i])
       if m:
-        cpn = m.group(1)
+        s = m.group(1)
+        l = s.split(',')
+        pn = l[0]
+        displayPN = l[1]
         if 'h' in self.gentype:
           if inBlockElement:
-            self.wb[i]=re.sub("⪦.+?⪧","<span class='pageno' title='{0}' id='Page_{0}'></span>".format(cpn), self.wb[i])
+            self.wb[i]=re.sub("⪦.+?⪧","<span class='pageno' title='{1}' id='Page_{0}'></span>".format(pn, displayPN), self.wb[i])
           else:
-            self.wb[i]=re.sub("⪦.+?⪧","<div class='pageno' title='{0}' id='Page_{0}'></div>".format(cpn), self.wb[i])
+            self.wb[i]=re.sub("⪦.+?⪧","<div class='pageno' title='{1}' id='Page_{0}'></div>".format(pn, displayPN), self.wb[i])
         else:
           # Not HTML: No visible page numbers; however, still need anchor tags for index/toc
-          self.wb[i]=re.sub("⪦.+?⪧","<a name='Page_{0}' id='Page_{0}'></a>".format(cpn), self.wb[i])
+          self.wb[i]=re.sub("⪦.+?⪧","<a name='Page_{0}' id='Page_{0}'></a>".format(pn), self.wb[i])
       if re.search("<\/p", line):
         inBlockElement = False
 

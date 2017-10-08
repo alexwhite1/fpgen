@@ -154,8 +154,9 @@ from time import gmtime, strftime
 # 4.54f    add option sidenote-breaks-paragraphs, default true
 # 4.54g    fix 4.54f: sidenote break broke other cases
 # 4.54h    Unknown macro names no longer fatal, in case just two % signs
+# 4.55     Add <pnprefix='XX'> for multiple books
 
-VERSION="4.54h"
+VERSION="4.55"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
