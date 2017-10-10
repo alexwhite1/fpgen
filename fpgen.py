@@ -118,6 +118,15 @@ def alignLine(line, align, w, padChar=' '):
   indent = 0
   first = True
 
+  # Special for <br> in hung table cells: text after <br> should align
+  # with second line, not look like a new paragraph.  It is a <br>, not
+  # a paragraph!
+  if align == 'hang-left':
+    indent = 2
+    w -= 2
+    first = False
+    align = 'hang'
+
   while remainder != "":
     try:
       if len(remainder) <= w:
@@ -5594,10 +5603,30 @@ class TableCell: #{
     if self.isDefaultAlignment() and self.columnDescription.hang:
       align = "hang"
 
+    self.lines = []
+    s = self.getData()
+    while True:
+      m = re.search("(.*?)<br\/>(.*)", s)
+      if not m:
+        break
+      self.lines.extend(self.format1(m.group(1), align, w))
+      s = m.group(2)
+      # After a <br>, alignment is always left
+      # hang-left is special, means first line of hang is already out!
+      # This way a <br> in a hang alignment, will line up at the hang
+      # indent, not looking like a subsequent hung paragraph.
+      if align == 'hang' or align == 'hang-left':
+        align = 'hang-left'
+      else:
+        align = 'left'
+
+    self.lines.extend(self.format1(s, align, w))
+
+  def format1(self, l, align, w):
     if self.columnDescription.leaderChars != None:
-      self.lines = alignLine(self.getData(), align, w, self.columnDescription.leaderChars)
+      return alignLine(l, align, w, self.columnDescription.leaderChars)
     else:
-      self.lines = alignLine(self.getData(), align, w)
+      return alignLine(l, align, w)
 
 
   # Vertical align in N
@@ -5940,6 +5969,7 @@ summaryCSS = {
     padding-right:1.5em;
     text-indent:0em;
     text-align-last:center;
+    text-align:center;
   }
   .summary .pindent {
     text-indent:0;

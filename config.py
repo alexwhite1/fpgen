@@ -155,8 +155,9 @@ from time import gmtime, strftime
 # 4.54g    fix 4.54f: sidenote break broke other cases
 # 4.54h    Unknown macro names no longer fatal, in case just two % signs
 # 4.55     Add <pnprefix='XX'> for multiple books
+# 4.55a    Fix <br> in filled table cell for text output
 
-VERSION="4.55"
+VERSION="4.55a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
