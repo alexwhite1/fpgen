@@ -156,8 +156,9 @@ from time import gmtime, strftime
 # 4.54h    Unknown macro names no longer fatal, in case just two % signs
 # 4.55     Add <pnprefix='XX'> for multiple books
 # 4.55a    Fix <br> in filled table cell for text output
+# 4.55b    Disable sandbagging if caption except for html
 
-VERSION="4.55a"
+VERSION="4.55b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

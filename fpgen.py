@@ -3204,13 +3204,23 @@ class HTML(Book): #{
         cprint("Warning: Image file {} does not exist".format(imgFile))
 
       # Handles slices
-      files, widths, imageWidth = self.getImageSlices(imgFile)
+
+      # If there is a caption, then most formats will screw up slices, so don't
+      if i_caption == "" or self.gentype not in 'pme':
+        files, widths, imageWidth = self.getImageSlices(imgFile)
+      else:
+        files = None
+
       if files:
         dprint(1,"Illustration " + imgFile + " sliced:")
         if i_w[-1] != '%':
           self.fatal(imgFile + ": Image width must be a percent for slicing")
         if i_posn != 'left' and i_posn != 'right':
-          self.fatal(imgFile + ": Cannot do sliced center image; only floating left/right")
+          #self.fatal(imgFile + ": Cannot do sliced center image; only floating left/right")
+          # Treat centered as right, occupying the whole
+          i_posn = 'right'
+          i_occupy = '100%'
+          occupyStyle = " style='width:100%'"
         sourceWidth = float(i_w[:-1]) / 100
         self.css.addcss(illustrationLeftSlicedCSS if i_posn=='left' else illustrationRightSlicedCSS)
         if i_posn == 'left':
@@ -5849,6 +5859,7 @@ illustrationLeftSlicedCSS = """[387]
   margin-left:0;
   padding:0;
   text-align:center;
+  page-break-inside: avoid;
 }
 """
 
@@ -5860,6 +5871,7 @@ illustrationRightSlicedCSS = """[388]
   margin-left:1em;
   padding:0;
   text-align:center;
+  page-break-inside: avoid;
 }
 """
 

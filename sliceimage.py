@@ -4,13 +4,15 @@
 from optparse import OptionParser
 import sys
 import os
-from scipy import misc
+#from scipy import misc
+#import imageio
+from skimage import io
 
 from skimage import data
 from skimage import color
 from skimage import measure
 from skimage import util
-from scipy import misc
+#from scipy import misc
 import matplotlib.pyplot as plt
 
 def manualMerge(slices):
@@ -51,7 +53,10 @@ def merge(slices):
         break
       w = slices[i]
       w1 = slices[i+1]
-      distance = abs(w[2] - w1[2])
+      if options.left:
+        distance = abs(w[3] - w1[3])
+      else:
+        distance = abs(w[2] - w1[2])
       if distance < mergeDistancePixels \
       or w[1]-w[0] < minHeightPixels:
         print("Merge: " + str(w) + "::" + str(w1) + \
@@ -63,7 +68,8 @@ def merge(slices):
         del slices[i+1]
         mod = True
       else:
-        print("NO Merge: " + str(w) + "::" + str(w1))
+        print("NO Merge: " + str(w) + "::" + str(w1) + \
+            ", distance=" + str(distance))
         i += 1
     if mod:
       print("Again")
@@ -84,7 +90,8 @@ def contour(file):
   print("Basename: " + basename)
 
   # Load the file, convert to greyscale, and find the contours
-  T = misc.imread(file)
+  T = io.imread(file)
+
   gT = color.colorconv.rgb2grey(T)
   contours = measure.find_contours(gT, .8)
 
@@ -146,9 +153,9 @@ def contour(file):
     print("Deleting old slice: " + file)
     os.remove(file)
 
-  if nslices == 1:
-    print("Not slicing, only one.")
-    return
+  #if nslices == 1:
+  #  print("Not slicing, only one.")
+  #  return
 
   sliceNumber = 0
   for slice in slices:
@@ -172,7 +179,7 @@ def contour(file):
 
     if options.gui:
       left = plt.subplot2grid((nslices, 2), (sliceNumber, 0))
-      plt.ylabel("Slice " + str(sliceNumber))
+      plt.ylabel("S" + str(sliceNumber))
       left.imshow(slice)
 
     sliceNumber += 1
@@ -197,12 +204,20 @@ telling the tool the slice ranges you want to merge, each
 becomes a slice file:
 
     sliceimage -g --maxslices 10 --merge 1-6,7-9 images/p123.jpg
+
+Use --left, if you are going to use rend='left'; and --right for rend='right'.
+If you really want center, too bad, internally fpgen pretends that is right.
+You can't do both sides.
+
+Be very careful if you are using captions, they only work if your narrower
+slices are at the bottom, at the top it will end up sticking the caption
+in the wrong place.
 """
 parser = OptionParser(conflict_handler="resolve", usage=usage)
 parser.add_option("-l", "--left", dest="left", default=True,
-  action="store_true", help="Slice based on image at the left")
+  action="store_true", help="Slice based on image floating left")
 parser.add_option("-r", "--right", dest="left", default=True,
-  action="store_false", help="Slice based on image at the right")
+  action="store_false", help="Slice based on image floating right")
 parser.add_option("-g", "--gui", dest="gui", default=False,
   action="store_true", help="Show results in a GUI")
 parser.add_option("-m", "--manual", dest="manual", default=False,
