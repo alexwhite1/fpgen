@@ -3589,6 +3589,9 @@ class HTML(Book): #{
     result = []
     if emittitle:
       title = self.umeta.get("DC.Title")
+      result.append("");
+      result.append("<pb>");
+      result.append("");
       result.append("<l rend='center mt:3em mb:2em fs:2.5em'>" + title + "</l>")
       result.append("")
     if book or not usingBook:

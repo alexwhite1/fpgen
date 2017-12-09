@@ -157,8 +157,9 @@ from time import gmtime, strftime
 # 4.55     Add <pnprefix='XX'> for multiple books
 # 4.55a    Fix <br> in filled table cell for text output
 # 4.55b    Disable sandbagging if caption except for html
+# 4.55c    Emit a page-break before emitting title in <chap-head>
 
-VERSION="4.55b"
+VERSION="4.55c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
