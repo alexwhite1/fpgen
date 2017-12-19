@@ -1762,11 +1762,18 @@ class HTML(Book): #{
     self.dprint(1,"processLinks")
 
     def oneLink(arg, content, orig):
-      attributes = parseTagAttributes("link", arg, [ "target" ])
-      if "target" not in attributes:
-        fatal("<link> must always have a target attribute: " + orig)
-      target = attributes["target"]
-      return "⩤a href='#" + target + "'⩥" + content + "⩤/a⩥"
+      attributes = parseTagAttributes("link", arg, [ "target", "url" ])
+      href = None;
+      if "target" in attributes and "url" in attributes:
+        fatal("<link> may only have one of target or url: " + orig);
+      if "target" in attributes:
+        href = '#' + attributes["target"]
+      elif "url" in attributes:
+        href = attributes["url"]
+      else:
+        fatal("<link> must always have either a target or a url attribute: " +
+          orig)
+      return "⩤a href='" + href + "'⩥" + content + "⩤/a⩥"
 
     parseEmbeddedSingleLineTagWithContent(self.wb, "link", oneLink)
 

@@ -158,8 +158,9 @@ from time import gmtime, strftime
 # 4.55a    Fix <br> in filled table cell for text output
 # 4.55b    Disable sandbagging if caption except for html
 # 4.55c    Emit a page-break before emitting title in <chap-head>
+# 4.56     Add url= attribute to <link>
 
-VERSION="4.55c"
+VERSION="4.56"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
