@@ -203,7 +203,7 @@ class Book(object): #{
       }, "left");
 
   def getFonts(self):
-    fonts = {}
+    fonts = collections.OrderedDict()
     for key,value in self.uprop.prop.items():
       if key.startswith("font-"):
         fonts[key[5:]] = value

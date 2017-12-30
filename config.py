@@ -159,8 +159,9 @@ from time import gmtime, strftime
 # 4.55b    Disable sandbagging if caption except for html
 # 4.55c    Emit a page-break before emitting title in <chap-head>
 # 4.56     Add url= attribute to <link>
+# 4.56a    Fix inconsistent behaviour when multiple downloaded fonts
 
-VERSION="4.56"
+VERSION="4.56a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
