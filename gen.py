@@ -24,6 +24,12 @@ ARGS = [
  "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\""
 ]
 
+EPUB_ARGS = [
+  "--change-justification", "left",
+  "--sr3-search", "\"@media handheld\"",
+  "--sr3-replace", "\"@media all\"",
+]
+
 def convert(basename, targettype, targetOptions):
   html = basename + ".html"
   target = basename + targettype
@@ -73,10 +79,7 @@ if not m:
 else:
   basename = m.group(1)
 
-convert(basename, ".epub", [
-  "--change-justification", "left"
-  ]
-)
+convert(basename, ".epub", EPUB_ARGS)
 
 convert(basename, "-a5.pdf", [
   "--paper-size", "a5",

@@ -160,8 +160,9 @@ from time import gmtime, strftime
 # 4.55c    Emit a page-break before emitting title in <chap-head>
 # 4.56     Add url= attribute to <link>
 # 4.56a    Fix inconsistent behaviour when multiple downloaded fonts
+# 4.56b    @media subsitute for gen only
 
-VERSION="4.56a"
+VERSION="4.56b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
