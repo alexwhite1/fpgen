@@ -161,8 +161,9 @@ from time import gmtime, strftime
 # 4.56     Add url= attribute to <link>
 # 4.56a    Fix inconsistent behaviour when multiple downloaded fonts
 # 4.56b    @media subsitute for gen only
+# 4.56c    Illustration looks for -omit file
 
-VERSION="4.56b"
+VERSION="4.56c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

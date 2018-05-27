@@ -3207,6 +3207,12 @@ class HTML(Book): #{
         s0 = "<a href='{}'>".format(i_link)
         s1 = "</a>"
 
+      if imgFile[-4:] == ".jpg":
+        base = imgFile[0:-4]
+        omit = base + "-omit.jpg"
+        if os.path.isfile(omit):
+          imgFile = omit
+
       if not os.path.isfile(imgFile):
         cprint("Warning: Image file {} does not exist".format(imgFile))
 
