@@ -106,7 +106,8 @@ def omit(file):
   width = T.shape[1]
 
   if options.mode == 'shrink':
-    full = shrink(T, .2)
+    // Used .15 for Leacock's Canada
+    full = shrink(T, .15)
   elif options.mode == 'swirl':
     full = twist(T)
   else:
