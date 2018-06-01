@@ -3212,7 +3212,7 @@ class HTML(Book): #{
         omit = base + "-omit.jpg"
         if os.path.isfile(omit):
           imgFile = omit
-          i_caption = "Image not yet in the public domain"
+          #i_caption = "Image not yet in the public domain"
 
       if not os.path.isfile(imgFile):
         cprint("Warning: Image file {} does not exist".format(imgFile))

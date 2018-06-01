@@ -121,6 +121,8 @@ def contour(file):
             maxx = x
           if x < minx:
             minx = x
+    if minx == 9999:
+      minx = 0
     print("Slice {}: Start Y: {}, End Y: {}, Right X: {}, Left X: {}".format(i, ry, ryEnd, maxx, minx))
     #left.vlines(maxx + 5, ry, ry+height, linestyles='dotted', color='r')
     rightX = int(maxx) + padding
@@ -175,7 +177,7 @@ def contour(file):
     file = basename + "," + str(sliceNumber).zfill(2) + \
         ",w=" + str(w) + ".jpg"
     print("Writing new slice: " + file)
-    plt.imsave(file, slice, format="jpg")
+    plt.imsave(file, slice, format="jpg", cmap='gray')
 
     if options.gui:
       left = plt.subplot2grid((nslices, 2), (sliceNumber, 0))
