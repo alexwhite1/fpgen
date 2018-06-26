@@ -4249,6 +4249,7 @@ class Text(Book): #{
     return False
 
   def removeSidenotes(self):
+    sidenoteBreak = (config.uopt.getopt('sidenote-breaks-paragraphs', True) == True)
     regexSidenote = re.compile("<sidenote>")
     i = 0
     while i < len(self.wb):
@@ -4271,9 +4272,16 @@ class Text(Book): #{
             if m:
               # Remove ...</sidenote>
               self.wb[j] = self.wb[j][m.end(0):]
+              if not sidenoteBreak:
+                if self.wb[j] == "":
+                  del self.wb[j]
               break
             # Remove line between <sidenote>\n...\n</sidenote>
             del self.wb[j]
+          if not sidenoteBreak:
+            if self.wb[i] == "":
+              del self.wb[i]
+              continue
       i += 1
 
   def last(self, i):

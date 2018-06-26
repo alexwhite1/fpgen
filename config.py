@@ -162,8 +162,9 @@ from time import gmtime, strftime
 # 4.56a    Fix inconsistent behaviour when multiple downloaded fonts
 # 4.56b    @media subsitute for gen only
 # 4.56c    Illustration looks for -omit file
+# 4.56d    Multi-line sidenote caused break in text output
 
-VERSION="4.56c"
+VERSION="4.56d"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

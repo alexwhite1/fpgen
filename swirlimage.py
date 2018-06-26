@@ -19,6 +19,8 @@ from skimage.color import rgb2gray, convert_colorspace
 #from scipy import misc
 import matplotlib.pyplot as plt
 
+from PIL import ImageFont, ImageDraw
+
 def frame(T, val):
   height = T.shape[0]
   width = T.shape[1]
@@ -106,7 +108,7 @@ def omit(file):
   width = T.shape[1]
 
   if options.mode == 'shrink':
-    // Used .15 for Leacock's Canada
+    # Used .15 for Leacock’s Canada
     full = shrink(T, .15)
   elif options.mode == 'swirl':
     full = twist(T)
