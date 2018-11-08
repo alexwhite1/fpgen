@@ -1945,8 +1945,8 @@ class HTML(Book): #{
       # overline 13-Apr-2014
       if "<ol>" in block[i]:
         self.css.addcss("[116] .ol { text-decoration:overline; }")
-      block[i] = block[i].replace("<ol>", '⎧') # overline
-      block[i] = block[i].replace("</ol>", '⎫') # overline
+      block[i] = block[i].replace("<ol>", config.OL_START) # overline
+      block[i] = block[i].replace("</ol>", config.OL_END) # overline
 
   # No paragraphs in this particular tag; for a tag which must start a line
   def skip(self, tag, wb, start):
@@ -2373,8 +2373,8 @@ class HTML(Book): #{
     "⑥": "<span class='gesp'>",
     "⑦": "<span class='red'>",
 
-    "⎧": "<span class='ol'>",
-    "⎫": "</span>",
+    config.OL_START: "<span class='ol'>",
+    config.OL_END: "</span>",
 
     # Inline font size changes
     '⓯': "<span style='font-size:larger'>",

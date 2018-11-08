@@ -163,8 +163,9 @@ from time import gmtime, strftime
 # 4.56b    @media subsitute for gen only
 # 4.56c    Illustration looks for -omit file
 # 4.56d    Multi-line sidenote caused break in text output
+# 4.56e    special substitution for <ol> replaced with private use area
 
-VERSION="4.56d"
+VERSION="4.56e"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
@@ -186,3 +187,9 @@ pn_cover = ""
 # </font> becomes FONT_END
 FONT_BASE = 0xEF00
 FONT_END = "\uEFFF"
+
+# Lots of special characters currently in use.  Should all be using
+# the Private Use Areas, since sooner or later somebody is going to
+# try to use the characters in the text.
+OL_START = "\uEE00"
+OL_END   = "\uEE01"
