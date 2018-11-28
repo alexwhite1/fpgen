@@ -2765,6 +2765,92 @@ class HTML(Book): #{
 
     fatal("<" + tag + ">: malformed " + name + " option in rend tag: " + opt)
 
+  def doThoughtBreak(self, m, lineno):
+    # set defaults
+    tb_thick = "1px"
+    tb_linestyle = "solid"
+    tb_color = "black"
+    tb_width = "30"
+    tb_mt = "0.5em"
+    tb_mb = "0.5em"
+    tb_align = "text-align:center"
+
+    attr = parseTagAttributes("tb", m.group(1), tbAttributes)
+    if "rend" in attr:
+      rend = attr["rend"]
+      opts = parseOption("rend", rend, tbRendOptions)
+
+      tb_mt = self.marginSize("tb", opts, "mt", tb_mt)
+      tb_mb = self.marginSize("tb", opts, "mb", tb_mb)
+
+      # line style:
+      if "ls" in opts:
+        tb_linestyle = opts["ls"]
+
+      # line color
+      if "lc" in opts:
+        tb_color = opts["lc"]
+
+      if "thickness" in opts:
+        tb_thick = opts["thickness"]
+
+      # Only in %, so we can calculate margin-left and margin-right!
+      if "w" in opts:
+        m = re.search("(\d+)%", opts["w"])
+        if m:
+          tb_width = "{}".format(m.group(1))
+        else:
+          fatal("<tb>: malformed w option in rend tag: " + opts["w"])
+
+      tb_marginl = str((100 - int(tb_width))//2) + "%" # default if centered
+      tb_marginr = tb_marginl
+
+      # Accept either align:left, or just left
+      align = "center"
+      if "align" in opts:
+        align = opts["align"]
+      elif "right" in opts:
+        align = "right"
+      elif "left" in opts:
+        align = "left"
+
+      if align == "right":
+        tb_align = "text-align:right"
+        tb_marginl = "auto"
+        tb_marginr = "0"
+      elif align == "left":
+        tb_align = "text-align:left"
+        tb_marginl = "0"
+        tb_marginr = "auto"
+      # else center
+
+      # m = re.search("s:([\d\.]+?)em", tbrend) # special form: invisible, for spacing
+      # if m:
+      # ...
+
+      # build the css class
+      bcss = "border:none; border-bottom:{} {} {}; width:{}%; margin-top:{}; margin-bottom:{}; {}; margin-left:{}; margin-right:{}".format(tb_thick, tb_linestyle, tb_color, tb_width, tb_mt, tb_mb, tb_align, tb_marginl, tb_marginr)
+      self.css.addcss("[370] hr.tbk{}".format(cssc) + "{ " + bcss + " }")
+      self.wb[lineno]= "<hr class='tbk{}'/>".format(cssc)
+      cssc += 1
+    else:
+      if "tb image" in self.uprop.prop:
+        img = self.uprop.prop["tb image"];
+        w = self.uprop.prop["tb width"] if "tb width" in self.uprop.prop else "10%";
+        h = self.uprop.prop["tb height"] if "tb height" in self.uprop.prop else "1em";
+        self.css.addcss("""[370] 
+hr.tbk {
+  width: """ + w + """;
+  height: """ + h + """;
+  content: url('""" + img + """');
+  border: none;
+}
+""");
+      else:
+        self.css.addcss("[370] hr.tbk { border:none; border-bottom:1px solid black; width:30%; margin-left:35%; margin-right:35%; }")
+      self.wb[lineno]= "<hr class='tbk'/>"
+
+
   def doBreaks(self): # 02-Apr-2014 rewrite
     self.dprint(1,"doBreaks")
     cssc = 100
@@ -2774,76 +2860,8 @@ class HTML(Book): #{
 
       m = regex.search(line)
       if m:
-        # set defaults
-        tb_thick = "1px"
-        tb_linestyle = "solid"
-        tb_color = "black"
-        tb_width = "30"
-        tb_mt = "0.5em"
-        tb_mb = "0.5em"
-        tb_align = "text-align:center"
-
-        attr = parseTagAttributes("tb", m.group(1), tbAttributes)
-        if "rend" in attr:
-          rend = attr["rend"]
-          opts = parseOption("rend", rend, tbRendOptions)
-
-          tb_mt = self.marginSize("tb", opts, "mt", tb_mt)
-          tb_mb = self.marginSize("tb", opts, "mb", tb_mb)
-
-          # line style:
-          if "ls" in opts:
-            tb_linestyle = opts["ls"]
-
-          # line color
-          if "lc" in opts:
-            tb_color = opts["lc"]
-
-          if "thickness" in opts:
-            tb_thick = opts["thickness"]
-
-          # Only in %, so we can calculate margin-left and margin-right!
-          if "w" in opts:
-            m = re.search("(\d+)%", opts["w"])
-            if m:
-              tb_width = "{}".format(m.group(1))
-            else:
-              fatal("<tb>: malformed w option in rend tag: " + opts["w"])
-
-          tb_marginl = str((100 - int(tb_width))//2) + "%" # default if centered
-          tb_marginr = tb_marginl
-
-          # Accept either align:left, or just left
-          align = "center"
-          if "align" in opts:
-            align = opts["align"]
-          elif "right" in opts:
-            align = "right"
-          elif "left" in opts:
-            align = "left"
-
-          if align == "right":
-            tb_align = "text-align:right"
-            tb_marginl = "auto"
-            tb_marginr = "0"
-          elif align == "left":
-            tb_align = "text-align:left"
-            tb_marginl = "0"
-            tb_marginr = "auto"
-          # else center
-
-          # m = re.search("s:([\d\.]+?)em", tbrend) # special form: invisible, for spacing
-          # if m:
-          # ...
-
-          # build the css class
-          bcss = "border:none; border-bottom:{} {} {}; width:{}%; margin-top:{}; margin-bottom:{}; {}; margin-left:{}; margin-right:{}".format(tb_thick, tb_linestyle, tb_color, tb_width, tb_mt, tb_mb, tb_align, tb_marginl, tb_marginr)
-          self.css.addcss("[370] hr.tbk{}".format(cssc) + "{ " + bcss + " }")
-          self.wb[i]= "<hr class='tbk{}'/>".format(cssc)
-          cssc += 1
-        else:
-          self.css.addcss("[370] hr.tbk { border:none; border-bottom:1px solid black; width:30%; margin-left:35%; margin-right:35%; }")
-          self.wb[i]= "<hr class='tbk'/>"
+        self.doThoughtBreak(m, i);
+        continue
 
       if re.match("<pb\/?>",line):
         if self.gentype == 'h':
@@ -2852,6 +2870,7 @@ class HTML(Book): #{
         else:
           self.wb[i]= "<div class='pbba'></div>"
           self.css.addcss("[372] div.pbba { page-break-before:always; }")
+        continue
 
       m = re.match("<hr rend='(.*?)'\/?>",line)
       if m:
