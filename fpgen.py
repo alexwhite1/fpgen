@@ -2830,9 +2830,9 @@ class HTML(Book): #{
 
       # build the css class
       bcss = "border:none; border-bottom:{} {} {}; width:{}%; margin-top:{}; margin-bottom:{}; {}; margin-left:{}; margin-right:{}".format(tb_thick, tb_linestyle, tb_color, tb_width, tb_mt, tb_mb, tb_align, tb_marginl, tb_marginr)
-      self.css.addcss("[370] hr.tbk{}".format(cssc) + "{ " + bcss + " }")
-      self.wb[lineno]= "<hr class='tbk{}'/>".format(cssc)
-      cssc += 1
+      self.css.addcss("[370] hr.tbk{}".format(self.cssc) + "{ " + bcss + " }")
+      self.wb[lineno]= "<hr class='tbk{}'/>".format(self.cssc)
+      self.cssc += 1
     else:
       if "tb image" in self.uprop.prop:
         img = self.uprop.prop["tb image"];
@@ -2851,9 +2851,9 @@ hr.tbk {
       self.wb[lineno]= "<hr class='tbk'/>"
 
 
+  cssc = 100
   def doBreaks(self): # 02-Apr-2014 rewrite
     self.dprint(1,"doBreaks")
-    cssc = 100
 
     regex = re.compile("<tb(.*?)\/?>")
     for i,line in enumerate(self.wb):

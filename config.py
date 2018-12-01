@@ -165,8 +165,9 @@ from time import gmtime, strftime
 # 4.56d    Multi-line sidenote caused break in text output
 # 4.56e    special substitution for <ol> replaced with private use area
 # 4.57     Add ability to use an image for a thought break
+# 4.57a    Fix last rev
 
-VERSION="4.57"
+VERSION="4.57a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
