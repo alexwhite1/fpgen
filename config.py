@@ -166,8 +166,9 @@ from time import gmtime, strftime
 # 4.56e    special substitution for <ol> replaced with private use area
 # 4.57     Add ability to use an image for a thought break
 # 4.57a    Fix last rev
+# 4.57b    Add dropcap class to dropcap images
 
-VERSION="4.57a"
+VERSION="4.57b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

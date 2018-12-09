@@ -1854,7 +1854,7 @@ class HTML(Book): #{
         img += self.dropCapParaMarker
         needPara = False
       else:
-        img += "⩤img src='" + imgFile + "' style='float:left;" + \
+        img += "⩤img class='dropcap' src='" + imgFile + "' style='float:left;" + \
           width + "' alt='" + letter + "'/⩥"
         needPara = True
 
