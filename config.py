@@ -167,8 +167,9 @@ from time import gmtime, strftime
 # 4.57     Add ability to use an image for a thought break
 # 4.57a    Fix last rev
 # 4.57b    Add dropcap class to dropcap images
+# 4.57c    triple: handle zero length center better
 
-VERSION="4.57b"
+VERSION="4.57c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

@@ -4664,23 +4664,21 @@ class Text(Book): #{
       left = pieces[0]
       center = pieces[1]
       right = pieces[2]
+      clen = len(center);
 
-      # This makes it have even spacing on both sides.
-      # Alternatively, we could try to center the middle with different spacing
-      if False:
-        extra = config.LINE_WIDTH - len(left) - len(right) - len(center)
+      if clen == 0:     # line formatted with "||"
+        extra = config.LINE_WIDTH - len(left) - len(right)
         if extra <= 0:
-          fatal("Triple alignment doesn't fit: " + str(extra) + "; Line:" + thetext)
-        gapl = extra // 2
-        gapr = gap + extra % 2      # Make sure we add up to LINE_WIDTH
+          fatal("Left and Right portions do not fit line: left=" + left + \
+              ", right=" + right)
+        block[i] = left + extra * ' ' + right
       else:
-        gapl = (config.LINE_WIDTH - len(center))//2 - len(left)
-        gapr = (config.LINE_WIDTH - len(center))//2 - len(right)
+        gapl = (config.LINE_WIDTH - clen)//2 - len(left)
+        gapr = (config.LINE_WIDTH - clen)//2 - len(right)
         if gapl <= 0 or gapr <= 0:
           fatal("Triple alignment doesn't fit: left=" + str(gapl) + \
             ", right=" + str(gapr) + "; Line:" + thetext)
-
-      block[i] = left + gapl * ' ' + center + gapr * ' ' + right
+        block[i] = left + gapl * ' ' + center + gapr * ' ' + right
       handled = True
 
     # Must be left
