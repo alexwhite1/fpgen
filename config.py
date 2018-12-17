@@ -168,8 +168,9 @@ from time import gmtime, strftime
 # 4.57a    Fix last rev
 # 4.57b    Add dropcap class to dropcap images
 # 4.57c    triple: handle zero length center better
+# 4.58     Add <ditto> tag; add <figsp>
 
-VERSION="4.57c"
+VERSION="4.58"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

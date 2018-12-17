@@ -1581,6 +1581,7 @@ class HTML(Book): #{
 
         l = l.replace("<thinsp>", "\u2009")
         l = l.replace("<nnbsp>", "\u202f")
+        l = l.replace("<figsp>", "\u2007")
         l = l.replace("<shy>", "\u00ad")        # soft-hyphen
         l = l.replace("<wjoiner>", "\u2060")
 
@@ -1776,6 +1777,23 @@ class HTML(Book): #{
       return "⩤a href='" + href + "'⩥" + content + "⩤/a⩥"
 
     parseEmbeddedSingleLineTagWithContent(self.wb, "link", oneLink)
+
+  dittoMark = "”";
+  def processDittoMarks(self):
+    self.dprint(1,"DittoMarks")
+
+    if "ditto-mark" in self.uprop.prop:
+      self.dittoMark = self.uprop.prop["ditto-mark"];
+
+    def oneDitto(arg, word, orig):
+      self.addcss(dittoMarkCSS);
+      return "<span class='ditto-outer'><span class='ditto-word'>" + \
+        word + \
+        "</span><span class='ditto-mark'>" + \
+        self.dittoMark + \
+        "</span></span>";
+
+    parseEmbeddedSingleLineTagWithContent(self.wb, "ditto", oneDitto)
 
   #
   # These tags are real hacks--used for two things
@@ -3660,6 +3678,7 @@ hr.tbk {
     self.doMulticol()
     self.processLinks()
     self.processDropCaps()
+    self.processDittoMarks()
     self.processTargets()
     from drama import DramaHTML
     DramaHTML(self.wb, self.css).doDrama();
@@ -4056,6 +4075,21 @@ class Text(Book): #{
       self.wb[i] = re.sub("<target.*?>", "", self.wb[i])
       i += 1
 
+  dittoMark = "”"
+  def processDittoMarks(self):
+    self.dprint(1,"DittoMarks")
+
+    def oneDitto(arg, word, orig):
+      if "ditto-mark" in self.uprop.prop:
+        self.dittoMark = self.uprop.prop["ditto-mark"];
+      wlen = len(word)
+      half = wlen // 2
+      odd = wlen % 2
+      right = half if odd == 1 else half-1
+      return ' ' * half + self.dittoMark + ' ' * right
+
+    parseEmbeddedSingleLineTagWithContent(self.wb, "ditto", oneDitto)
+
   # Dropcap in text either is stripped or replaced with property text
   def processDropCaps(self):
     self.dprint(1,"DropCaps")
@@ -4148,6 +4182,7 @@ class Text(Book): #{
       s = re.sub("<(\/?g)>", r"[[\1]]", s) # gesperrt
       s = re.sub("<(\/?u)>", r"[[\1]]", s) # underline
       s = re.sub(r"\\ ", config.HARD_SPACE, s) # hard spaces
+      s = re.sub(r"<figsp>", config.HARD_SPACE, s) # hard spaces
       s = re.sub(r"<shy>|<thinsp>|<nnbsp>|<wjoiner>", "", s) # remove special tags
       s = re.sub(r" ", config.HARD_SPACE, s) # unicode 0xA0, non-breaking space
       while re.search(r"\. \.", s):
@@ -5084,6 +5119,7 @@ class Text(Book): #{
     self.processPageNum()
     self.stripLinks()
     self.processDropCaps()
+    self.processDittoMarks()
     self.preProcess()
     self.protectInline() # should be superfluous as of 19-Sep-13
     self.illustrations()
@@ -6049,6 +6085,24 @@ dropCapCSS = """[3333]
     padding:0;
     line-height: 1.0em;
     font-size: 200%;
+  }
+"""
+
+dittoMarkCSS = """[3334]
+  .ditto-outer {
+    display:inline-block;
+    position:relative;
+    text-indent:0;
+  }
+  .ditto-word {
+    visibility:hidden;
+    position:relative;
+  }
+  .ditto-mark {
+    width:100%;
+    text-align:center;
+    position:absolute;
+    left:0;
   }
 """
 
