@@ -4086,7 +4086,7 @@ class Text(Book): #{
       half = wlen // 2
       odd = wlen % 2
       right = half if odd == 1 else half-1
-      return ' ' * half + self.dittoMark + ' ' * right
+      return config.HARD_SPACE * half + self.dittoMark + config.HARD_SPACE * right
 
     parseEmbeddedSingleLineTagWithContent(self.wb, "ditto", oneDitto)
 
