@@ -78,7 +78,7 @@ used by the typesetter, and that there should be no thought-breaks.
 /* end of work-src */
 """
 
-preamble = """/* This is file-src as of 02-Sep-2018 */
+preamble = """/* This is file-src as of 02-Feb-2019 */
 
 <property name="cover image" content="images/cover.jpg">
 
@@ -94,7 +94,7 @@ preamble = """/* This is file-src as of 02-Sep-2018 */
 <meta name="DC.Subject" content="SUBJECT">
 <meta name="Tags" content="SUBJECT">
 <meta name="Series" content="SERIES [15]">
-<meta name="generator" content="fpgen 4.57">
+<meta name="generator" content="fpgen 4.58b">
 
 <lit section="head">
     <style type="text/css">

@@ -3252,6 +3252,12 @@ hr.tbk {
           #i_caption = "Image not yet in the public domain"
 
       if not os.path.isfile(imgFile):
+        pieces = imgFile.split('/')
+        if len(pieces) == 2:
+          path = pieces[0] + "-omit/" + pieces[1]
+          if os.path.isfile(path):
+            # Image exists under a -omit directory.  Do not display
+            return []
         cprint("Warning: Image file {} does not exist".format(imgFile))
 
       # Handles slices
