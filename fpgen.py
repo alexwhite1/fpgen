@@ -2059,6 +2059,10 @@ class HTML(Book): #{
     paragraphStyle = globalStyle
     defaultStyle = globalStyle
     sidenoteBreak = (config.uopt.getopt('sidenote-breaks-paragraphs', True) == True)
+    autoDropCap = False
+    if "drop-after" in self.uprop.prop:
+      autoDropCap = self.uprop.prop["drop-after"].split(',')
+      self.addcss(dropCapCSS)
 
     noFormattingTags = [ "lg", "table", "illustration" ]
 
@@ -2066,6 +2070,7 @@ class HTML(Book): #{
     if footnote.getFootnoteStyle() == footnote.sidenote:
       noFormattingTags.append("footnote")
 
+    dropCap = False
     i = 0
     while i < len(wb):
 
@@ -2141,6 +2146,8 @@ class HTML(Book): #{
       # Ignore lines with tags; note that textual tags like <i> have been
       # converted into special characters, not <
       if line[0] == '<' and line != "<br/>":
+        if autoDropCap:
+          dropCap = self.isAutoDropCap(autoDropCap, line)
         i += 1
         continue
 
@@ -2161,6 +2168,13 @@ class HTML(Book): #{
         i += 1
 
       # Paragraph now accumulated into block[]
+
+      # Add automatic block cap?
+      if autoDropCap:
+        if dropCap:
+          block = self.autoDropCap(block)
+          dropCap = False
+
       if paragraphStyle == "list":
         self.css.addcss(paragraphListCSS)
         w = block[0].split(" ")
@@ -2192,6 +2206,45 @@ class HTML(Book): #{
       paragraphStyle = defaultStyle
 
     return wb
+  
+  def testAutoFor(self, prop, value):
+    try:
+      prop.index(value)
+      return True
+    except ValueError:
+      pass
+
+  # Does this line trigger the next paragraph to start with a drop-cap?
+  def isAutoDropCap(self, prop, line):
+    if line.startswith("<tb>"):
+      return self.testAutoFor(prop, "tb")
+
+    if line.startswith("<heading"):
+      m = re.match("^<heading\s*(.*?)>", line)
+      if m:
+        harg = m.group(1)
+        attributes = parseTagAttributes("heading", harg, headerAttributes)
+
+        level = 1
+        if "level" in attributes:
+          hlevel = int(attributes["level"])
+        return self.testAutoFor(prop, "h" + str(hlevel))
+
+    return False
+
+  # Add a drop cap to this paragraph
+  def autoDropCap(self, block):
+    self.dprint(1, "Add drop cap before: " + " ".join(block))
+    line = block[0]
+    letter = line[0]
+    if letter == '<' or letter == "⩤":
+      # If it is in italics or something, just do nothing
+      return block
+    if letter == "“":
+      letter += line[1]
+      line = line[1:]
+    block[0] = self.dropCapMarker + "⩤span class='dropcap'⩥" + letter + "⩤/span⩥" + line[1:]
+    return block
 
   def isParaBreak(self, line, sidenoteBreak):
     if line == "":
@@ -2565,9 +2618,7 @@ class HTML(Book): #{
         options["nobreak"] = ""
         harg = harg.replace("nobreak", "")
 
-      attributes = parseTagAttributes("heading", harg, [
-        "nobreak", "hidden", "level", "id", "pn", "toc", "rend"
-      ])
+      attributes = parseTagAttributes("heading", harg, headerAttributes)
 
       if "rend" in attributes:
         rend = attributes["rend"]
@@ -5753,6 +5804,10 @@ class TableCell: #{
 # legal attributes on <illustration>
 illustrationAttributes = [
   "content", "src", "rend", "id",
+]
+
+headerAttributes = [
+  "nobreak", "hidden", "level", "id", "pn", "toc", "rend"
 ]
 
 # rend= options on <illustration>

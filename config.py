@@ -171,8 +171,9 @@ from time import gmtime, strftime
 # 4.58     Add <ditto> tag; add <figsp>
 # 4.58a    Use hard spaces to align <ditto> in txt output
 # 4.58b    Another tweak to the illustration omission code
+# 4.59     Add drop-after property for automatic drop caps
 
-VERSION="4.58b"
+VERSION="4.59"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
