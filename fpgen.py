@@ -2223,6 +2223,8 @@ class HTML(Book): #{
       m = re.match("^<heading\s*(.*?)>", line)
       if m:
         harg = m.group(1)
+        if "nobreak" in harg:
+          harg = harg.replace("nobreak", "")
         attributes = parseTagAttributes("heading", harg, headerAttributes)
 
         level = 1
