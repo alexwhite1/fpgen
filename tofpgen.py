@@ -20,6 +20,7 @@ import re
 import os
 import fnmatch
 import chardet
+import datetime
 
 def fatal(line):
   sys.stderr.write("ERROR " + line)
@@ -38,6 +39,8 @@ if len(sys.argv) < 2:
     fatal("No *-src.txt file found in current directory\n")
 else:
   src = sys.argv[1]
+
+basename = re.sub('-src.txt$', '', src)
 
 regexFootnote = re.compile("^\[Footnote ([ABC0-9][0-9]*): (.*)$")
 regexIllStart = re.compile("^\[Illustration: *")
@@ -75,10 +78,11 @@ used by the typesetter, and that there should be no thought-breaks.
 
 <nobreak>[End of TITLE, by AUTHOR]
 
-/* end of work-src */
+/* end of """ + basename + """-src */
 """
 
-preamble = """/* This is file-src as of 02-Feb-2019 */
+date = datetime.datetime.now().strftime('%d-%b-%Y')
+preamble = """/* This is """ + basename + """-src as of """ + date + """ */
 
 <property name="cover image" content="images/cover.jpg">
 
@@ -251,6 +255,7 @@ def illustration(line):
 inFN = False
 inIll = False
 illStartLine = None
+chapHead = False
 
 rawdata = open(src, "rb").read()
 encoding = chardet.detect(rawdata)['encoding']
@@ -277,6 +282,11 @@ with open(src, "r", encoding=encoding) as input:
       if blanks >= 4:
         if line != "/*" and not regexIllOne.match(line) and not regexIllNoCap.match(line):
           line = "<chap-head pn='XXX'>" + line + "</chap-head>"
+          chapHead = True
+      elif blanks == 1 and chapHead and line != "/*":
+        line = "<sub-head>" + line + "</sub-head>"
+      elif blanks >= 2:
+        chapHead = False
       if line == "/#":
         line = "<quote>"
       elif line == "#/":
