@@ -17,7 +17,8 @@ from parse import parseTagAttributes, parseOption, parseLineEntry, \
   parseStandaloneTagBlock, \
   parseEmbeddedSingleLineTagWithContent, \
   parseEmbeddedTagWithoutContent, \
-  parseStandaloneSingleLineTagWithContent
+  parseStandaloneSingleLineTagWithContent, \
+  parseEmbeddedTagBlock
 from msgs import cprint, uprint, dprint, fatal, wprint, setWarnings
 import config
 import template
@@ -481,34 +482,42 @@ class Book(object): #{
     self.dprint(1,"doMulticol")
     parseStandaloneTagBlock(self.wb, "multicol", self.oneMulticol)
 
-  #
-  # Retrieve the caption out of the <illustration>...</illustration> block
-  #
-  def trimCaptionTags(self, block):
+  # Parse the block within an illustration tag.  Currently may have
+  # <caption> and <credit> types of captions.
+  # Returns an associative array with one or both of 'caption' and 'credit'
+  # as keys, mapping to a list of lines within those tags.
+  # If neither is present, returns None
+  def parseCaptions(self, block):
     if len(block) == 0:
       return
-    if not block[0].startswith("<caption>"):
-      fatal("Illustration block does not start with <caption>: " + str(block))
-    n = len(block)-1
-    if not block[n].endswith("</caption>"):
-      fatal("Illustration block does not end with </caption>: " + str(block))
+    def trim(block):
+      # Remove leading & trailing blank lines
+      while len(block) > 0 and block[0] == '':
+        block.pop(0)
+      while len(block) > 0 and block[-1] == '':
+        block.pop()
+      return block
 
-    block[0] = block[0][9:]
-    block[n] = block[n][0:-10]
-    if block[n].strip() == '':
-      del(block[n])
-    if len(block) > 0:
-      if block[0].strip() == '':
-        del(block[0])
+    captions = {}
+    def oneCaptionBlock(openTag, block):
+      if 'caption' in captions:
+        fatal("Multiple captions in illustration: " + str(block))
+      captions['caption'] = trim(block)
+      return []
+    def oneCreditBlock(openTag, block):
+      if 'credit' in captions:
+        fatal("Multiple credits in illustration: " + str(block))
+      captions['credit'] = trim(block)
+      return []
 
-  #
-  # Captions are traditionally joined, delimited by spaces. This conflicts
-  # with markPara which paragraphs them. Someday we need to resolve this,
-  # it causes a real mess in markPara
-  #
-  def getCaption(self, block):
-    self.trimCaptionTags(block)
-    return " ".join(block).strip()
+    block = parseEmbeddedTagBlock(block, "caption", oneCaptionBlock)
+    block = parseEmbeddedTagBlock(block, "credit", oneCreditBlock)
+
+    # Check for any non-empty lines
+    if len(trim(block)) > 0:
+      fatal("Extraneous non-caption/credit lines found in illustration: " +
+        str(block))
+    return captions
 
   # validate file as UTF-8
   def checkFile(self, fn):
@@ -1997,19 +2006,33 @@ class HTML(Book): #{
   # Extract them, and format them up separately.
   def markIllustrationPara(self):
     def oneIllustration(args, block):
-      self.trimCaptionTags(block)
-      if len(block) == 0:
+      captions = self.parseCaptions(block)
+      if captions is None:
         # No caption, return unchanged
         return [ "<illustration" + args + "/>" ]
+      credit = None
+      caption = None
+      if 'caption' in captions:
+        caption = captions['caption']
+      if 'credit' in captions:
+        credit = captions['credit']
 
       # Have just the caption. Mark it up as text paragraphs.
-      self.markParaArray(block, "caption")
+      if not caption is None:
+        self.markParaArray(caption, "caption")
+      if not credit is None:
+        self.markParaArray(credit, "credit")
 
       # Turn the caption back into an illustration, for future reparsing in
       # the normal flow in doIllustrations(). Why can't we mark the paragraphs
       # at that point? Because ordering is all-important in this mess...
-      block.insert(0, "<caption>")
-      block.insert(0, "<illustration" + args + ">")
+      block = []
+      block.append("<illustration" + args + ">")
+      block.append("<caption>")
+      if not credit is None:
+        block.extend(credit)
+      if not caption is None:
+        block.extend(caption)
       block.append("</caption>")
       block.append("</illustration>")
       return block
@@ -2028,6 +2051,7 @@ class HTML(Book): #{
   blockPara = "<p class='noindent'>"
   indentPara = "<p class='pindent'>"
   captionPara = "<p class='caption'>"
+  creditPara = "<p class='credit'>"
 
   styleToHtml = {
     "hang" : hangPara,
@@ -2036,6 +2060,7 @@ class HTML(Book): #{
     "list" : "XXX",
     "line" : "<p>",
     "caption" : captionPara,
+    "credit" : creditPara,
   }
 
   # At this point, all tags which are purely inside text have been converted
@@ -3211,6 +3236,34 @@ hr.tbk {
           " must be auto, or a number ending in px or %: " + opt)
     return opt
 
+  #
+  # Retrieve the caption out of the <illustration>...</illustration> block
+  #
+  def trimCaptionTags(self, block):
+    if len(block) == 0:
+      return
+    if not block[0].startswith("<caption>"):
+      fatal("Illustration block does not start with <caption>: " + str(block))
+    n = len(block)-1
+    if not block[n].endswith("</caption>"):
+      fatal("Illustration block does not end with </caption>: " + str(block))
+
+    block[0] = block[0][9:]
+    block[n] = block[n][0:-10]
+    if block[n].strip() == '':
+      del(block[n])
+    if len(block) > 0:
+      if block[0].strip() == '':
+        del(block[0])
+
+  #
+  # Captions have already been parsed, and then stuck back inside, so always
+  # looks like <illustration><caption><p class='X'>...</caption></illustration>
+  #
+  def getPreprocessedCaption(self, block):
+    self.trimCaptionTags(block)
+    return " ".join(block).strip()
+
   def doIllustrations(self):
     self.dprint(1,"doIllustrations")
     self.idcnt = 0 # auto id counter
@@ -3279,7 +3332,7 @@ hr.tbk {
 
       # --------------------------------------------------------------------
       # illustration may be on one line (/>) or three (>)
-      i_caption = self.getCaption(block)
+      i_caption = self.getPreprocessedCaption(block)
       i_caption = re.sub("<br>", "<br/>", i_caption) # honor hard breaks in captions
 
       # Caption may be omitted automatically in html
@@ -3358,8 +3411,9 @@ hr.tbk {
       if s1:
         t.append(s1)
       if i_caption != "":
-        self.css.addcss("[392] p.caption { text-align:center; margin:0 auto; width:100%; }")
+        self.css.addcss(captionCSS)
         # markPara will now tag each paragraph with class='caption'
+        # and class='credit'
         #t.append("<p class='caption'>" + i_caption + "</p>")
         t.append(i_caption)
       t.append("</div>")
@@ -3442,8 +3496,8 @@ hr.tbk {
             self.wb[i] = self.wb[i][0:m.start(0)] + "</a>" + self.wb[i][m.end(0):]
             break
           i += 1
-        if i == n or i > startSidenote+20:
-          fatal("<sidenote> not terminated or excessively long")
+        if i == n or i > startSidenote+40:
+          fatal("<sidenote> not terminated or excessively long: " + "\n".join(self.wb[startSidenote:i]))
       i += 1
 
     if sawSidenote:
@@ -4283,7 +4337,19 @@ class Text(Book): #{
       if len(block) == 0:
         t.append("<l>[Illustration]</l>")
       else:
-        caption = self.getCaption(block)
+        captions = self.parseCaptions(block)
+        credit = None
+        caption = None
+        if 'caption' in captions:
+          caption = captions['caption']
+        if 'credit' in captions:
+          credit = captions['credit']
+        if caption is None:
+          caption = credit
+        elif not credit is None:
+          credit.extend(caption)
+          caption = credit
+        caption = " ".join(caption).strip()
 
         # if there is a <br> in the caption, then user wants
         # control of line breaks. otherwise, wrap
@@ -6021,6 +6087,11 @@ illustrationCSS = {
     "left"   : illustrationLeftCSS,
     "center" : illustrationCenterCSS,
 }
+
+captionCSS = """[392]
+    p.caption { text-align:center; margin:0 auto; width:100%; }
+    p.credit { text-align:right; margin:0 auto; width: 100%; }
+"""
 
 headingCSS = {
   1 : """[250]
