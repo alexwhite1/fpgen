@@ -12,7 +12,7 @@ ARGS = [
  "--chapter-mark", "\"none\"",
  "--disable-remove-fake-margins",
  "--page-breaks-before", "\"//h:div[@style='page-break-before:always'] | //*[(name()='h1' or name()='h2') and not(@class='nobreak')] | //h:p[@class='chapter']\"",
- "--extra-css", "\".pagenum {visibility: hidden;} .totoc {visibility:hidden;} " +
+ "--extra-css", "\".pagenum, .totoc, .pb {visibility: hidden;} " +
     ".footnote .label {position:static; float:left; width:auto; text-align:left;}\"",
  "--sr1-search", "\"<hr class=.pbk./>\"",
  "--sr1-replace", "\"<div style='page-break-before:always'></div>\"",
