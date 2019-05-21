@@ -173,8 +173,9 @@ from time import gmtime, strftime
 # 4.58b    Another tweak to the illustration omission code
 # 4.59     Add drop-after property for automatic drop caps
 # 4.60     Add <credit> tag within <illustration>
+# 4.60a    Error msg when missing alignment in table column pattern
 
-VERSION="4.60"
+VERSION="4.60a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

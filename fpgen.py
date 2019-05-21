@@ -1217,6 +1217,8 @@ class ColDescr: #{
 
         if off != n:
           fatal("Incorrect table specification " + oneCol + " inside " + tableLine + ": >>>" + c + "<<<")
+    if self.align == "":
+      fatal("Missing column alignment " + oneCol + " inside " + tableLine)
 
   def __eq__(self, other):
     return self.__dict__ == other.__dict__
