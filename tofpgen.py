@@ -98,7 +98,7 @@ preamble = """/* This is """ + basename + """-src as of """ + date + """ */
 <meta name="DC.Subject" content="SUBJECT">
 <meta name="Tags" content="SUBJECT">
 <meta name="Series" content="SERIES [15]">
-<meta name="generator" content="fpgen 4.59">
+<meta name="generator" content="fpgen 4.60">
 
 <lit section="head">
     <style type="text/css">
@@ -278,9 +278,12 @@ with open(src, "r", encoding=encoding) as input:
 
       line = line.replace("--", "—")
       line = quote(line)
+      if line == "/*" or regexIllOne.match(line) or regexIllNoCap.match(line) \
+      or regexIllStart.match(line):
+        blanks = 0
+        chapHead = False
 
       if blanks >= 4:
-        if line != "/*" and not regexIllOne.match(line) and not regexIllNoCap.match(line):
           line = "<chap-head pn='XXX'>" + line + "</chap-head>"
           chapHead = True
       elif blanks == 1 and chapHead and line != "/*":
