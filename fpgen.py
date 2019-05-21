@@ -4319,7 +4319,7 @@ class Text(Book): #{
     def lgBlock(args, block):
       # For each line in the lg block.
       for i, line in enumerate(block):
-        if not (re.match("<l", line) or re.match("<tb", line)):
+        if not (re.match("<l", line) or re.match("<tb", line) or line.startswith(config.FORMATTED_PREFIX + ".rs")):
           line = re.sub(" ", config.HARD_SPACE, line)
           line = "<l>{0}</l>".format(line)
           block[i] = line
@@ -4365,7 +4365,6 @@ class Text(Book): #{
             t.append(config.FORMATTED_PREFIX+x) # may be multiple lines
           t.append("▹.rs 1")
         else: # fpgen wraps illustration line
-          # TODO: In this form, if we are wrapped in an <lg>, the .rs comes out centered!
           s = "[Illustration: " + caption + "]"
           t.append("▹.rs 1")
           u = wrap2(s)
