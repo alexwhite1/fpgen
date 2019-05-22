@@ -2269,7 +2269,7 @@ class HTML(Book): #{
     if letter == '<' or letter == "⩤":
       # If it is in italics or something, just do nothing
       return block
-    if letter == "“":
+    if letter == "“" or letter == "‘":
       letter += line[1]
       line = line[1:]
     block[0] = self.dropCapMarker + "⩤span class='dropcap'⩥" + letter + "⩤/span⩥" + line[1:]

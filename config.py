@@ -175,8 +175,9 @@ from time import gmtime, strftime
 # 4.60     Add <credit> tag within <illustration>
 # 4.60a    Error msg when missing alignment in table column pattern
 # 4.60b    Fix caption inside <lg> block
+# 4.60c    Add curly-single to auto drop caps
 
-VERSION="4.60b"
+VERSION="4.60c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
