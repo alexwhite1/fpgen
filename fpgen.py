@@ -178,6 +178,45 @@ def alignLine(line, align, w, padChar=' '):
 
   return lines
 
+# Parse the block within an illustration tag.  Currently may have
+# <caption> and <credit> types of captions.
+# Returns an associative array with one or both of 'caption' and 'credit'
+# as keys, mapping to a list of lines within those tags.
+# If neither is present, returns None
+def parseCaptions(block):
+  if len(block) == 0:
+    return
+  def trim(block):
+    # Remove leading & trailing blank/empty lines
+    while len(block) > 0 and block[0].strip() == '':
+      block.pop(0)
+    while len(block) > 0 and block[-1].strip() == '':
+      block.pop()
+    return block
+
+  captions = {}
+  def oneCaptionBlock(openTag, block):
+    if 'caption' in captions:
+      fatal("Multiple captions in illustration: " + str(block))
+    block = trim(block)
+    if len(block) > 0:
+      captions['caption'] = trim(block)
+    return []
+  def oneCreditBlock(openTag, block):
+    if 'credit' in captions:
+      fatal("Multiple credits in illustration: " + str(block))
+    captions['credit'] = trim(block)
+    return []
+
+  block = parseEmbeddedTagBlock(block, "caption", oneCaptionBlock)
+  block = parseEmbeddedTagBlock(block, "credit", oneCreditBlock)
+
+  # Check for any non-empty lines
+  if len(trim(block)) > 0:
+    fatal("Extraneous non-caption/credit lines found in illustration: " +
+      str(block))
+  return captions
+
 class Book(object): #{
   wb = []
 
@@ -481,43 +520,6 @@ class Book(object): #{
   def doMulticol(self):
     self.dprint(1,"doMulticol")
     parseStandaloneTagBlock(self.wb, "multicol", self.oneMulticol)
-
-  # Parse the block within an illustration tag.  Currently may have
-  # <caption> and <credit> types of captions.
-  # Returns an associative array with one or both of 'caption' and 'credit'
-  # as keys, mapping to a list of lines within those tags.
-  # If neither is present, returns None
-  def parseCaptions(self, block):
-    if len(block) == 0:
-      return
-    def trim(block):
-      # Remove leading & trailing blank lines
-      while len(block) > 0 and block[0] == '':
-        block.pop(0)
-      while len(block) > 0 and block[-1] == '':
-        block.pop()
-      return block
-
-    captions = {}
-    def oneCaptionBlock(openTag, block):
-      if 'caption' in captions:
-        fatal("Multiple captions in illustration: " + str(block))
-      captions['caption'] = trim(block)
-      return []
-    def oneCreditBlock(openTag, block):
-      if 'credit' in captions:
-        fatal("Multiple credits in illustration: " + str(block))
-      captions['credit'] = trim(block)
-      return []
-
-    block = parseEmbeddedTagBlock(block, "caption", oneCaptionBlock)
-    block = parseEmbeddedTagBlock(block, "credit", oneCreditBlock)
-
-    # Check for any non-empty lines
-    if len(trim(block)) > 0:
-      fatal("Extraneous non-caption/credit lines found in illustration: " +
-        str(block))
-    return captions
 
   # validate file as UTF-8
   def checkFile(self, fn):
@@ -2008,7 +2010,7 @@ class HTML(Book): #{
   # Extract them, and format them up separately.
   def markIllustrationPara(self):
     def oneIllustration(args, block):
-      captions = self.parseCaptions(block)
+      captions = parseCaptions(block)
       if captions is None:
         # No caption, return unchanged
         return [ "<illustration" + args + "/>" ]
@@ -2065,6 +2067,14 @@ class HTML(Book): #{
     "credit" : creditPara,
   }
 
+  def after(self, tag, css):
+    result = False
+    if tag in self.uprop.prop:
+      result = self.uprop.prop[tag].split(',')
+      if css != None:
+        self.addcss(css)
+    return result
+
   # At this point, all tags which are purely inside text have been converted
   # into internal codes. (i.e. font styles and sizes)
   # So we don't have to worry about them causing artificial paragraph
@@ -2086,10 +2096,10 @@ class HTML(Book): #{
     paragraphStyle = globalStyle
     defaultStyle = globalStyle
     sidenoteBreak = (config.uopt.getopt('sidenote-breaks-paragraphs', True) == True)
-    autoDropCap = False
-    if "drop-after" in self.uprop.prop:
-      autoDropCap = self.uprop.prop["drop-after"].split(',')
-      self.addcss(dropCapCSS)
+
+    autoDropCap = self.after("drop-after", dropCapCSS)
+    tagLeadIn = self.after("lead-in-after", leadInCSS)
+    noindentAfter = self.after("pstyle-noindent-after", None)
 
     noFormattingTags = [ "lg", "table", "illustration" ]
 
@@ -2098,6 +2108,7 @@ class HTML(Book): #{
       noFormattingTags.append("footnote")
 
     dropCap = False
+    leadIn = False
     i = 0
     while i < len(wb):
 
@@ -2174,7 +2185,15 @@ class HTML(Book): #{
       # converted into special characters, not <
       if line[0] == '<' and line != "<br/>":
         if autoDropCap:
-          dropCap = self.isAutoDropCap(autoDropCap, line)
+          dropCap = self.isFollowing(autoDropCap, line)
+        if tagLeadIn:
+          leadIn = self.isFollowing(tagLeadIn, line)
+        if noindentAfter:
+          if self.isFollowing(noindentAfter, line):
+            paragraphStyle = "nobreak"
+        #self.dprint(1, "autoDropCap: " + str(autoDropCap) +
+        #    ", leadIn: " + str(leadIn) + "; [" +
+        #    line + "]")
         i += 1
         continue
 
@@ -2196,11 +2215,10 @@ class HTML(Book): #{
 
       # Paragraph now accumulated into block[]
 
-      # Add automatic block cap?
-      if autoDropCap:
-        if dropCap:
-          block = self.autoDropCap(block)
-          dropCap = False
+      # Handle special decorations: drop caps & first word tagging
+      block = self.decoration(block, dropCap, leadIn)
+      dropCap = False
+      leadIn = False
 
       if paragraphStyle == "list":
         self.css.addcss(paragraphListCSS)
@@ -2241,8 +2259,8 @@ class HTML(Book): #{
     except ValueError:
       pass
 
-  # Does this line trigger the next paragraph to start with a drop-cap?
-  def isAutoDropCap(self, prop, line):
+  # Does this line trigger the next paragraph?
+  def isFollowing(self, prop, line):
     if line.startswith("<tb>"):
       return self.testAutoFor(prop, "tb")
 
@@ -2261,19 +2279,104 @@ class HTML(Book): #{
 
     return False
 
-  # Add a drop cap to this paragraph
-  def autoDropCap(self, block):
-    self.dprint(1, "Add drop cap before: " + " ".join(block))
+  # Extract the lead in from a line.
+  #
+  # Might include <drop src="..."> so basically looking for space
+  # but not inside <>
+  #
+  # If we see a <sc> tag, assume they are doing everything manually, and
+  # return without a word.
+  #
+  # Use multiple words in the case of an honorific: e.g. Sir Freako Barto
+  # by taking all words which start with an uppercase letter.
+  # Handle also one and two letter words, i.e. A, and It.
+  def getLeadIn(self, line):
+    word, line = self.getLeadingWord(line)
+    includeNext = (self.wordlen(word) < 2)
+    while True:
+      nextWord, rest = self.getLeadingWord(line)
+      if nextWord == "":
+        break
+      if not includeNext and not nextWord[0].isupper():
+        break
+      word = word + " " + nextWord
+      line = rest
+      includeNext = False
+
+    self.dprint(1, "lead in phrase: [" + word + "], rest: [" + line + "]")
+    return word, line
+
+  @staticmethod
+  def wordlen(w):
+    i = 0
+    n = len(w)
+    while i < n:
+      c = w[i]
+      if c.isalnum():
+        break
+      i += 1
+    j = i
+    while i < n:
+      c = w[i]
+      if not c.isalnum():
+        break
+      i += 1
+    return i - j
+
+  def getLeadingWord(self, line):
+    line = line.strip()
+    word = ""
+    tag = ""
+    inTag = False
+    for c in line:
+      if inTag:
+        if c == '⩥':
+          inTag = False
+          self.dprint(1, "Tag: " + tag)
+          if tag == 'sc':
+            return "", line
+      if c == '⩤':
+        inTag = True
+        tag = ""
+      else:
+        tag += c
+      if not inTag:
+        if c == ' ':
+          break
+      word += c
+    line = line[len(word):]
+    self.dprint(1, "lead in word: [" + word + "], rest: [" + line + "]")
+    return word, line
+
+  @staticmethod
+  def decorateLeadIn(word):
+    return "⩤span class='lead-in'⩥" + word + "⩤/span⩥"
+
+  def decoration(self, block, dropCap, leadIn):
+    if not dropCap and not leadIn:
+      return block
+
     line = block[0]
-    letter = line[0]
+    word, line = self.getLeadIn(line)
+    if dropCap:
+      word = self.autoDropCap(word)
+    if leadIn and word:
+      word = self.decorateLeadIn(word)
+    block[0] = word + line
+    return block
+
+  # Add a drop cap to this paragraph
+  def autoDropCap(self, word):
+    self.dprint(1, "Add drop cap before: " + word)
+    letter = word[0]
     if letter == '<' or letter == "⩤":
       # If it is in italics or something, just do nothing
-      return block
+      return word
     if letter == "“" or letter == "‘":
-      letter += line[1]
-      line = line[1:]
-    block[0] = self.dropCapMarker + "⩤span class='dropcap'⩥" + letter + "⩤/span⩥" + line[1:]
-    return block
+      letter += word[1]
+      word = word[1:]
+    word = self.dropCapMarker + "⩤span class='dropcap'⩥" + letter + "⩤/span⩥" + word[1:]
+    return word
 
   def isParaBreak(self, line, sidenoteBreak):
     if line == "":
@@ -4339,7 +4442,7 @@ class Text(Book): #{
       if len(block) == 0:
         t.append("<l>[Illustration]</l>")
       else:
-        captions = self.parseCaptions(block)
+        captions = parseCaptions(block)
         credit = None
         caption = None
         if 'caption' in captions:
@@ -6220,6 +6323,12 @@ dropCapCSS = """[3333]
     padding:0;
     line-height: 1.0em;
     font-size: 200%;
+  }
+"""
+
+leadInCSS = """[3335]
+  .lead-in {
+    font-variant: small-caps;
   }
 """
 

@@ -410,7 +410,7 @@ class TestHTMLPara(unittest.TestCase):
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "<p>p1l1w1, p1l1w2",
-      "⪦23⪧",
+      "⪦23,23⪧",
       "p1l2w1</p>",
       "",
     ]);
@@ -431,7 +431,7 @@ class TestHTMLPara(unittest.TestCase):
     # of an empty paragraph
     self.assertSequenceEqual(self.html.wb, [
       "<p>p1l1w1, p1l1w2",
-      "⪦23⪧</p>",
+      "⪦23,23⪧</p>",
       "<p class='hang'>p1l2w1</p>",
       "",
     ]);
@@ -513,6 +513,29 @@ class TestHTMLPara(unittest.TestCase):
       "",
       "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
       "<caption>",
+      "<p class='caption'>paragraph</p>",
+      "</caption>",
+      "</illustration>",
+      "",
+      "<pb>",
+    ]);
+
+  def test_html_illustration_with_one_line_caption_and_credit(self):
+    self.html.wb = [
+      "",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
+      "<caption>paragraph</caption>",
+      "<credit>credit paragraph</credit>",
+      "</illustration>",
+      "",
+      "<pb>",
+    ]
+    self.html.markPara();
+    self.assertSequenceEqual(self.html.wb, [
+      "",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
+      "<caption>",
+      "<p class='credit'>credit paragraph</p>",
       "<p class='caption'>paragraph</p>",
       "</caption>",
       "</illustration>",
@@ -614,7 +637,10 @@ class TestHTMLPara(unittest.TestCase):
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
+      "<caption>",
+      "</caption>",
+      "</illustration>",
       "",
       "<pb>",
     ]);
@@ -632,7 +658,10 @@ class TestHTMLPara(unittest.TestCase):
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
+      "<caption>",
+      "</caption>",
+      "</illustration>",
       "",
       "<pb>",
     ]);
@@ -649,7 +678,10 @@ class TestHTMLPara(unittest.TestCase):
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
+      "<caption>",
+      "</caption>",
+      "</illustration>",
       "",
       "<pb>",
     ]);
@@ -916,3 +948,173 @@ class TestHTMLPara(unittest.TestCase):
       "l4</p>",
       ""
     ]);
+
+  def test_lead_in_normal(self):
+    wb = [
+        "<heading level='1'>heading</heading>",
+        "",
+        "word1 w2 w3",
+        "w4 w5",
+        "",
+        "w1 w2 w3",
+        "w4 w5",
+    ]
+    self.html.uprop.addprop("lead-in-after", "h1")
+    result = self.html.markParaArray(wb, "line")
+    self.assertSequenceEqual(result, [
+      "<heading level='1'>heading</heading>",
+      "",
+      "<p>⩤span class='lead-in'⩥word1⩤/span⩥ w2 w3",
+      "w4 w5</p>",
+      "",
+      "<p>w1 w2 w3",
+      "w4 w5</p>",
+    ])
+
+  def test_lead_in_simple(self):
+    line = "word1 w2 w3"
+    word, line = self.html.getLeadIn(line)
+    self.assertEqual(word, "word1")
+    self.assertEqual(line, " w2 w3")
+
+  # lead-in takes all leading words starting with caps
+  def test_lead_in_multi_word(self):
+    line = "word1 W2 W3 wx wy wz"
+    word, line = self.html.getLeadIn(line)
+    self.assertEqual(word, "word1 W2 W3")
+    self.assertEqual(line, " wx wy wz")
+
+  # No lead-in if <sc> in first word
+  def test_lead_in_sc(self):
+    line = "⩤sc⩥word1 W2⩤/sc⩥ W3 wx wy wz"
+    word, line = self.html.getLeadIn(line)
+    self.assertEqual(word, "")
+    self.assertEqual(line, "⩤sc⩥word1 W2⩤/sc⩥ W3 wx wy wz")
+
+  # lead-in does not stop due to a space in a tag
+  def test_lead_in_include_dropcap(self):
+    line = "⩤drop src='xxx'⩥w⩤/drop⩥1 w2 w3"
+    word, line = self.html.getLeadIn(line)
+    self.assertEqual(word, "⩤drop src='xxx'⩥w⩤/drop⩥1")
+    self.assertEqual(line, " w2 w3")
+
+  # lead-in of one letter includes the next word
+  def test_lead_in_short_word(self):
+    line = "w w2 w3"
+    word, line = self.html.getLeadIn(line)
+    self.assertEqual(word, "w w2")
+    self.assertEqual(line, " w3")
+
+  def test_wordlen1(self):
+    w = "I"
+    l = self.html.wordlen(w)
+    self.assertEqual(l, 1)
+
+  def test_wordlen(self):
+    w = "“I"
+    l = self.html.wordlen(w)
+    self.assertEqual(l, 1)
+
+  def test_wordlenA(self):
+    w = "“’I,"
+    l = self.html.wordlen(w)
+    self.assertEqual(l, 1)
+
+  def test_wordlen2(self):
+    w = "“In"
+    l = self.html.wordlen(w)
+    self.assertEqual(l, 2)
+
+  def test_drop_cap_after(self):
+    wb = [
+        "<heading level='1'>heading</heading>",
+        "",
+        "w1 w2 w3",
+        "w4 w5",
+        "",
+        "w1 w2 w3",
+        "w4 w5",
+    ]
+    self.html.uprop.addprop("drop-after", "h1")
+    result = self.html.markParaArray(wb, "line")
+    self.assertSequenceEqual(result, [
+      "<heading level='1'>heading</heading>",
+      "",
+      "<p>⩤span class='dropcap'⩥w⩤/span⩥1 w2 w3",
+      "w4 w5</p>",
+      "",
+      "<p>w1 w2 w3",
+      "w4 w5</p>",
+    ])
+
+  def test_drop_cap_simple(self):
+    word = "w1"
+    word = self.html.autoDropCap(word)
+    self.assertEqual(word, self.html.dropCapMarker + "⩤span class='dropcap'⩥w⩤/span⩥1")
+
+  # No auto-drop-cap if font-change
+  def test_drop_cap_no_italics(self):
+    word = "⩤sc⩥w1⩤/sc⩥"
+    word = self.html.autoDropCap(word)
+    self.assertEqual(word, "⩤sc⩥w1⩤/sc⩥")
+
+  # Drop cap includes double and single quotes
+  def test_drop_cap_quote(self):
+    word = "“w1"
+    word = self.html.autoDropCap(word)
+    self.assertEqual(word, self.html.dropCapMarker + "⩤span class='dropcap'⩥“w⩤/span⩥1")
+
+  def test_drop_cap_apostrophe(self):
+    word = "‘w1"
+    word = self.html.autoDropCap(word)
+    self.assertEqual(word, self.html.dropCapMarker + "⩤span class='dropcap'⩥‘w⩤/span⩥1")
+
+  # No change if dropcap and leadin both false
+  def test_decoration_no_no(self):
+    wb = [
+      "w1 w2 w3",
+      "w4 w5",
+    ]
+    result = self.html.decoration(wb, False, False)
+    self.assertSequenceEqual(result, [
+      "w1 w2 w3",
+      "w4 w5",
+    ])
+
+  # drop cap true, leadin false
+  def test_decoration_yes_no(self):
+    wb = [
+      "w1 w2 w3",
+      "w4 w5",
+    ]
+    result = self.html.decoration(wb, True, False)
+    self.assertSequenceEqual(result, [
+      self.html.dropCapMarker + "⩤span class='dropcap'⩥w⩤/span⩥1 w2 w3",
+      "w4 w5",
+    ])
+
+  # drop cap false, leadin true
+  def test_decoration_no_yes(self):
+    wb = [
+      "word1 w2 w3",
+      "w4 w5",
+    ]
+    result = self.html.decoration(wb, False, True)
+    self.assertSequenceEqual(result, [
+      "⩤span class='lead-in'⩥word1⩤/span⩥ w2 w3",
+      "w4 w5",
+    ])
+
+  # drop cap true, leadin true
+  def test_decoration_yes_yes(self):
+    wb = [
+      "word1 w2 w3",
+      "w4 w5",
+    ]
+    result = self.html.decoration(wb, True, True)
+    self.assertSequenceEqual(result, [
+      "⩤span class='lead-in'⩥" +
+        self.html.dropCapMarker +
+        "⩤span class='dropcap'⩥w⩤/span⩥ord1⩤/span⩥ w2 w3",
+      "w4 w5",
+    ])

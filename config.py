@@ -176,8 +176,9 @@ from time import gmtime, strftime
 # 4.60a    Error msg when missing alignment in table column pattern
 # 4.60b    Fix caption inside <lg> block
 # 4.60c    Add curly-single to auto drop caps
+# 4.61     Add lead-in-after and pstyle-noindent-after properties
 
-VERSION="4.60c"
+VERSION="4.61"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
