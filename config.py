@@ -177,8 +177,9 @@ from time import gmtime, strftime
 # 4.60b    Fix caption inside <lg> block
 # 4.60c    Add curly-single to auto drop caps
 # 4.61     Add lead-in-after and pstyle-noindent-after properties
+# 4.61a    Refactor paragraph code. No functional changes
 
-VERSION="4.61"
+VERSION="4.61a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

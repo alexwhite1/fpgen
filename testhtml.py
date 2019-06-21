@@ -4,6 +4,7 @@ import config
 from fpgen import HTML
 from fpgen import userOptions
 from msgs import cprint
+import para
 
 # Test the method HTML.markPara
 class TestHTMLPara(unittest.TestCase):
@@ -27,7 +28,7 @@ class TestHTMLPara(unittest.TestCase):
         "p2l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -44,7 +45,7 @@ class TestHTMLPara(unittest.TestCase):
         "",
         "p2l1",
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "",
       "<p>p1l1w1, p1l1w2",
@@ -62,7 +63,7 @@ class TestHTMLPara(unittest.TestCase):
         "p2l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -79,7 +80,7 @@ class TestHTMLPara(unittest.TestCase):
         "<l rend='center'>lll</l>",
         "p2l1w1, p2l1w2",
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "",
       "<p>p1l1w1, p1l1w2",
@@ -118,7 +119,7 @@ class TestHTMLPara(unittest.TestCase):
         "<nobreak>p2l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -136,7 +137,7 @@ class TestHTMLPara(unittest.TestCase):
         "<indent>p2l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -155,7 +156,7 @@ class TestHTMLPara(unittest.TestCase):
         "p2l2",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -176,7 +177,7 @@ class TestHTMLPara(unittest.TestCase):
         "<hang>p2l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -238,7 +239,7 @@ class TestHTMLPara(unittest.TestCase):
         "p2l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -260,7 +261,7 @@ class TestHTMLPara(unittest.TestCase):
         "p2l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -314,7 +315,7 @@ class TestHTMLPara(unittest.TestCase):
         "p3l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p class='hang'>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -339,7 +340,7 @@ class TestHTMLPara(unittest.TestCase):
         "p3l1",
         ""
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p class='noindent'>p1l1w1, p1l1w2",
       "p1l2w1</p>",
@@ -923,7 +924,7 @@ class TestHTMLPara(unittest.TestCase):
         "l4",
         "",
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>l1",
       "l3",
@@ -940,7 +941,7 @@ class TestHTMLPara(unittest.TestCase):
         "l4",
         "",
     ]
-    result = self.html.markParaArray(wb, "line");
+    result = para.markParaArray(self.html, wb, "line");
     self.assertSequenceEqual(result, [
       "<p>l1</p>",
       "",
@@ -960,7 +961,7 @@ class TestHTMLPara(unittest.TestCase):
         "w4 w5",
     ]
     self.html.uprop.addprop("lead-in-after", "h1")
-    result = self.html.markParaArray(wb, "line")
+    result = para.markParaArray(self.html, wb, "line")
     self.assertSequenceEqual(result, [
       "<heading level='1'>heading</heading>",
       "",
@@ -973,56 +974,56 @@ class TestHTMLPara(unittest.TestCase):
 
   def test_lead_in_simple(self):
     line = "word1 w2 w3"
-    word, line = self.html.getLeadIn(line)
+    word, line = para.getLeadIn(line)
     self.assertEqual(word, "word1")
     self.assertEqual(line, " w2 w3")
 
   # lead-in takes all leading words starting with caps
   def test_lead_in_multi_word(self):
     line = "word1 W2 W3 wx wy wz"
-    word, line = self.html.getLeadIn(line)
+    word, line = para.getLeadIn(line)
     self.assertEqual(word, "word1 W2 W3")
     self.assertEqual(line, " wx wy wz")
 
   # No lead-in if <sc> in first word
   def test_lead_in_sc(self):
     line = "⩤sc⩥word1 W2⩤/sc⩥ W3 wx wy wz"
-    word, line = self.html.getLeadIn(line)
+    word, line = para.getLeadIn(line)
     self.assertEqual(word, "")
     self.assertEqual(line, "⩤sc⩥word1 W2⩤/sc⩥ W3 wx wy wz")
 
   # lead-in does not stop due to a space in a tag
   def test_lead_in_include_dropcap(self):
     line = "⩤drop src='xxx'⩥w⩤/drop⩥1 w2 w3"
-    word, line = self.html.getLeadIn(line)
+    word, line = para.getLeadIn(line)
     self.assertEqual(word, "⩤drop src='xxx'⩥w⩤/drop⩥1")
     self.assertEqual(line, " w2 w3")
 
   # lead-in of one letter includes the next word
   def test_lead_in_short_word(self):
     line = "w w2 w3"
-    word, line = self.html.getLeadIn(line)
+    word, line = para.getLeadIn(line)
     self.assertEqual(word, "w w2")
     self.assertEqual(line, " w3")
 
   def test_wordlen1(self):
     w = "I"
-    l = self.html.wordlen(w)
+    l = para.wordlen(w)
     self.assertEqual(l, 1)
 
   def test_wordlen(self):
     w = "“I"
-    l = self.html.wordlen(w)
+    l = para.wordlen(w)
     self.assertEqual(l, 1)
 
   def test_wordlenA(self):
     w = "“’I,"
-    l = self.html.wordlen(w)
+    l = para.wordlen(w)
     self.assertEqual(l, 1)
 
   def test_wordlen2(self):
     w = "“In"
-    l = self.html.wordlen(w)
+    l = para.wordlen(w)
     self.assertEqual(l, 2)
 
   def test_drop_cap_after(self):
@@ -1036,7 +1037,7 @@ class TestHTMLPara(unittest.TestCase):
         "w4 w5",
     ]
     self.html.uprop.addprop("drop-after", "h1")
-    result = self.html.markParaArray(wb, "line")
+    result = para.markParaArray(self.html, wb, "line")
     self.assertSequenceEqual(result, [
       "<heading level='1'>heading</heading>",
       "",
@@ -1049,24 +1050,24 @@ class TestHTMLPara(unittest.TestCase):
 
   def test_drop_cap_simple(self):
     word = "w1"
-    word = self.html.autoDropCap(word)
+    word = para.autoDropCap(word)
     self.assertEqual(word, self.html.dropCapMarker + "⩤span class='dropcap'⩥w⩤/span⩥1")
 
   # No auto-drop-cap if font-change
   def test_drop_cap_no_italics(self):
     word = "⩤sc⩥w1⩤/sc⩥"
-    word = self.html.autoDropCap(word)
+    word = para.autoDropCap(word)
     self.assertEqual(word, "⩤sc⩥w1⩤/sc⩥")
 
   # Drop cap includes double and single quotes
   def test_drop_cap_quote(self):
     word = "“w1"
-    word = self.html.autoDropCap(word)
+    word = para.autoDropCap(word)
     self.assertEqual(word, self.html.dropCapMarker + "⩤span class='dropcap'⩥“w⩤/span⩥1")
 
   def test_drop_cap_apostrophe(self):
     word = "‘w1"
-    word = self.html.autoDropCap(word)
+    word = para.autoDropCap(word)
     self.assertEqual(word, self.html.dropCapMarker + "⩤span class='dropcap'⩥‘w⩤/span⩥1")
 
   # No change if dropcap and leadin both false
@@ -1075,7 +1076,7 @@ class TestHTMLPara(unittest.TestCase):
       "w1 w2 w3",
       "w4 w5",
     ]
-    result = self.html.decoration(wb, False, False)
+    result = para.decoration(wb, False, False)
     self.assertSequenceEqual(result, [
       "w1 w2 w3",
       "w4 w5",
@@ -1087,7 +1088,7 @@ class TestHTMLPara(unittest.TestCase):
       "w1 w2 w3",
       "w4 w5",
     ]
-    result = self.html.decoration(wb, True, False)
+    result = para.decoration(wb, True, False)
     self.assertSequenceEqual(result, [
       self.html.dropCapMarker + "⩤span class='dropcap'⩥w⩤/span⩥1 w2 w3",
       "w4 w5",
@@ -1099,7 +1100,7 @@ class TestHTMLPara(unittest.TestCase):
       "word1 w2 w3",
       "w4 w5",
     ]
-    result = self.html.decoration(wb, False, True)
+    result = para.decoration(wb, False, True)
     self.assertSequenceEqual(result, [
       "⩤span class='lead-in'⩥word1⩤/span⩥ w2 w3",
       "w4 w5",
@@ -1111,7 +1112,7 @@ class TestHTMLPara(unittest.TestCase):
       "word1 w2 w3",
       "w4 w5",
     ]
-    result = self.html.decoration(wb, True, True)
+    result = para.decoration(wb, True, True)
     self.assertSequenceEqual(result, [
       "⩤span class='lead-in'⩥" +
         self.html.dropCapMarker +

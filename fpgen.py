@@ -22,6 +22,7 @@ from parse import parseTagAttributes, parseOption, parseLineEntry, \
 from msgs import cprint, uprint, dprint, fatal, wprint, setWarnings
 import config
 import template
+import para
 
 """
 
@@ -1979,33 +1980,6 @@ class HTML(Book): #{
       block[i] = block[i].replace("<ol>", config.OL_START) # overline
       block[i] = block[i].replace("</ol>", config.OL_END) # overline
 
-  # No paragraphs in this particular tag; for a tag which must start a line
-  def skip(self, tag, wb, start):
-    n = start
-    if wb[n].startswith("<" + tag):
-      if wb[n].endswith("/>"):
-        return n+1
-      endTag = "</" + tag
-      m = len(wb)
-      while not wb[n].startswith(endTag):
-        n += 1
-        if n >= m:
-          fatal("Missing end tag: " + endTag + " starting near " + str(start))
-    return n
-
-  # No paragraphs in this tag; for a tag which can end inside a line.
-  def skipSameline(self, tag, wb, start):
-    n = start
-    if wb[n].startswith("<" + tag):
-      endTag = "</" + tag
-      m = len(wb)
-      while not endTag in wb[n]:
-        n += 1
-        if n >= m:
-          fatal("Missing end tag: " + endTag + " starting near " + str(start))
-      n += 1
-    return n
-
   # <caption>...</caption> tags are considered paragraphs themselves.
   # Extract them, and format them up separately.
   def markIllustrationPara(self):
@@ -2023,9 +1997,9 @@ class HTML(Book): #{
 
       # Have just the caption. Mark it up as text paragraphs.
       if not caption is None:
-        self.markParaArray(caption, "caption")
+        para.markParaArray(self, caption, "caption")
       if not credit is None:
-        self.markParaArray(credit, "credit")
+        para.markParaArray(self, credit, "credit")
 
       # Turn the caption back into an illustration, for future reparsing in
       # the normal flow in doIllustrations(). Why can't we mark the paragraphs
@@ -2046,349 +2020,8 @@ class HTML(Book): #{
     defaultStyle = "indent" if config.uopt.getopt("pstyle") == "indent" else "line"
     self.css.addcss(paragraphCSS)
 
-    self.markParaArray(self.wb, defaultStyle)
+    para.markParaArray(self, self.wb, defaultStyle)
     self.markIllustrationPara()
-
-  # The different tags we use for paragraphs
-  hangPara = "<p class='hang'>"
-  linePara = "<p>"
-  blockPara = "<p class='noindent'>"
-  indentPara = "<p class='pindent'>"
-  captionPara = "<p class='caption'>"
-  creditPara = "<p class='credit'>"
-
-  styleToHtml = {
-    "hang" : hangPara,
-    "indent" : indentPara,
-    "nobreak" : blockPara,
-    "list" : "XXX",
-    "line" : "<p>",
-    "caption" : captionPara,
-    "credit" : creditPara,
-  }
-
-  def after(self, tag, css):
-    result = False
-    if tag in self.uprop.prop:
-      result = self.uprop.prop[tag].split(',')
-      if css != None:
-        self.addcss(css)
-    return result
-
-  # At this point, all tags which are purely inside text have been converted
-  # into internal codes. (i.e. font styles and sizes)
-  # So we don't have to worry about them causing artificial paragraph
-  # boundaries. At this point, we can simply split off paragraphs by stopping
-  # at blank lines, or lines which start with tags.
-  # Well, always an exception: we special case <br/> and don't start a para
-  # for that one case.
-  #
-  # We need to ignore (except as delimiters) anything within blocks which
-  # are formatted differently: <lg>, <table>, <sidenote>.
-  # <caption> inside <illustration> is treated a little special, in that
-  # we find paragraphs inside the caption, but tag them with the caption class.
-  #
-  # Most of the code this is involved in handling the paragraph-specific 
-  # instructions: <hang>, <nobreak> and <pstyle>
-  def markParaArray(self, wb, globalStyle):
-    self.dprint(1,"markPara")
-
-    paragraphStyle = globalStyle
-    defaultStyle = globalStyle
-    sidenoteBreak = (config.uopt.getopt('sidenote-breaks-paragraphs', True) == True)
-
-    autoDropCap = self.after("drop-after", dropCapCSS)
-    tagLeadIn = self.after("lead-in-after", leadInCSS)
-    noindentAfter = self.after("pstyle-noindent-after", None)
-
-    noFormattingTags = [ "lg", "table", "illustration" ]
-
-    # No formatting inside footnotes if they are sidenotes
-    if footnote.getFootnoteStyle() == footnote.sidenote:
-      noFormattingTags.append("footnote")
-
-    dropCap = False
-    leadIn = False
-    i = 0
-    while i < len(wb):
-
-      line = wb[i]
-
-      # A whole bunch of ways that a line or group of lines isn't formatted
-      if line.startswith(config.FORMATTED_PREFIX): # preformatted
-        i += 1
-        continue
-
-      # No formatting inside these tags
-      for tag in noFormattingTags:
-        j = self.skip(tag, wb, i)
-        if i != j:
-          i = j
-          continue
-
-      # No formatting inside these, but slightly different parsing
-      for tag in [ "sidenote" ]:
-        j = self.skipSameline(tag, wb, i)
-        if i != j:
-          break
-      if i != j:
-        i = j
-        continue
-
-      # <pstyle=XXX> alone on a line
-      # Sets defaultStyle either as specified, or to global default
-      if line.startswith("<pstyle="):
-        defaultStyle = None
-        line = line.strip()
-        for j,style in enumerate(pstyleTags):
-          if line == style:
-            defaultStyle = paraStyles[j]
-            break
-        if defaultStyle == None:
-          fatal("Bad pstyle: " + wb[i])
-        if defaultStyle == "default":
-          defaultStyle = globalStyle
-
-        # Next paragraph will be this style
-        paragraphStyle = defaultStyle
-
-        # Remove <pstyle> line completely
-        del(wb[i])
-        if i > 0:
-          i -= 1
-        continue
-
-      # See if there is a single-paragraph style
-      if line.startswith("<"):
-        line = line.strip()
-        for j,tag in enumerate(paraTags):
-          if line.startswith(tag):
-            line = line[len(tag):]
-            wb[i] = line
-            # Override for next paragraph
-            paragraphStyle = paraStyles[j]
-            break
-
-      # outside of tables and line groups, no double blank lines
-      if wb[i-1] == "" and line == "":
-        del (wb[i])
-        if i > 0:
-          i -= 1
-        continue
-
-      # Ignore a blank line
-      if line == "":
-        i += 1
-        continue
-
-      # Ignore lines with tags; note that textual tags like <i> have been
-      # converted into special characters, not <
-      if line[0] == '<' and line != "<br/>":
-        if autoDropCap:
-          dropCap = self.isFollowing(autoDropCap, line)
-        if tagLeadIn:
-          leadIn = self.isFollowing(tagLeadIn, line)
-        if noindentAfter:
-          if self.isFollowing(noindentAfter, line):
-            paragraphStyle = "nobreak"
-        #self.dprint(1, "autoDropCap: " + str(autoDropCap) +
-        #    ", leadIn: " + str(leadIn) + "; [" +
-        #    line + "]")
-        i += 1
-        continue
-
-      # A paragraph starts on a non-blank line,
-      # and ends at:
-      # - A blank line
-      # - a standalone line: preformatted, <table>, <lg>, <sidenote>
-      # - end of file
-      # - a paragraph tag: <nobreak>, <hang>, <pstyle>, drop-cap
-      # - any other tag!
-      block = [ ]
-      n = len(wb)
-      start = i
-      while i < n:
-        if self.isParaBreak(wb[i], sidenoteBreak):
-          break
-        block.append(wb[i])
-        i += 1
-
-      # Paragraph now accumulated into block[]
-
-      # Handle special decorations: drop caps & first word tagging
-      block = self.decoration(block, dropCap, leadIn)
-      dropCap = False
-      leadIn = False
-
-      if paragraphStyle == "list":
-        self.css.addcss(paragraphListCSS)
-        w = block[0].split(" ")
-        if w[0] == "":
-          l = ''
-        else:
-          l = "<span class='listTag'>" + w[0] + "</span>"
-        l += "<p class='listPara'>" + " ".join(w[1:])
-        block[0] = l
-        block[-1] += "</p>"
-        block.insert(0, "<div class='listEntry'>")
-        block.append("</div>")
-      else:
-        # If the line has a drop cap, don't indent
-        if self.dropCapMarker in block[0] and paragraphStyle == "indent":
-          paragraphStyle = "nobreak"
-        block[0] = block[0].replace(self.dropCapMarker, "")
-        tag = self.styleToHtml[paragraphStyle]
-        if self.dropCapParaMarker in block[0]:
-          block[0] = block[0].replace(self.dropCapParaMarker, tag)
-        else:
-          block[0] = tag + block[0]
-        block[-1] += "</p>"
-
-      wb[start:i] = block
-      i = start + len(block)
-
-      # After emitting paragraph, revert to default paragraph style
-      paragraphStyle = defaultStyle
-
-    return wb
-  
-  def testAutoFor(self, prop, value):
-    try:
-      prop.index(value)
-      return True
-    except ValueError:
-      pass
-
-  # Does this line trigger the next paragraph?
-  def isFollowing(self, prop, line):
-    if line.startswith("<tb>"):
-      return self.testAutoFor(prop, "tb")
-
-    if line.startswith("<heading"):
-      m = re.match("^<heading\s*(.*?)>", line)
-      if m:
-        harg = m.group(1)
-        if "nobreak" in harg:
-          harg = harg.replace("nobreak", "")
-        attributes = parseTagAttributes("heading", harg, headerAttributes)
-
-        level = 1
-        if "level" in attributes:
-          hlevel = int(attributes["level"])
-        return self.testAutoFor(prop, "h" + str(hlevel))
-
-    return False
-
-  # Extract the lead in from a line.
-  #
-  # Might include <drop src="..."> so basically looking for space
-  # but not inside <>
-  #
-  # If we see a <sc> tag, assume they are doing everything manually, and
-  # return without a word.
-  #
-  # Use multiple words in the case of an honorific: e.g. Sir Freako Barto
-  # by taking all words which start with an uppercase letter.
-  # Handle also one and two letter words, i.e. A, and It.
-  def getLeadIn(self, line):
-    word, line = self.getLeadingWord(line)
-    includeNext = (self.wordlen(word) < 2)
-    while True:
-      nextWord, rest = self.getLeadingWord(line)
-      if nextWord == "":
-        break
-      if not includeNext and not nextWord[0].isupper():
-        break
-      word = word + " " + nextWord
-      line = rest
-      includeNext = False
-
-    self.dprint(1, "lead in phrase: [" + word + "], rest: [" + line + "]")
-    return word, line
-
-  @staticmethod
-  def wordlen(w):
-    i = 0
-    n = len(w)
-    while i < n:
-      c = w[i]
-      if c.isalnum():
-        break
-      i += 1
-    j = i
-    while i < n:
-      c = w[i]
-      if not c.isalnum():
-        break
-      i += 1
-    return i - j
-
-  def getLeadingWord(self, line):
-    line = line.strip()
-    word = ""
-    tag = ""
-    inTag = False
-    for c in line:
-      if inTag:
-        if c == '⩥':
-          inTag = False
-          self.dprint(1, "Tag: " + tag)
-          if tag == 'sc':
-            return "", line
-      if c == '⩤':
-        inTag = True
-        tag = ""
-      else:
-        tag += c
-      if not inTag:
-        if c == ' ':
-          break
-      word += c
-    line = line[len(word):]
-    self.dprint(1, "lead in word: [" + word + "], rest: [" + line + "]")
-    return word, line
-
-  @staticmethod
-  def decorateLeadIn(word):
-    return "⩤span class='lead-in'⩥" + word + "⩤/span⩥"
-
-  def decoration(self, block, dropCap, leadIn):
-    if not dropCap and not leadIn:
-      return block
-
-    line = block[0]
-    word, line = self.getLeadIn(line)
-    if dropCap:
-      word = self.autoDropCap(word)
-    if leadIn and word:
-      word = self.decorateLeadIn(word)
-    block[0] = word + line
-    return block
-
-  # Add a drop cap to this paragraph
-  def autoDropCap(self, word):
-    self.dprint(1, "Add drop cap before: " + word)
-    letter = word[0]
-    if letter == '<' or letter == "⩤":
-      # If it is in italics or something, just do nothing
-      return word
-    if letter == "“" or letter == "‘":
-      letter += word[1]
-      word = word[1:]
-    word = self.dropCapMarker + "⩤span class='dropcap'⩥" + letter + "⩤/span⩥" + word[1:]
-    return word
-
-  def isParaBreak(self, line, sidenoteBreak):
-    if line == "":
-      return True
-    if line[0] == config.FORMATTED_PREFIX: # preformatted
-      return True
-    if line[0] == '<' and line != "<br/>":
-      if line[0:10] == "<sidenote>":
-        # sidenote causes a para break depending on option
-        return sidenoteBreak
-      return True
-    return False
 
   fontmap = {
     'l' : '⓯',
@@ -4333,9 +3966,9 @@ class Text(Book): #{
       line = self.wb[i]
 
       # Remove all paragraph style tags, all ignored in text output
-      for tag in paraTags:
+      for tag in para.paraTags:
         line = line.replace(tag, "")
-      for tag in pstyleTags:
+      for tag in para.pstyleTags:
         line = line.replace(tag, "")
 
       line = re.sub("#(\d+)#", r'\1', line) # page number links
@@ -6242,31 +5875,6 @@ paragraphCSS = """[811]
 .noindent { margin-top:0; margin-bottom:0; text-indent:0; }
 .hang { padding-left:1.5em; text-indent:-1.5em; }"""
 
-paragraphListCSS = """[815]
-    .listTag {
-        padding-right:.5em;
-        text-align:right;
-        display:table-cell;
-    }
-    .listPara {
-      display:table-cell;
-    }
-    .listEntry {
-      display:table-row;
-    }
-"""
-
-paraStyles = [
-  "hang",
-  "indent",
-  "nobreak",
-  "list",
-  "default"
-]
-
-paraTags = [ "<" + style + ">" for style in paraStyles ]
-pstyleTags = [ "<pstyle=" + style + ">" for style in paraStyles ]
-
 summaryCSS = {
   # div only applies to the first para.  For multi-para, regular code
   # will emit <p class="pindent">
@@ -6323,12 +5931,6 @@ dropCapCSS = """[3333]
     padding:0;
     line-height: 1.0em;
     font-size: 200%;
-  }
-"""
-
-leadInCSS = """[3335]
-  .lead-in {
-    font-variant: small-caps;
   }
 """
 
