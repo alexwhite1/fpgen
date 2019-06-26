@@ -4593,11 +4593,13 @@ class Text(Book): #{
     # center, left, right, poetry,
     # and block; all separately
     opts, align = parseLgOptions(m.group(1))
+    before = opts['sb'] if 'sb' in opts else '1'
+    after = opts['sa'] if 'sa' in opts else '1'
     self.formatLineGroup(m, block, opts, align)
 
     # Blank line, before and after
-    block.insert(0, ".rs 1")
-    block.append(".rs 1")
+    block.insert(0, ".rs "+before)
+    block.append(".rs "+after)
     return block
 
   # The whole file has already been processed by markLines().
@@ -4605,6 +4607,13 @@ class Text(Book): #{
   # a <l> or <tb>, it has added <l>...</l> around the line.
   # All spaces were turned into hard spaces.
   def formatLineGroup(self, m, block, opts, align):
+
+    # These options apply to the line group, but not individual lines
+    for o in [
+        "sa", "sb",
+      ]:
+      if o in opts:
+        del opts[o]
 
     # <tb> is allowed as a special case inside a line group
     i = 0
@@ -4953,9 +4962,10 @@ class Text(Book): #{
           t.append("")
           nlines -= 1
         self.wb[i:i+1] = t
+        i += len(t)
       else:
         self.wb[i] = l
-      i += 1
+        i += 1
 
   def headers(self, chapHead, subHead, pn, id, emittitle, nobreak, book, usingBook):
     result = []

@@ -178,8 +178,9 @@ from time import gmtime, strftime
 # 4.60c    Add curly-single to auto drop caps
 # 4.61     Add lead-in-after and pstyle-noindent-after properties
 # 4.61a    Refactor paragraph code. No functional changes
+# 4.61b    sa and sb on lg should apply to lg only, not each line.
 
-VERSION="4.61a"
+VERSION="4.61b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
