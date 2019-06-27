@@ -46,11 +46,13 @@ def main():
     from footnote import TestFootnote
     from template import TestTemplate
     from testhtml import TestHTMLPara
+    from testother import TestBookVarious
     for cl in [
       TestParseTableColumn, TestMakeTable, TestDrama, TestParsing,
       TestParseTagAttributes, TestOneDramaBlockMethod, TestTextRewrap,
       TestTextInline, TestTableCellFormat, TestTemplate, TestFootnote,
-      TestHTMLPara, TestTextoneL, TestTextFormatLineGroup
+      TestHTMLPara, TestTextoneL, TestTextFormatLineGroup,
+      TestBookVarious
     ]:
       tests.append(l.loadTestsFromTestCase(cl))
     tests = l.suiteClass(tests)

@@ -180,8 +180,9 @@ from time import gmtime, strftime
 # 4.61a    Refactor paragraph code. No functional changes
 # 4.61b    sa and sb on lg should apply to lg only, not each line.
 # 4.61c    Triple inside lg produced paragraph break in txt output
+# 4.61d    Add version check: fatal if we want newer version
 
-VERSION="4.61c"
+VERSION="4.61d"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

@@ -928,12 +928,43 @@ class Book(object): #{
     self.shortHeading()
     self.addOptionsAndProperties()
     self.addMeta()
+    self.versionCheck()
     self.macroTemplates()
     self.chapterHeaders()
     footnote.relocateFootnotes(self.wb)
 
   def __str__(self):
     return "fpgen"
+
+  def versionCheck(self):
+    want = self.umeta.get("generator");
+    if want == None:
+      return
+
+    wantMajor, wantMinor, wantLetter = self.parseVersion(want)
+    major, minor, letter = self.parseVersion(config.VERSION)
+    dprint(1, f"want: {wantMajor}.{wantMinor}{wantLetter}".format())
+    dprint(1, f"this: {major}.{minor}{letter}".format())
+
+    if wantMajor < major:
+      return
+
+    if wantMajor == major:
+      if wantMinor < minor:
+        return
+      if wantMinor == minor:
+        if wantLetter <= letter:
+          return
+    fatal(f"Minimum required fpgen version is {wantMajor}.{wantMinor}{wantLetter}.  Current fpgen version is {major}.{minor}{letter}.  Please upgrade.")
+
+  @staticmethod
+  def parseVersion(v):
+    if v.startswith("fpgen "):
+      v = v[6:]
+    m = re.match(r"^([0-9][0-9]*)\.([0-9][0-9]*)([a-z]?)( *\.?[0-9]*)$", v)
+    if not m:
+      fatal("Unparsable version number: " + v)
+    return m.group(1), m.group(2), m.group(3)
 
   # Process <chap-head> and <sub-head> tags.
   # Calls into output-specific method `headers'.
