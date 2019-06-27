@@ -179,8 +179,9 @@ from time import gmtime, strftime
 # 4.61     Add lead-in-after and pstyle-noindent-after properties
 # 4.61a    Refactor paragraph code. No functional changes
 # 4.61b    sa and sb on lg should apply to lg only, not each line.
+# 4.61c    Triple inside lg produced paragraph break in txt output
 
-VERSION="4.61b"
+VERSION="4.61c"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

@@ -119,3 +119,120 @@ class TestTextRewrap(unittest.TestCase):
       config.FORMATTED_PREFIX + "           l2            ",
       ".rs 1", "l3", ".rs 1", ".rs 1", "l4", ".rs 1",
     ])
+
+# Test the method Text.oneL
+class TestTextoneL(unittest.TestCase):
+  def setUp(self):
+    self.text = Text(None, None, 0, 't')
+    self.text.qstack = [""]
+    self.P = config.FORMATTED_PREFIX
+    config.LINE_WIDTH = 20
+
+  def test_text_onel_left(self):
+    result = self.text.oneL({}, "rend='left'", "line")
+    self.assertSequenceEqual(result, [ self.P+"line" ])
+
+  def test_text_onel_left_q(self):
+    self.text.qstack.append("   ")
+    result = self.text.oneL({}, "rend='left'", "line")
+    self.assertSequenceEqual(result, [ self.P+"   line" ])
+
+  def test_text_onel_no_align(self):
+    result = self.text.oneL({}, "", "line")
+    self.assertSequenceEqual(result, [ self.P+"line" ])
+
+  def test_text_onel_ml(self):
+    result = self.text.oneL({}, "rend='ml:3em'", "line")
+    self.assertSequenceEqual(result, [ self.P+"   line" ])
+
+  def test_text_onel_right(self):
+    result = self.text.oneL({}, "rend='right'", "line")
+    self.assertSequenceEqual(result, [ self.P+" "*16+"line" ])
+
+  def test_text_onel_mr(self):
+    result = self.text.oneL({}, "rend='mr:3em'", "line")
+    self.assertSequenceEqual(result, [ self.P+" "*13+"line" ])
+
+  def test_text_onel_right_from_LG(self):
+    result = self.text.oneL({'right':None}, "", "line")
+    self.assertSequenceEqual(result, [ self.P+" "*16+"line" ])
+
+  def test_text_onel_center_override_LG(self):
+    result = self.text.oneL({'right':None}, "rend='center'", "line")
+    self.assertSequenceEqual(result, [ self.P+" "*8+"line"+" "*8 ])
+
+  def test_text_onel_center(self):
+    result = self.text.oneL({}, "rend='center'", "line")
+    self.assertSequenceEqual(result, [ self.P+" "*8+"line"+" "*8 ])
+
+  def test_text_onel_sa(self):
+    result = self.text.oneL({}, "rend='left sa:5'", "line")
+    self.assertSequenceEqual(result, [ self.P+"line", ".rs 5" ])
+
+  def test_text_onel_sb(self):
+    result = self.text.oneL({}, "rend='left sb:5'", "line")
+    self.assertSequenceEqual(result, [ ".rs 5", self.P+"line" ])
+
+  def test_text_onel_sb_sa(self):
+    result = self.text.oneL({}, "rend='left sa:3 sb:5'", "line")
+    self.assertSequenceEqual(result, [ ".rs 5", self.P+"line", ".rs 3" ])
+
+  def test_text_onel_triple(self):
+    result = self.text.oneL({}, "rend='triple'", "a|b|c")
+    self.assertSequenceEqual(result, [ self.P+"a        b        c" ])
+
+  def test_text_onel_triple_lr(self):
+    result = self.text.oneL({}, "rend='triple'", "a||c")
+    self.assertSequenceEqual(result, [ self.P+"a" + " "*18 + "c" ])
+
+class TestTextFormatLineGroup(unittest.TestCase):
+  def setUp(self):
+    self.text = Text(None, None, 0, 't')
+    self.text.qstack = [""]
+    self.P = config.FORMATTED_PREFIX
+    self.H = config.HARD_SPACE
+    config.LINE_WIDTH = 20
+
+  def test_text_LG_left(self):
+    block = [ '<l>line</l>' ]
+    self.text.formatLineGroup(block, {}, 'left')
+    self.assertSequenceEqual(block, [ self.P+'line' ])
+
+  def test_text_LG_right(self):
+    block = [ '<l>line</l>' ]
+    self.text.formatLineGroup(block, {'right':None}, 'right')
+    self.assertSequenceEqual(block, [ self.P+16*" "+'line' ])
+
+  # Note bug wasn't protecting triple, causing extra paragraph line.
+  def test_text_LG_left_triple(self):
+    block = [ '<l>l1</l>', '<l rend="triple">a|b|c</l>', '<l>l2</l>' ]
+    self.text.formatLineGroup(block, {'left':None}, 'left')
+    self.assertSequenceEqual(block, [
+      self.P+"l1",
+      self.P+"a        b        c",
+      self.P+"l2",
+    ])
+
+  def test_text_LG_block(self):
+    block = [ '<l>l1</l>', '<l>longer</l>' ]
+    self.text.formatLineGroup(block, {'block':None}, 'block')
+    self.assertSequenceEqual(block, [
+      self.P+7*self.H+'l1',
+      self.P+7*self.H+'longer'
+    ])
+
+  def test_text_LG_block_right(self):
+    block = [ '<l>l1</l>', '<l>longer</l>' ]
+    self.text.formatLineGroup(block, {'block-right':None}, 'block-right')
+    self.assertSequenceEqual(block, [
+      self.P+14*self.H+'l1',
+      self.P+14*self.H+'longer'
+    ])
+
+  def test_text_LG_block_right_tag(self):
+    block = [ '<l>l1</l>', '<l>lo[[i]]ng[[/i]]er</l>' ]
+    self.text.formatLineGroup(block, {'block-right':None}, 'block-right')
+    self.assertSequenceEqual(block, [
+      self.P+12*self.H+'l1',
+      self.P+12*self.H+'lo_ng_er'
+    ])

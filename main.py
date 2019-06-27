@@ -41,7 +41,8 @@ def main():
     from testtable import TestParseTableColumn, TestMakeTable, TestTableCellFormat
     from parse import TestParseTagAttributes, TestParsing
     from drama import TestDrama, TestOneDramaBlockMethod
-    from testtext import TestTextInline, TestTextRewrap
+    from testtext import TestTextInline, TestTextRewrap, TestTextoneL, \
+        TestTextFormatLineGroup
     from footnote import TestFootnote
     from template import TestTemplate
     from testhtml import TestHTMLPara
@@ -49,7 +50,7 @@ def main():
       TestParseTableColumn, TestMakeTable, TestDrama, TestParsing,
       TestParseTagAttributes, TestOneDramaBlockMethod, TestTextRewrap,
       TestTextInline, TestTableCellFormat, TestTemplate, TestFootnote,
-      TestHTMLPara
+      TestHTMLPara, TestTextoneL, TestTextFormatLineGroup
     ]:
       tests.append(l.loadTestsFromTestCase(cl))
     tests = l.suiteClass(tests)

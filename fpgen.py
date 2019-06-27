@@ -4479,6 +4479,7 @@ class Text(Book): #{
   # One single standalone <l> line.
   # therend is everything matching <l(.*)>
   # contents is everything matching <l>(.*)</l>
+  # Unittests in testtext.TestTextoneL
   def oneL(self, optionsLG, therend, contents):
     if contents == "":
       # Blank line, i.e. <lXX></l>
@@ -4568,14 +4569,15 @@ class Text(Book): #{
         if extra <= 0:
           fatal("Left and Right portions do not fit line: left=" + left + \
               ", right=" + right)
-        block[i] = left + extra * ' ' + right
+        block[i] = config.FORMATTED_PREFIX + left + extra * ' ' + right
       else:
         gapl = (config.LINE_WIDTH - clen)//2 - len(left)
         gapr = (config.LINE_WIDTH - clen)//2 - len(right)
         if gapl <= 0 or gapr <= 0:
           fatal("Triple alignment doesn't fit: left=" + str(gapl) + \
             ", right=" + str(gapr) + "; Line:" + thetext)
-        block[i] = left + gapl * ' ' + center + gapr * ' ' + right
+        block[i] = config.FORMATTED_PREFIX + \
+          left + gapl * ' ' + center + gapr * ' ' + right
       handled = True
 
     # Must be left
@@ -4583,6 +4585,17 @@ class Text(Book): #{
       block[i] = config.FORMATTED_PREFIX + self.qstack[-1] + thetext.strip()
 
     return block
+
+  @staticmethod
+  def protect(block):
+    # Make sure all resulting lines are protected
+    result = []
+    for line in block:
+      if len(line) == 0 or line[0] != config.FORMATTED_PREFIX:
+        result.append(config.FORMATTED_PREFIX + line)
+      else:
+        result.append(line)
+    return result
 
   def oneLineGroup(self, m, block):
     # remove <lg>, and </lg>
@@ -4595,18 +4608,19 @@ class Text(Book): #{
     opts, align = parseLgOptions(m.group(1))
     before = opts['sb'] if 'sb' in opts else '1'
     after = opts['sa'] if 'sa' in opts else '1'
-    self.formatLineGroup(m, block, opts, align)
+    self.formatLineGroup(block, opts, align)
 
     # Blank line, before and after
     block.insert(0, ".rs "+before)
     block.append(".rs "+after)
-    return block
+    return self.protect(block)
 
   # The whole file has already been processed by markLines().
   # This took each line in the line group, and if it didn't already have
   # a <l> or <tb>, it has added <l>...</l> around the line.
   # All spaces were turned into hard spaces.
-  def formatLineGroup(self, m, block, opts, align):
+  # A very few unit tests in testtext.TextTextFormatLineGroup
+  def formatLineGroup(self, block, opts, align):
 
     # These options apply to the line group, but not individual lines
     for o in [
