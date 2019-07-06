@@ -181,8 +181,9 @@ from time import gmtime, strftime
 # 4.61b    sa and sb on lg should apply to lg only, not each line.
 # 4.61c    Triple inside lg produced paragraph break in txt output
 # 4.61d    Add version check: fatal if we want newer version
+# 4.61e    Disable table leaders on kindle; refactor classes
 
-VERSION="4.61d"
+VERSION="4.61e"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

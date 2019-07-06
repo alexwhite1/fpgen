@@ -7,6 +7,7 @@ import fnmatch
 
 import config
 from fpgen import Lint, Text, HTML
+from kindle import Kindle, EPub, PDF
 import msgs
 from msgs import fatal
 
@@ -167,7 +168,7 @@ def processFile(options, bn):
   madeEpub = False
   if 'e' in options.formats:
     outfile = "{}-e.html".format(bn)
-    hb = HTML(options.infile, outfile, options.debug, 'e')
+    hb = EPub(options.infile, outfile, options.debug)
     print("creating Epub")
     hb.run()
 
@@ -199,7 +200,7 @@ def processFile(options, bn):
     print("creating Kindle")
     # make epub as source for kindle
     outfile = "{}-e2.html".format(bn)
-    hb = HTML(options.infile, outfile, options.debug, 'k')
+    hb = Kindle(options.infile, outfile, options.debug)
     hb.run()
     preserveMargins = (config.uopt.getopt('preserve-margins', 'false') == 'true')
     args = getConvertArgs(OPT_EPUB_ARGS, outfile, "{}-e2.epub".format(bn), hb)
@@ -222,7 +223,7 @@ def processFile(options, bn):
 
   if 'p' in options.formats:
     outfile = "{}-p.html".format(bn)
-    hb = HTML(options.infile, outfile, options.debug, 'p')
+    hb = PDF(options.infile, outfile, options.debug)
     print("creating PDF")
     hb.run()
     preserveMargins = (config.uopt.getopt('preserve-margins', 'false') == 'true')

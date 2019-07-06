@@ -2131,51 +2131,48 @@ class HTML(Book): #{
       block[i] = block[i].replace("</fs>",'⓳')
       block[i] = block[i].replace("</font>", config.FONT_END)
 
+  # Default margins, only for html
+  def getMargins(self):
+    return "8", "10"
+
+  # Default paragraph text-align, for html and pdf
+  def getTextAlignment(self):
+    return "justify"
+
+  # Only show page numbers in html
+  def getPageNumberCSS(self):
+    return [
+      "[105] .pageno  { right: 1%; font-size: x-small; background-color: inherit; color: silver;",
+      "[106]          text-indent: 0em; text-align: right; position: absolute;",
+      "[107]          border:1px solid silver; padding:1px 3px; font-style:normal;",
+      "[108]          font-variant: normal; font-weight: normal; text-decoration:none; }",
+      "[109] .pageno:after { color: gray; content: attr(title); }" # new 4.17
+    ]
+
   def startHTML(self):
     self.dprint(1,"startHTML")
 
-    body_defined = False
-    if 'e' in self.gentype:
-      self.css.addcss("[100] body { margin-left:0;margin-right:0; }")
-      body_defined = True
-    if 'k' in self.gentype:
-      self.css.addcss("[100] body { margin-left:0;margin-right:0; }")
-      body_defined = True
-    if 'p' in self.gentype:
-      self.css.addcss("[100] body { margin-left:0;margin-right:0; }")
-      body_defined = True
-    if not body_defined:
-      self.css.addcss("[100] body { margin-left:8%;margin-right:10%; }")
+    left, right = self.getMargins()
+    self.css.addcss(f"[100] body {{ margin-left:{left}%;margin-right:{right}%; }}")
 
     if self.showPageNumbers: # only possible in HTML
-      if 'h' == self.gentype:
-        self.css.addcss("[105] .pageno  { right: 1%; font-size: x-small; background-color: inherit; color: silver;")
-        self.css.addcss("[106]          text-indent: 0em; text-align: right; position: absolute;")
-        self.css.addcss("[107]          border:1px solid silver; padding:1px 3px; font-style:normal;")
-        self.css.addcss("[108]          font-variant: normal; font-weight: normal; text-decoration:none; }")
-        self.css.addcss("[109] .pageno:after { color: gray; content: attr(title); }") # new 4.17
-      else:
-        self.css.addcss("[105] .pageno { display:none; }") # no visible page numbers in non-browser HTML
+      for css in self.getPageNumberCSS():
+        self.css.addcss(css)
 
     self.css.addcss("[170] p { text-indent:0; margin-top:0.5em; margin-bottom:0.5em;") # para style
     if config.uopt.getopt("quote-para-style") == 'block':
       self.css.addcss("[170] div.blockquote p.pindent { text-indent:0; }") # para style in quote
-    align_defined = False
-    if 'e' in self.gentype:
-      self.css.addcss("[171]     text-align: left; }") # epub ragged right
-      align_defined = True
-    if 'k' in self.gentype:
-      self.css.addcss("[171]     text-align: left; }") # mobi ragged right
-      align_defined = True
-    if not align_defined:
-      self.css.addcss("[171]     text-align: justify; }") # browser HTML justified
 
-    t =[]
-    t.append("<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"")
-    t.append("    \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">")
-    t.append("<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">")
-    t.append("  <head>")
-    t.append("    <meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\" />")
+    textalign = self.getTextAlignment()
+    self.css.addcss(f"[171]     text-align: {textalign}; }}")
+
+    t = [
+      "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"",
+      "    \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">",
+      "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">",
+      "  <head>",
+      "    <meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\" />"
+    ]
 
     # Figure out the display title.
     # Either specified by <property name='display title'>
@@ -2190,21 +2187,19 @@ class HTML(Book): #{
       if dc_title == None:
         cprint("warning: no display title or title given")
         dc_title = re.sub("-src.txt", "", self.srcfile)
-      displayTitle = "The Distributed Proofreaders Canada eBook of {}".format(dc_title)
+      displayTitle = f"The Distributed Proofreaders Canada eBook of {dc_title}"
     t.append("    <title>{}</title>".format(displayTitle))
 
-    if "cover image" in self.uprop.prop:
-      t.append("    <link rel=\"coverpage\" href=\"{}\"/>".format(self.uprop.prop["cover image"]))
-      t.append("    <meta name=\"cover\" content=\"{}\" />".format(self.uprop.prop["cover image"]))
-    else:
-      # self.cprint("warning: no cover image specified")
-      t.append("    <link rel=\"coverpage\" href=\"{}\"/>".format("images/cover.jpg"))
-      t.append("    <meta name=\"cover\" content=\"images/cover.jpg\" />")
-
-    t.append("      META PLACEHOLDER")
-    t.append("    <style type=\"text/css\">")
-    t.append("      CSS PLACEHOLDER")
-    t.append("    </style>")
+    image = self.uprop.prop["cover image"] \
+        if "cover image" in self.uprop.prop else "images/cover.jpg"
+    t.extend([
+      f"    <link rel=\"coverpage\" href=\"{image}\"/>",
+      f"    <meta name=\"cover\" content=\"{image}\" />",
+      "      META PLACEHOLDER",
+      "    <style type=\"text/css\">",
+      "      CSS PLACEHOLDER",
+      "    </style>"
+    ])
 
     if len(self.supphd) > 0:
       t += self.supphd
@@ -2764,6 +2759,10 @@ hr.tbk {
         fatal("rend option " + key + " requires a number, not: " + opts[key])
     return value
 
+  # Note overridden in Kindle to disable leaders completely
+  def getLeaderName(self, col):
+    return col.leaderName;
+
   def oneTableBlock(self, openTag, block):
     self.tableCount += 1
     tableID = "tab" + str(self.tableCount)
@@ -2962,7 +2961,7 @@ hr.tbk {
 
         # If we have a leader for this column, add class=leader to the <td>
         # and surround the cell data with <span>...</span>
-        leaderName = col.leaderName
+        leaderName = self.getLeaderName(col);
         if leaderName != None and len(data) > 0:
           if class2 != '':
             class2 = class2 + ' '
