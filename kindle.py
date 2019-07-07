@@ -48,6 +48,11 @@ class Kindle(NonHTML): #{
         </table>
       </div>
     """.format(style, id, left, center, right)
+
+  # Floating dropcaps aren't particularly well aligned on kindles, so don't
+  # do anything special with them.
+  def getDropcapCSS(self):
+    return "[3333] .dropcap { }"
 #}
 
 class EPub(NonHTML): #{

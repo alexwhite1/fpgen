@@ -1843,6 +1843,9 @@ class HTML(Book): #{
 
     parseEmbeddedSingleLineTagWithContent(self.wb, "ditto", oneDitto)
 
+  def getDropcapCSS(self):
+    return dropCapCSS
+
   #
   # These tags are real hacks--used for two things
   # a) To put the paragraph marker in the correct place when we have a leading
@@ -1877,7 +1880,7 @@ class HTML(Book): #{
 
       # No image file? Generate simply a large letter
       if imgFile == None:
-        self.addcss(dropCapCSS)
+        self.addcss(self.getDropcapCSS())
 
         # If starts with a double-quote, this will remove it completely,
         # or it will be very large and look funny.

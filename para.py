@@ -258,7 +258,7 @@ def after(parent, tag, css):
 # been moved into the ParaIterator, which is responsible for finding
 # and returning us blocks of paragraphs.
 def markParaArray(parent, wb, globalStyle):
-  autoDropCap = after(parent, "drop-after", fpgen.dropCapCSS)
+  autoDropCap = after(parent, "drop-after", parent.getDropcapCSS())
   tagLeadIn = after(parent, "lead-in-after", leadInCSS)
   noindentAfter = after(parent, "pstyle-noindent-after", None)
 
