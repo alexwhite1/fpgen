@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import urllib.request
-import re
-from msgs import cprint, uprint, dprint, fatal
 from fpgen import HTML
 
 class NonHTML(HTML): #{
@@ -15,6 +12,10 @@ class NonHTML(HTML): #{
     return [
       "[105] .pageno { display:none; }"
     ]
+
+  # No page numbers shown, but still need to have the link target
+  def showPageNumber(self, pn, displayPN):
+    return f"<a name='Page_{pn}' id='Page_{pn}'></a>"
 
   # No margins on any non-html
   def getMargins(self):
@@ -29,9 +30,24 @@ class Kindle(NonHTML): #{
   def getLeaderName(self, col):
     return None
 
-  # epub ragged right
+  # kindle&epub ragged right
   def getTextAlignment(self):
     return "left"
+
+  # Kindle doesn't appear to pay attention to the text-align on the <td>
+  # So we stick in an extra <div>, with the text-align on that.
+  def tripleAlign(self, style, id, left, center, right):
+    return """
+      <div class='center' {} {}>
+        <table border="0" cellpadding="4" cellspacing="0" summary="triple" width="100%">
+        <tr>
+          <td><div style='text-align:left;'>{}</div></td>
+          <td><div style='text-align:center;'>{}</div></td>
+          <td><div style='text-align:right;'>{}</div></td>
+        </tr>
+        </table>
+      </div>
+    """.format(style, id, left, center, right)
 #}
 
 class EPub(NonHTML): #{

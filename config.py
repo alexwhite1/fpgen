@@ -182,8 +182,9 @@ from time import gmtime, strftime
 # 4.61c    Triple inside lg produced paragraph break in txt output
 # 4.61d    Add version check: fatal if we want newer version
 # 4.61e    Disable table leaders on kindle; refactor classes
+# 4.61f    Generate different code for triple on kindle
 
-VERSION="4.61e"
+VERSION="4.61f"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

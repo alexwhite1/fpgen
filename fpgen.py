@@ -1467,6 +1467,19 @@ class HTML(Book): #{
         thestyle += self.marginMap[key] + ":" + value + ";"
     return thestyle
 
+  def tripleAlign(self, style, id, left, center, right):
+    return """
+      <div class='center' {} {}>
+        <table border="0" cellpadding="4" cellspacing="0" summary="triple" width="100%">
+        <tr>
+          <td align='left'>{}</td>
+          <td align='center'>{}</td>
+          <td align='right'>{}</td>
+        </tr>
+        </table>
+      </div>
+    """.format(style, id, left, center, right)
+
   def m2h(self, s, pf=False, lgr=''):
     incoming = s
     m = re.match("<l(.*?)>(.*?)<\/l>",s)
@@ -1574,17 +1587,7 @@ class HTML(Book): #{
       pieces = thetext.split('|')
       if len(pieces) != 3:
         fatal("<l> triple alignment does not have three pieces: " + thetext)
-      s = """
-        <div class='center' {} {}>
-          <table border="0" cellpadding="4" cellspacing="0" summary="triple" width="100%">
-          <tr>
-            <td align='left'>{}</td>
-            <td align='center'>{}</td>
-            <td align='right'>{}</td>
-          </tr>
-          </table>
-        </div>
-      """.format(hstyle, hid, pieces[0], pieces[1], pieces[2])
+      s = self.tripleAlign(hstyle, hid, pieces[0], pieces[1], pieces[2])
     elif pf: # poetry
       self.css.addcss("[511] div.lgp p.line0 { text-indent:-3em; margin:0 auto 0 3em; }")
       if alignLast:
@@ -2378,6 +2381,9 @@ class HTML(Book): #{
     self.wb.append("  <!-- created with fpgen.py {} on {} -->".format(config.VERSION, config.NOW))
     self.wb.append("</html>")
 
+  def showPageNumber(self, pn, displayPN):
+    return f"<span class='pageno' title='{displayPN}' id='Page_{pn}'></span>"
+
   def doHeadings(self):
     self.dprint(1,"doHeadings")
 
@@ -2434,10 +2440,7 @@ class HTML(Book): #{
         self.css.addcss("[427] .nobreak { page-break-before: avoid; }")
 
       if showpage: # visible page numbers
-        if self.gentype != 'h': # other than browser HTML, just the link
-          span = "<a name='Page_{0}' id='Page_{0}'></a>".format(pn)
-        else:
-          span = "<span class='pageno' title='{1}' id='Page_{0}'></span>".format(pn, displayPN)
+        span = self.showPageNumber(pn, displayPN)
 
       self.css.addcss(headingCSS[hlevel])
       if hlevel == 1:
