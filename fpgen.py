@@ -943,8 +943,8 @@ class Book(object): #{
 
     wantMajor, wantMinor, wantLetter = self.parseVersion(want)
     major, minor, letter = self.parseVersion(config.VERSION)
-    dprint(1, f"want: {wantMajor}.{wantMinor}{wantLetter}".format())
-    dprint(1, f"this: {major}.{minor}{letter}".format())
+    dprint(1, f"want: {wantMajor}.{wantMinor}{wantLetter}")
+    dprint(1, f"this: {major}.{minor}{letter}")
 
     if wantMajor < major:
       return

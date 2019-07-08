@@ -184,8 +184,9 @@ from time import gmtime, strftime
 # 4.61e    Disable table leaders on kindle; refactor classes
 # 4.61f    Generate different code for triple on kindle
 # 4.61g    Disable dropcaps on kindle
+# 4.61h    Fix syntax error
 
-VERSION="4.61g"
+VERSION="4.61h"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
