@@ -1472,9 +1472,9 @@ class HTML(Book): #{
       <div class='center' {} {}>
         <table border="0" cellpadding="4" cellspacing="0" summary="triple" width="100%">
         <tr>
-          <td align='left'>{}</td>
-          <td align='center'>{}</td>
-          <td align='right'>{}</td>
+          <td style='width:33%' align='left'>{}</td>
+          <td style='width:33%' align='center'>{}</td>
+          <td style='width:33%' align='right'>{}</td>
         </tr>
         </table>
       </div>

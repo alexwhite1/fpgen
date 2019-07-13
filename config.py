@@ -185,8 +185,9 @@ from time import gmtime, strftime
 # 4.61f    Generate different code for triple on kindle
 # 4.61g    Disable dropcaps on kindle
 # 4.61h    Fix syntax error
+# 4.61i    Again, new code for kindle triple; fix triple center to 1/3
 
-VERSION="4.61h"
+VERSION="4.61i"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

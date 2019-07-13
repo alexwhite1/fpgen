@@ -37,17 +37,47 @@ class Kindle(NonHTML): #{
   # Kindle doesn't appear to pay attention to the text-align on the <td>
   # So we stick in an extra <div>, with the text-align on that.
   def tripleAlign(self, style, id, left, center, right):
-    return """
-      <div class='center' {} {}>
-        <table border="0" cellpadding="4" cellspacing="0" summary="triple" width="100%">
-        <tr>
-          <td><div style='text-align:left;'>{}</div></td>
-          <td><div style='text-align:center;'>{}</div></td>
-          <td><div style='text-align:right;'>{}</div></td>
-        </tr>
-        </table>
-      </div>
-    """.format(style, id, left, center, right)
+    # This works on the old kindle previewer, but not the new.
+    #return """
+    #  <div class='center' {} {}>
+    #    <table border="0" cellpadding="4" cellspacing="0" summary="triple" width="100%">
+    #    <tr>
+    #      <td><div style='text-align:left;'>{}</div></td>
+    #      <td><div style='text-align:center;'>{}</div></td>
+    #      <td><div style='text-align:right;'>{}</div></td>
+    #    </tr>
+    #    </table>
+    #  </div>
+    #""".format(style, id, left, center, right)
+
+    # This seems to work everywhere. Wish we could replace the 1.3em with
+    # the exact value, which is font dependent. Note if you were using for
+    # example superscripts and font size changes, this will not adjust
+    # line heights!
+    return f"""
+<div {id} {style}>
+  <div style='height:1.3em; margin-top:0; margin-bottom:0; visibility:hidden;'>
+    <p style='text-align:left; text-indent:0; margin-top:0; margin-bottom:0'>
+    x
+    </p>
+  </div>
+  <div style='height:1.3em; margin-top:-1.3em;margin-bottom:0'>
+    <p style='text-align:left; margin-top:0;margin-bottom:0'>
+    {left}
+    </p>
+  </div>
+  <div style='height:1.3em; margin-top:-1.3em;margin-bottom:0'>
+    <p style='text-align:right; margin-top:0;margin-bottom:0'>
+    {right}
+    </p>
+  </div>
+  <div style='height:1.3em; margin-top:-1.3em;margin-bottom:0;'>
+    <p style='text-align:center; margin-top:0;margin-bottom:0'>
+    {center}
+    </p>
+  </div>
+</div>
+""";
 
   # Floating dropcaps aren't particularly well aligned on kindles, so don't
   # do anything special with them.
