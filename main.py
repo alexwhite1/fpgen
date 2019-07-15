@@ -305,6 +305,7 @@ PDF_CONFIG_OPTS = {
 
 OPT_COMMON_ARGS = [
  "--chapter-mark", "\"none\"",
+ "--preserve-cover-aspect-ratio",
  "--disable-remove-fake-margins",
  "--page-breaks-before", "\"//h:div[@style='page-break-before:always'] | //*[(name()='h1' or name()='h2') and not(contains(@class, 'nobreak'))]\"",
  "--sr1-search", "\"<hr class=.pbk./>\"",

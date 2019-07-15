@@ -187,8 +187,9 @@ from time import gmtime, strftime
 # 4.61h    Fix syntax error
 # 4.61i    Again, new code for kindle triple; fix triple center to 1/3
 # 4.61j    gen.py: Use contains for nobreak in classes
+# 4.61k    Add --preserve-cover-aspect-ratio to ebook-convert
 
-VERSION="4.61j"
+VERSION="4.61k"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
