@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# For lxml html parsing package, need to do: python -m pip install lxml
+
 from optparse import OptionParser
 import re, sys, string, os, shutil
+from lxml import html
 
 # | //h:hr[@class='chap']
 
@@ -47,6 +50,15 @@ def usage():
   exit(1)
   return;
 
+def getMeta(tree, name, default):
+  for n in name:
+    meta = tree.xpath("//meta[@name='" + n + "']/@content")
+    if meta:
+      break
+  if not meta:
+    return default
+  return meta[0]
+
 # process command line
 parser = OptionParser()
 parser.add_option("-a", "--author", dest="author", default="unknown")
@@ -58,27 +70,39 @@ parser.add_option("-r", "--remove-first-image", action="store_true", dest="remov
 
 (options, args) = parser.parse_args()
 
-commonArgs = [
-    "--authors \"" + options.author + "\"",
-    "--title \"" + options.title + "\"",
-    "--pubdate \"" + options.pubdate + "\"",
-    "--tags \"" + options.tags + "\"",
-]
-if options.cover != "":
-    commonArgs = commonArgs + [ "--cover", "\"" + options.cover + "\"" ]
-if options.removeFirstImage != False:
-    commonArgs = commonArgs + [ "--remove-first-image" ]
-
 if len(args) != 1:
   usage()
 
 # check input filename
-m = re.match('(.*?)\.html$', args[0])
+htmlfile = args[0]
+m = re.match('(.*?)\.html$', htmlfile)
 if not m:
   print("source filename must end in \".html\".")
   exit(1)
 else:
   basename = m.group(1)
+
+with open(htmlfile, "r", encoding="utf-8") as input:
+  tree = html.parse(input)
+  title = getMeta(tree, [ "DC.Title" ], options.title)
+  author = getMeta(tree, [ "DC.Creator" ], options.author)
+  pubdate = getMeta(tree, [ "pss.pubdate", "DC.Created", "DC.date.created" ],
+      options.pubdate)
+  meta = tree.xpath("//link[@rel='coverpage']/@href")
+  if meta:
+    cover = meta[0] if meta else options.cover
+
+commonArgs = [
+    "--authors \"" + author + "\"",
+    "--title \"" + title + "\"",
+    "--pubdate \"" + pubdate + "\"",
+]
+if options.tags != "unknown":
+    commonArgs = commonArgs + [ "--tags \"" + options.tags + "\"" ]
+if cover != "":
+    commonArgs = commonArgs + [ "--cover", "\"" + cover + "\"" ]
+if options.removeFirstImage != False:
+    commonArgs = commonArgs + [ "--remove-first-image" ]
 
 convert(basename, ".epub", EPUB_ARGS)
 
