@@ -13,6 +13,7 @@
 import sys
 import os
 from optparse import OptionParser
+from epub import get_epub_info
 
 def fatal(line):
   sys.stderr.write("ERROR " + line)
@@ -54,6 +55,11 @@ for id in args:
   fetch(id)
   for format in formats:
     backup(id, format)
+  meta = get_epub_info(f"{id}.epub.save")
+  subject = meta['subject']
+  if subject:
+    tags = "--tags \"" + subject + "\""
+  sys.stderr.write("Using tags: " + tags + "\n")
   run(f"gen {tags} {id}.html")
   for format in formats:
     copyToFP(id, format)
