@@ -12,6 +12,7 @@
 
 import sys
 import os
+from optparse import OptionParser
 
 def fatal(line):
   sys.stderr.write("ERROR " + line)
@@ -21,7 +22,7 @@ def run(cmd):
   sys.stderr.write("-->" + cmd + "\n")
   exit = os.system(cmd)
   if exit != 0:
-    fatal(f"Exit code {exit} for command {cmd}")
+    fatal(f"Exit code {exit} for command {cmd}\n")
 
 # Retrieve the source file, and all images
 def fetch(id):
@@ -39,14 +40,20 @@ def copyToFP(id, format):
   run(f"scp {id}{format} fadedpage@ssh.fadedpage.com:books/{id}/{id}{format}")
 
 
-if len(sys.argv) < 2:
-  fatal("Usage: rerun-html book-id ...")
+parser = OptionParser()
+parser.add_option("-g", "--tags", dest="tags", default=None)
+(options, args) = parser.parse_args()
+
+tags = "--tags \"" + options.tags + "\"" if options.tags != None else ""
+
+if len(args) < 1:
+  fatal("Usage: rerun-html [--tags tags] book-id ...\n")
 
 formats = [ ".mobi", ".epub", "-a5.pdf" ]
-for id in sys.argv[1:]:
+for id in args:
   fetch(id)
   for format in formats:
     backup(id, format)
-  run(f"gen {id}.html")
+  run(f"gen {tags} {id}.html")
   for format in formats:
     copyToFP(id, format)
