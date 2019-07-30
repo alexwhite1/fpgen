@@ -59,12 +59,23 @@ def getMeta(tree, name, default):
     return default
   return meta[0]
 
+def getTitle(tree):
+  t = tree.xpath("//head/title/text()")[0]
+  m = re.match(r".*eBook of (.*)", t, re.DOTALL)
+  if m:
+    t = m.group(1)
+  m = re.match(r"(.*) by .*", t, re.DOTALL)
+  if m:
+    t = m.group(1)
+  return t.strip()
+
+
 # process command line
 parser = OptionParser()
-parser.add_option("-a", "--author", dest="author", default="unknown")
-parser.add_option("-t", "--title", dest="title", default="unknown")
-parser.add_option("-p", "--pubdate", dest="pubdate", default="unknown")
-parser.add_option("-g", "--tags", dest="tags", default="unknown")
+parser.add_option("-a", "--author", dest="author", default=None)
+parser.add_option("-t", "--title", dest="title", default=None)
+parser.add_option("-p", "--pubdate", dest="pubdate", default=None)
+parser.add_option("-g", "--tags", dest="tags", default=None)
 parser.add_option("-c", "--cover", dest="cover", default="images/cover.jpg")
 parser.add_option("-r", "--remove-first-image", action="store_true", dest="removeFirstImage", default=False)
 
@@ -84,25 +95,33 @@ else:
 
 with open(htmlfile, "r", encoding="utf-8") as input:
   tree = html.parse(input)
-  title = getMeta(tree, [ "DC.Title" ], options.title)
-  author = getMeta(tree, [ "DC.Creator" ], options.author)
-  pubdate = getMeta(tree, [ "pss.pubdate", "DC.Created", "DC.date.created" ],
-      options.pubdate)
-  meta = tree.xpath("//link[@rel='coverpage']/@href")
-  if meta:
-    cover = meta[0] if meta else options.cover
 
-commonArgs = [
-    "--authors \"" + author + "\"",
-    "--title \"" + title + "\"",
-    "--pubdate \"" + pubdate + "\"",
-]
-if options.tags != "unknown":
-    commonArgs = commonArgs + [ "--tags \"" + options.tags + "\"" ]
+title = getMeta(tree, [ "DC.Title" ], options.title)
+if title == None:
+  title = getTitle(tree)
+author = getMeta(tree, [ "DC.Creator" ], options.author)
+pubdate = getMeta(tree, [ "pss.pubdate", "DC.Created", "DC.date.created" ],
+    options.pubdate)
+tags = getMeta(tree, [ "DC.Subject", "Tags" ], options.tags)
+meta = tree.xpath("//link[@rel='coverpage']/@href")
+if meta:
+  cover = meta[0] if meta else options.cover
+
+commonArgs = [ ]
+if author:
+    commonArgs = commonArgs + [ "--authors \"" + author + "\"" ]
+if title != None:
+    commonArgs = commonArgs + [ "--title \"" + title + "\"" ]
+if pubdate != None:
+    commonArgs = commonArgs + [ "--pubdate \"" + pubdate + "\"" ]
+if tags != None:
+    commonArgs = commonArgs + [ "--tags \"" + tags + "\"" ]
 if cover != "":
     commonArgs = commonArgs + [ "--cover", "\"" + cover + "\"" ]
 if options.removeFirstImage != False:
     commonArgs = commonArgs + [ "--remove-first-image" ]
+
+print("Using args:\n" + str(commonArgs))
 
 convert(basename, ".epub", EPUB_ARGS)
 
