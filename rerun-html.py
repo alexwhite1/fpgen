@@ -50,13 +50,16 @@ def copyToFP(id, format):
 
 parser = OptionParser()
 parser.add_option("-g", "--tags", dest="tags", default=None)
-parser.add_option("-u", "--user", dest="user", default=os.environ['FPUSER'])
-parser.add_option("-p", "--password", dest="password", default=os.environ['FPPASSWORD'])
+parser.add_option("-u", "--user", dest="user", default=os.environ['FPUSER'] if 'FPUSER' in os.environ else None)
+parser.add_option("-p", "--password", dest="password", default=os.environ['FPPASSWORD'] if 'FPPASSWORD' in os.environ else None)
 parser.add_option("-s", "--sandbox", action="store_true", dest="sandbox",
     default=False)
 (options, args) = parser.parse_args()
 
 tags = "--tags \"" + options.tags + "\"" if options.tags != None else ""
+
+if options.password == None or options.user == None:
+  fatal("Must specify an fp user or password.\n")
 
 if len(args) < 1:
   fatal("Usage: rerun-html [--user fpusername] [--password fppassword] [--tags tags] book-id ...\n")
