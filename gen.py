@@ -106,7 +106,7 @@ if options.removeFirstImage != False:
 
 convert(basename, ".epub", EPUB_ARGS)
 
-convert(basename, "-a5.pdf", [
+pdfargs = [
   "--paper-size", "a5",
   "--pdf-page-margin-left", "20",
   "--pdf-page-margin-right", "20",
@@ -114,7 +114,11 @@ convert(basename, "-a5.pdf", [
   "--pdf-page-margin-bottom", "20",
   "--change-justification", "left",
   ]
-)
+extra = os.environ.get('FPGEN_EBOOK_CONVERT_EXTRA_ARGS_PDF')
+if extra:
+  print("Extra pdf conversion args: " + extra)
+  pdfargs.append(extra)
+convert(basename, "-a5.pdf", pdfargs)
 
 #convert(basename, ".mobi", [
 #  "--mobi-file-type", "new"
