@@ -31,8 +31,8 @@ def run(cmd):
     fatal(f"Exit code {exit} for command {cmd}\n")
 
 # Retrieve the source file, and all images
+# **note destructive to the images directory**
 def fetch(id):
-  run("rm -rf images")
   fps.downloadHTML(id)
   fps.downloadImages(id)
 
@@ -72,10 +72,13 @@ with FPSession(options.user, options.password, sandbox=options.sandbox) as fps:
       backup(id, format)
     meta = get_epub_info(f"{id}.epub.save")
     subject = meta['subject']
+    argv = [ "rerun-html" ]
     if subject:
-      tags = "--tags \"" + subject + "\""
-    sys.stderr.write("Using tags: " + tags + "\n")
-    run(f"gen {tags} {id}.html")
+      argv += [ "--tags", subject ]
+    argv += [ f"{id}.html" ]
+    sys.stderr.write("Invoking gen: " + str(argv) + "\n")
+    import gen
+    gen.main(argv)
     for format in formats:
       copyToFP(id, format)
 

@@ -34,7 +34,7 @@ EPUB_ARGS = [
   "--sr3-replace", "\"@media all\"",
 ]
 
-def convert(basename, targettype, targetOptions):
+def convert(basename, targettype, targetOptions, commonArgs):
   html = basename + ".html"
   target = basename + targettype
   command = [ "ebook-convert", html, target] + commonArgs + ARGS + targetOptions
@@ -70,82 +70,88 @@ def getTitle(tree):
   return t.strip()
 
 
-# process command line
-parser = OptionParser()
-parser.add_option("-a", "--author", dest="author", default=None)
-parser.add_option("-t", "--title", dest="title", default=None)
-parser.add_option("-p", "--pubdate", dest="pubdate", default=None)
-parser.add_option("-g", "--tags", dest="tags", default=None)
-parser.add_option("-c", "--cover", dest="cover", default="images/cover.jpg")
-parser.add_option("-r", "--remove-first-image", action="store_true", dest="removeFirstImage", default=False)
+def main(argv):
+  # process command line
+  parser = OptionParser()
+  parser.add_option("-a", "--author", dest="author", default=None)
+  parser.add_option("-t", "--title", dest="title", default=None)
+  parser.add_option("-p", "--pubdate", dest="pubdate", default=None)
+  parser.add_option("-g", "--tags", dest="tags", default=None)
+  parser.add_option("-c", "--cover", dest="cover", default="images/cover.jpg")
+  parser.add_option("-r", "--remove-first-image", action="store_true",
+      dest="removeFirstImage", default=False)
 
-(options, args) = parser.parse_args()
+  (options, args) = parser.parse_args(argv[1:])
 
-if len(args) != 1:
-  usage()
+  if len(args) != 1:
+    usage()
 
-# check input filename
-htmlfile = args[0]
-m = re.match('(.*?)\.html$', htmlfile)
-if not m:
-  print("source filename must end in \".html\".")
-  exit(1)
-else:
-  basename = m.group(1)
+  # check input filename
+  htmlfile = args[0]
+  m = re.match('(.*?)\.html$', htmlfile)
+  if not m:
+    print("source filename must end in \".html\".")
+    exit(1)
+  else:
+    basename = m.group(1)
 
-with open(htmlfile, "r", encoding="utf-8") as input:
-  tree = html.parse(input)
+  with open(htmlfile, "r", encoding="utf-8") as input:
+    tree = html.parse(input)
 
-title = getMeta(tree, [ "DC.Title" ], options.title)
-if title == None:
-  title = getTitle(tree)
-author = getMeta(tree, [ "DC.Creator" ], options.author)
-pubdate = getMeta(tree, [ "pss.pubdate", "DC.Created", "DC.date.created" ],
-    options.pubdate)
-tags = getMeta(tree, [ "DC.Subject", "Tags" ], options.tags)
-meta = tree.xpath("//link[@rel='coverpage']/@href")
-if meta:
-  cover = meta[0] if meta else options.cover
+  title = getMeta(tree, [ "DC.Title" ], options.title)
+  if title == None:
+    title = getTitle(tree)
+  author = getMeta(tree, [ "DC.Creator" ], options.author)
+  pubdate = getMeta(tree, [ "pss.pubdate", "DC.Created", "DC.date.created" ],
+      options.pubdate)
+  tags = getMeta(tree, [ "DC.Subject", "Tags" ], options.tags)
+  meta = tree.xpath("//link[@rel='coverpage']/@href")
+  if meta:
+    cover = meta[0] if meta else options.cover
 
-commonArgs = [ ]
-if author:
-    commonArgs = commonArgs + [ "--authors \"" + author + "\"" ]
-if title != None:
-    commonArgs = commonArgs + [ "--title \"" + title + "\"" ]
-if pubdate != None:
-    commonArgs = commonArgs + [ "--pubdate \"" + pubdate + "\"" ]
-if tags != None:
-    commonArgs = commonArgs + [ "--tags \"" + tags + "\"" ]
-if cover != "":
-    commonArgs = commonArgs + [ "--cover", "\"" + cover + "\"" ]
-if options.removeFirstImage != False:
-    commonArgs = commonArgs + [ "--remove-first-image" ]
+  commonArgs = [ ]
+  if author:
+      commonArgs = commonArgs + [ "--authors \"" + author + "\"" ]
+  if title != None:
+      commonArgs = commonArgs + [ "--title \"" + title + "\"" ]
+  if pubdate != None:
+      commonArgs = commonArgs + [ "--pubdate \"" + pubdate + "\"" ]
+  if tags != None:
+      commonArgs = commonArgs + [ "--tags \"" + tags + "\"" ]
+  if cover != "":
+      commonArgs = commonArgs + [ "--cover", "\"" + cover + "\"" ]
+  if options.removeFirstImage != False:
+      commonArgs = commonArgs + [ "--remove-first-image" ]
 
-print("Using args:\n" + str(commonArgs))
+  print("Using args:\n" + str(commonArgs))
 
-convert(basename, ".epub", EPUB_ARGS)
+  convert(basename, ".epub", EPUB_ARGS, commonArgs)
 
-pdfargs = [
-  "--paper-size", "a5",
-  "--pdf-page-margin-left", "20",
-  "--pdf-page-margin-right", "20",
-  "--pdf-page-margin-top", "20",
-  "--pdf-page-margin-bottom", "20",
-  "--change-justification", "left",
-  ]
-extra = os.environ.get('FPGEN_EBOOK_CONVERT_EXTRA_ARGS_PDF')
-if extra:
-  print("Extra pdf conversion args: " + extra)
-  pdfargs.append(extra)
-convert(basename, "-a5.pdf", pdfargs)
+  pdfargs = [
+    "--paper-size", "a5",
+    "--pdf-page-margin-left", "20",
+    "--pdf-page-margin-right", "20",
+    "--pdf-page-margin-top", "20",
+    "--pdf-page-margin-bottom", "20",
+    "--change-justification", "left",
+    ]
+  extra = os.environ.get('FPGEN_EBOOK_CONVERT_EXTRA_ARGS_PDF')
+  if extra:
+    print("Extra pdf conversion args: " + extra)
+    pdfargs.append(extra)
+  convert(basename, "-a5.pdf", pdfargs, commonArgs)
 
-#convert(basename, ".mobi", [
-#  "--mobi-file-type", "new"
-#  ]
-#)
+  #convert(basename, ".mobi", [
+  #  "--mobi-file-type", "new"
+  #  ]
+  #, commonArgs)
 
-# Run kindlegen to create the .mobi file.  If you use ebook-convert, then it will work fine
-# on fire* devices; but not on kindle devices.
-commandLine = "kindlegen " + basename + ".epub"
-print("Running: " + commandLine)
-os.system(commandLine)
+  # Run kindlegen to create the .mobi file.
+  # If you use ebook-convert, then it will work fine
+  # on fire* devices; but not on kindle devices.
+  commandLine = "kindlegen " + basename + ".epub"
+  print("Running: " + commandLine)
+  os.system(commandLine)
+
+if __name__ == "__main__":
+  main(sys.argv)
