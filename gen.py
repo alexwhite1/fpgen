@@ -69,6 +69,24 @@ def getTitle(tree):
     t = m.group(1)
   return t.strip()
 
+def getCover(tree):
+  # The cover could be in either
+  #   <meta name='cover' content='page'>
+  # or instead in
+  #   <link rel="coverpage" href="page">
+  cover = getMeta(tree, "cover", None)
+  if cover == None:
+    cover = tree.xpath("//head/link[@rel='coverpage']/@href")[0]
+  if cover == None:
+    return "images/cover.jpg"
+  return cover
+
+def removeFirstImage(tree, cover):
+
+  # Find the first image in the file
+  # i.e. <img src='page'>
+  img = tree.xpath("//body/descendant::img[1]/@src")[0]
+  return cover == img
 
 def main(argv):
   # process command line
@@ -77,9 +95,9 @@ def main(argv):
   parser.add_option("-t", "--title", dest="title", default=None)
   parser.add_option("-p", "--pubdate", dest="pubdate", default=None)
   parser.add_option("-g", "--tags", dest="tags", default=None)
-  parser.add_option("-c", "--cover", dest="cover", default="images/cover.jpg")
+  parser.add_option("-c", "--cover", dest="cover", default=None)
   parser.add_option("-r", "--remove-first-image", action="store_true",
-      dest="removeFirstImage", default=False)
+      dest="removeFirstImage", default=None)
 
   (options, args) = parser.parse_args(argv[1:])
 
@@ -105,9 +123,12 @@ def main(argv):
   pubdate = getMeta(tree, [ "pss.pubdate", "DC.Created", "DC.date.created" ],
       options.pubdate)
   tags = getMeta(tree, [ "DC.Subject", "Tags" ], options.tags)
-  meta = tree.xpath("//link[@rel='coverpage']/@href")
-  if meta:
-    cover = meta[0] if meta else options.cover
+
+  if options.cover == None:
+    options.cover = getCover(tree)
+
+  if options.removeFirstImage == None:
+    options.removeFirstImage = removeFirstImage(tree, options.cover)
 
   commonArgs = [ ]
   if author:
@@ -118,8 +139,8 @@ def main(argv):
       commonArgs = commonArgs + [ "--pubdate \"" + pubdate + "\"" ]
   if tags != None:
       commonArgs = commonArgs + [ "--tags \"" + tags + "\"" ]
-  if cover != "":
-      commonArgs = commonArgs + [ "--cover", "\"" + cover + "\"" ]
+  if options.cover != "":
+      commonArgs = commonArgs + [ "--cover", "\"" + options.cover + "\"" ]
   if options.removeFirstImage != False:
       commonArgs = commonArgs + [ "--remove-first-image" ]
 
