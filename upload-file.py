@@ -1,0 +1,67 @@
+#!python
+
+# Upload one or more files to a book directory on fadedpage.
+#
+# Requires a fadedpage admin login.  Set your user and password
+# either through the --user and --password options, or with
+# the FPUSER and FPPASSWORD environment variables.
+#
+# Args is a list of fadedpage book ids
+# Old format file is left in 20######.format.save
+# New format file is left in 20######.format
+
+import sys
+import os
+import re
+from optparse import OptionParser
+from epub import get_epub_info
+from FPSession import FPSession
+
+def fatal(line):
+  sys.stderr.write("ERROR " + line + "\n")
+  exit(1)
+
+def run(cmd):
+  sys.stderr.write("-->" + cmd + "\n")
+  exit = os.system(cmd)
+  if exit != 0:
+    fatal(f"Exit code {exit} for command {cmd}")
+
+parser = OptionParser()
+parser.add_option("-u", "--user", dest="user", default=os.environ['FPUSER'] if 'FPUSER' in os.environ else None)
+parser.add_option("-p", "--password", dest="password", default=os.environ['FPPASSWORD'] if 'FPPASSWORD' in os.environ else None)
+parser.add_option("-s", "--sandbox", action="store_true", dest="sandbox",
+    default=False)
+parser.add_option("-b", "--bookid", dest="bookid", default=None)
+(options, args) = parser.parse_args()
+
+if options.password == None or options.user == None:
+  fatal("Must specify an fp user or password.")
+
+if options.bookid == None:
+  fatal("Must specify a book id!")
+
+if not re.match("^20[01]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.bookid):
+  fatal("Bookid doesn't look correct: " + options.bookid)
+
+if len(args) < 1:
+  fatal("Usage: upload-file [--user fpusername] [--password fppassword] [--bookid book-id] file ...")
+
+formats = { ".jpg", ".png" }
+with FPSession(options.user, options.password, sandbox=options.sandbox) as fps:
+  for file in args:
+    found = False
+    for format in formats:
+      if file.endswith(format):
+        found = True
+        break
+    if not found:
+      fatal("File " + file + " must end in " + str(formats))
+    dirname = os.path.dirname(file)
+    basename = os.path.basename(file)
+    if not re.match("^[\w \.]*$", dirname):
+      fatal("Bad directory: " + dirname)
+    if not re.match("^[\w \.]*$", basename):
+      fatal("Bad filename: " + basename)
+
+    fps.uploadOne(options.bookid, file)

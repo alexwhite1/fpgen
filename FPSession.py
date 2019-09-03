@@ -93,6 +93,8 @@ class FPSession(object): #{
     #  if bookid in f:
     #    self.writeFile(f, v)
 
+  # Download all image files. Deletes any current images directory
+  # and rebuilds it!
   def downloadImages(self, bookid):
     content = self.request("admin/file_rmi.php", {
       'operation' : 'fetch-images',
@@ -105,8 +107,9 @@ class FPSession(object): #{
         remove("images/" + f)
       rmdir('images')
     mkdir('images')
+    print("Image download:")
     for f in dir:
-      print(f + ": " + str(len(dir[f])))
+      print("\t" + f + ": " + str(len(dir[f])))
       self.writeFileJSON("images/" + f, dir[f])
 
   def uploadFormat(self, bookid, format):
@@ -116,6 +119,14 @@ class FPSession(object): #{
       r = self.session.post(self.site +
           "admin/file_rmi.php?operation=upload-format&bookid=" +
           bookid + "&format=" + format, f)
+      r.raise_for_status()
+
+  def uploadOne(self, bookid, file):
+    print("Uploading: " + file)
+    with open(file, 'rb') as f:
+      r = self.session.post(self.site +
+          "admin/file_rmi.php?operation=upload-file&bookid=" +
+          bookid + "&file=" + file, f)
       r.raise_for_status()
 
 #}
