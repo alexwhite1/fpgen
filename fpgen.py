@@ -397,25 +397,25 @@ class Book(object): #{
         del(self.wb[i])
         shortused = True
 
-      m = re.match(r".cover (.*)", self.wb[i])
+      m = re.match(r"\.cover (.*)", self.wb[i])
       if m:
         config.pn_cover = m.group(1)
         where = i
         del(self.wb[i])
 
-      m = re.match(r".displaytitle (.*)", self.wb[i])
+      m = re.match(r"\.displaytitle (.*)", self.wb[i])
       if m:
         pn_displaytitle = m.group(1)
         where = i
         del(self.wb[i])
 
-      m = re.match(r".generator (.*)", self.wb[i])
+      m = re.match(r"\.generator (.*)", self.wb[i])
       if m:
         m_generator = m.group(1)
         where = i
         del(self.wb[i])
 
-      m = re.match(r".tags (.*)", self.wb[i])
+      m = re.match(r"\.tags (.*)", self.wb[i])
       if m:
         dc_subject = m.group(1)
         where = i
