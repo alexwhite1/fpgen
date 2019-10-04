@@ -189,8 +189,9 @@ from time import gmtime, strftime
 # 4.61j    gen.py: Use contains for nobreak in classes
 # 4.61k    Add --preserve-cover-aspect-ratio to ebook-convert
 # 4.61l    Escape dot for leading .tags
+# 4.62     gen: Add fadedpage-toc meta
 
-VERSION="4.61l"
+VERSION="4.62"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

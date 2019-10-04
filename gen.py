@@ -25,7 +25,6 @@ ARGS = [
 # "--sr1-search", "\"<br\/><br\/>\"",
 # "--sr1-replace", "—",
  "--chapter", "\"//*[(name()='h1' or name()='h2')]\"",
- "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\""
 ]
 
 EPUB_ARGS = [
@@ -49,6 +48,10 @@ def usage():
   print("--cover \"\" to indicate no cover page; one will be generated.");
   exit(1)
   return;
+
+def fatal(line):
+  sys.stderr.write("Error: " + line + "\n")
+  exit(1)
 
 def getMeta(tree, name, default):
   for n in name:
@@ -87,6 +90,19 @@ def removeFirstImage(tree, cover):
   # i.e. <img src='page'>
   img = tree.xpath("//body/descendant::img[1]/@src")[0]
   return cover == img
+
+# "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\""
+def tocLevels(tree):
+  content = getMeta(tree, [ "fadedpage-toc" ], "h1,h2")
+  tags = content.split(',')
+  if len(tags) > 3:
+    fatal("Meta tag fadedpage-toc contains more than three levels: " + str(tags))
+  args = [ ]
+  n = 1
+  for tag in tags:
+    args.append('--level' + str(n) + '-toc \"//h:' + tag + '\"')
+    n += 1
+  return args
 
 def main(argv):
   # process command line
@@ -144,9 +160,12 @@ def main(argv):
   if options.removeFirstImage != False:
       commonArgs = commonArgs + [ "--remove-first-image" ]
 
+  commonArgs = commonArgs + tocLevels(tree)
+
   print("Using args:\n" + str(commonArgs))
 
   convert(basename, ".epub", EPUB_ARGS, commonArgs)
+  return
 
   pdfargs = [
     "--paper-size", "a5",
