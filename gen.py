@@ -165,7 +165,6 @@ def main(argv):
   print("Using args:\n" + str(commonArgs))
 
   convert(basename, ".epub", EPUB_ARGS, commonArgs)
-  return
 
   pdfargs = [
     "--paper-size", "a5",
