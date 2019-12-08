@@ -79,7 +79,11 @@ def getCover(tree):
   #   <link rel="coverpage" href="page">
   cover = getMeta(tree, "cover", None)
   if cover == None:
-    cover = tree.xpath("//head/link[@rel='coverpage']/@href")[0]
+    cover = tree.xpath("//head/link[@rel='coverpage']/@href")
+    if len(cover) == 0:
+      cover = None
+    else:
+      cover = cover[0]
   if cover == None:
     return "images/cover.jpg"
   return cover
@@ -88,7 +92,10 @@ def removeFirstImage(tree, cover):
 
   # Find the first image in the file
   # i.e. <img src='page'>
-  img = tree.xpath("//body/descendant::img[1]/@src")[0]
+  img = tree.xpath("//body/descendant::img[1]/@src")
+  if len(img) == 0:
+    return False
+  img = img[0]
   return cover == img
 
 # "--level1-toc \"//h:h1\" --level2-toc \"//h:h2\""
