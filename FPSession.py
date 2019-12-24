@@ -66,6 +66,13 @@ class FPSession(object): #{
     import time
     time.sleep(1)
 
+  def downloadSC(self, file):
+    with self.requestStream("admin/file_rmi.php", {
+      'operation' : 'fetch-sc',
+      'file' : file
+    }) as response:
+      self.writeFile(file, response)
+
   def downloadHTML(self, bookid):
     with self.requestStream("admin/file_rmi.php", {
       'operation' : 'fetch-html',
@@ -127,6 +134,13 @@ class FPSession(object): #{
       r = self.session.post(self.site +
           "admin/file_rmi.php?operation=upload-file&bookid=" +
           bookid + "&file=" + file, f)
+      r.raise_for_status()
+
+  def uploadSC(self, file):
+    print("Uploading to special collections: " + file)
+    with open(file, 'rb') as f:
+      r = self.session.post(self.site +
+          "admin/file_rmi.php?operation=upload-sc&file=" + file, f)
       r.raise_for_status()
 
 #}
