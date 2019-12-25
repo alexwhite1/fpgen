@@ -6,6 +6,7 @@
 
 import requests
 import json
+from requests.exceptions import ConnectionError
 from os import mkdir, path, rmdir, listdir, remove
 import os
 
@@ -14,7 +15,7 @@ class FPSession(object): #{
   def __init__(self, user, password, sandbox=False):
     self.site = "https://www.sandbox.fadedpage.com/" if sandbox else \
                 "https://www.fadedpage.com/"
-    print("Operating against " + self.site)
+    print("Logging into " + self.site)
     self.session = requests.Session()
     content = self.request("login2.php", data = {
       'myusername' : user,
@@ -28,7 +29,12 @@ class FPSession(object): #{
     return self
 
   def __exit__(self, type, value, t):
-    self.request("logout.php", {})
+    print("Logging out...");
+    try:
+      self.request("logout.php", {})
+    except ConnectionError:
+      print("Ignoring log out failure")
+    print("closing...");
     self.session.close()
 
   def request(self, page, data):
