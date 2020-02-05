@@ -174,7 +174,7 @@ def quote(line):
   line = re.sub(r"([\.,!?a-z])'", r"\1’", line)
 
   # Common, non-ambiguous contractions
-  for word in [ "em", "Twas", "twas", "Tis", "tis", "Twould", "twould", "Twill", "twill" ]:
+  for word in [ "em", "Twas", "twas", "Tis", "tis", "Twould", "twould", "Twill", "twill", "phone", "phoned", "phoning", "cello" ]:
     line = re.sub(r'([ “]|^)‘' + word + r'([ !,\.?—:]|$)', r'\1’' + word + r'\2', line)
 
   # Insert narrow non-breaking space between adjacent quotes
@@ -256,6 +256,7 @@ inFN = False
 inIll = False
 illStartLine = None
 chapHead = False
+subHead = False
 
 rawdata = open(src, "rb").read()
 encoding = chardet.detect(rawdata)['encoding']
@@ -286,10 +287,16 @@ with open(src, "r", encoding=encoding) as input:
       if blanks >= 4:
           line = "<chap-head pn='XXX'>" + line + "</chap-head>"
           chapHead = True
+          subHead = False
       elif blanks == 1 and chapHead and line != "/*":
-        line = "<sub-head>" + line + "</sub-head>"
+        if subHead:
+          line = "<heading level='3'>" + line + "</heading>"
+        else:
+          line = "<sub-head>" + line + "</sub-head>"
+        subHead = True
       elif blanks >= 2:
         chapHead = False
+        subHead = False
       if line == "/#":
         line = "<quote>"
       elif line == "#/":
