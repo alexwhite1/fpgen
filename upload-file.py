@@ -1,14 +1,16 @@
 #!python
 
 # Upload one or more files to a book directory on fadedpage.
+# No relative paths are permitted; and only files ending in .jpg or .png
+# are transferred.
+# You must give the bookid using the --bookid option; and a list of files
+# which exist locally, in the current directory, that are sent to the
+# book directory on the server.
 #
 # Requires a fadedpage admin login.  Set your user and password
 # either through the --user and --password options, or with
 # the FPUSER and FPPASSWORD environment variables.
 #
-# Args is a list of fadedpage book ids
-# Old format file is left in 20######.format.save
-# New format file is left in 20######.format
 
 import sys
 import os
@@ -41,7 +43,7 @@ if options.password == None or options.user == None:
 if options.bookid == None:
   fatal("Must specify a book id!")
 
-if not re.match("^20[01]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.bookid):
+if not re.match("^20[012]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.bookid):
   fatal("Bookid doesn't look correct: " + options.bookid)
 
 if len(args) < 1:

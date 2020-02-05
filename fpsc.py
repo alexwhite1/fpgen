@@ -1,18 +1,17 @@
 #!python
 
-# Fetch one or more book's html source from fadedpage,
-# rerun gen, and send the resulting mobi/pdf/epub
-# output back to fadedpage.
-# Do not use for fpgen projects, if there is a -src.txt file
-# present on the server, you will get an error.
+# Get or put a file into the special collections directory.
+# No relative paths are permitted; and only files ending in .php or .jpg
+# are transferred.
+# For --put, the files are retrieved from the current directory and sent
+# to the server sc directory.
+# For --get, the files are retrieved from the server's sc directory, and
+# placed into the current directory locally.
 #
 # Requires a fadedpage admin login.  Set your user and password
 # either through the --user and --password options, or with
 # the FPUSER and FPPASSWORD environment variables.
 #
-# Args is a list of fadedpage book ids
-# Old format file is left in 20######.format.save
-# New format file is left in 20######.format
 
 import sys
 import os
