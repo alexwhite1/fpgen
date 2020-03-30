@@ -4119,27 +4119,28 @@ class Text(Book): #{
         if 'credit' in captions:
           credit = captions['credit']
         if caption is None:
-          caption = credit
+          c = [ " ".join(credit).strip() ]
         elif not credit is None:
-          credit.extend(caption)
-          caption = credit
-        caption = " ".join(caption).strip()
+          c = [
+              " ".join(credit).strip(),
+              " ".join(caption).strip()
+            ]
+        else:
+          c = [ " ".join(caption).strip() ]
 
-        # if there is a <br> in the caption, then user wants
-        # control of line breaks. otherwise, wrap
-        m = re.search("<br\/?>", caption)
-        if m: # user control
-          s = "[Illustration: " + caption + "]"
-          s = re.sub("<br\/?>", "\n", s)
+        c[0] = "[Illustration: " + c[0]
+        c[-1] = c[-1] + "]"
+
+        for l in c:
           t.append("▹.rs 1")
-          u = s.split('\n')
-          for x in u:
-            t.append(config.FORMATTED_PREFIX+x) # may be multiple lines
-          t.append("▹.rs 1")
-        else: # fpgen wraps illustration line
-          s = "[Illustration: " + caption + "]"
-          t.append("▹.rs 1")
-          u = wrap2(s)
+          # if there is a <br> in the caption, then user wants
+          # control of line breaks. otherwise, wrap
+          m = re.search("<br\/?>", l)
+          if m: # user control
+            s = re.sub("<br\/?>", "\n", l)
+            u = s.split('\n')
+          else: # fpgen wraps illustration line
+            u = wrap2(l)
           for x in u:
             t.append(config.FORMATTED_PREFIX+x) # may be multiple lines
           t.append("▹.rs 1")

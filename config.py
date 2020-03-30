@@ -190,8 +190,9 @@ from time import gmtime, strftime
 # 4.61k    Add --preserve-cover-aspect-ratio to ebook-convert
 # 4.61l    Escape dot for leading .tags
 # 4.62     gen: Add fadedpage-toc meta
+# 4.62a    Blank line between credit/caption in text output
 
-VERSION="4.62"
+VERSION="4.62a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
