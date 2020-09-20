@@ -191,8 +191,9 @@ from time import gmtime, strftime
 # 4.61l    Escape dot for leading .tags
 # 4.62     gen: Add fadedpage-toc meta
 # 4.62a    Blank line between credit/caption in text output
+# 4.62b    Clear float in drop-caps
 
-VERSION="4.62a"
+VERSION="4.62b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

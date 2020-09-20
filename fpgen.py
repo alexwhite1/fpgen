@@ -617,6 +617,7 @@ class Book(object): #{
         del self.wb[i] # macro has been stored
         i -= 1
       i += 1
+    dprint(1, "Macros defined: " + str(macro));
 
     # apply macros to text
     self.dprint(1, "apply macros")
@@ -631,7 +632,9 @@ class Book(object): #{
         if not macroName in macro: # is this in our list of macros already defined?
           wprint('macro', "warning: macro %{}% undefined in line\n>>>{}<<<\nIgnoring, may simply be two percent signs on the line.".format(macroName, self.wb[i]))
           break
+        dprint(1, "Sub in " + line + ", " + macro[macroName]);
         line = line[0:m.start(0)] + macro[macroName] + line[m.end(0):]
+        dprint(1, "result:" + line);
         self.wb[i] = line
       i += 1
 
@@ -1916,8 +1919,10 @@ class HTML(Book): #{
           dprint(1,file);
           w = widths[i]
           percent = 100 * float(w) / imageWidth
+          # Note we need clear:left, or if the sum of two image widths fits,
+          # they will be horizontally stacked.
           img += "⩤img src='" + file + \
-            "' style='float:left;width:" + str(percent) + "%' alt='" + \
+            "' style='float:left;clear:left;width:" + str(percent) + "%' alt='" + \
             letter + "'/⩥"
         img += "⩤/div⩥"
         img += self.dropCapParaMarker
@@ -4119,7 +4124,10 @@ class Text(Book): #{
         if 'credit' in captions:
           credit = captions['credit']
         if caption is None:
-          c = [ " ".join(credit).strip() ]
+          if credit is None:
+            c = [ "" ]
+          else:
+            c = [ " ".join(credit).strip() ]
         elif not credit is None:
           c = [
               " ".join(credit).strip(),
@@ -4278,7 +4286,7 @@ class Text(Book): #{
       if re.match("<\/quote>", self.wb[i]):
         self.qstack.pop()
         if len(self.qstack) == 0:
-          fatal("</quote> encounted without matching open <quote>" + self.last(i))
+          fatal("</quote> encountered without matching open <quote>" + self.last(i))
         del(self.wb[i])
         continue
 
