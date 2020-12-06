@@ -3059,6 +3059,11 @@ hr.tbk {
       if imgFile == "":
         self.fatal("no image filename specified in {}".format(args))
 
+      alt = ""
+      if "alt" in attr:
+        from html import escape
+        alt = escape(attr["alt"], quote=True)
+
       # --------------------------------------------------------------------
       # pull rend string, if any
       i_rend = attr["rend"] if "rend" in attr else ""
@@ -3179,13 +3184,13 @@ hr.tbk {
             if i_occupy[-1] == '%':
               percent *= int(i_occupy[0:-1])/100
           style="clear:both;float:{};height:{};width:{}%;".format(i_posn, i_h, percent)
-          t.append("<img src='{}' style='{}' alt=''/>".format(file, style))
+          t.append("<img src='{}' style='{}' alt='{}'/>".format(file, style, alt))
       else:
         t.append("<div class='fig{}'{}>".format(i_posn, occupyStyle))
         if s0:
           t.append(s0)
         style="width:{};height:{};".format(i_w, i_h)
-        t.append("<img src='{}' alt='' id='{}' style='{}'/>".format(imgFile, i_id, style))
+        t.append("<img src='{}' alt='{}' id='{}' style='{}'/>".format(imgFile, alt, i_id, style))
 
       if s1:
         t.append(s1)
@@ -5677,7 +5682,7 @@ class TableCell: #{
 
 # legal attributes on <illustration>
 illustrationAttributes = [
-  "content", "src", "rend", "id",
+  "content", "src", "rend", "id", "alt",
 ]
 
 headerAttributes = [

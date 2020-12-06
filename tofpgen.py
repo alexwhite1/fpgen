@@ -86,9 +86,7 @@ preamble = """/* This is """ + basename + """-src as of """ + date + """ */
 
 <property name="cover image" content="images/cover.jpg">
 
-<option name="pdf-default-font-size" content="16">
 <option name="pstyle" content="indent">
-<option name="footnote-location" content="heading-reset">
 
 <meta name="DC.Creator" content="AUTHOR">
 <meta name="DC.Title" content="TITLE">
@@ -98,7 +96,7 @@ preamble = """/* This is """ + basename + """-src as of """ + date + """ */
 <meta name="DC.Subject" content="SUBJECT">
 <meta name="Tags" content="SUBJECT">
 <meta name="Series" content="SERIES [15]">
-<meta name="generator" content="fpgen 4.62b">
+<meta name="generator" content="fpgen 4.63">
 
 <lit section="head">
     <style type="text/css">
@@ -252,11 +250,54 @@ def illustration(line):
 
   return line
 
+def emitTOC(block, output):
+
+  # If there is at least one line ending in whitespace number, assume
+  # the TOC has page numbers
+  hasPageNumbers = False
+  for l in block:
+    if re.search(r"  *[0-9][0-9]*$", l):
+      hasPageNumbers = True
+      break
+
+  if hasPageNumbers:
+    output.write("<table pattern='r h r'>\n")
+    r = re.compile("^([^ ][^ ]*)  *(.*)  *([0-9][0-9]*)$")
+  else:
+    output.write("<table pattern='r h'>\n")
+    r = re.compile("^ *([^ ][^ ]*)  *(.*)$")
+
+  for l in block:
+    if l == "":
+      continue
+    m = re.match(r"^([A-Z]*) *([A-Z]*)$", l)
+    if m:
+      # CHAPTER PAGE
+      a = m.group(1)
+      b = m.group(2)
+      output.write("<fs:xs>"+a+"</fs>||<fs:xs>"+b+"</fs>\n")
+    else:
+      m = r.match(l)
+      if m:
+        chno = m.group(1)
+        name = m.group(2).strip()
+        if hasPageNumbers:
+          pn = m.group(3)
+          output.write(chno + "|" + name + "|#" + pn + "#\n")
+        else:
+          output.write(chno + "|" + name + "\n")
+      else:
+        output.write("???? " + l + "\n")
+  output.write("</table>\n")
+
+
 inFN = False
 inIll = False
 illStartLine = None
 chapHead = False
 subHead = False
+inTOC = False
+startTOC = False
 
 rawdata = open(src, "rb").read()
 encoding = chardet.detect(rawdata)['encoding']
@@ -274,20 +315,44 @@ with open(src, "r", encoding=encoding) as input:
 
       if line == "":
         blanks += 1
-        output.write("\n")
+        if not inTOC:
+          output.write("\n")
         continue
 
       line = line.replace("--", "—")
       line = quote(line)
+
+      # Matched the /* after a line with CONTENTS
+      # Accumulate the whole block, process it in one
+      if inTOC:
+        if line == "*/":
+          # End of TOC, process now
+          startTOC = False
+          inTOC = False
+          emitTOC(tocBlock, output)
+          blanks = 0
+        elif line != "":
+          # Accumulate line
+          tocBlock.append(line)
+        blanks = 0
+        continue
+
+      if blanks == 2 and chapHead and line == "/*" and startTOC:
+        inTOC = True
+        tocBlock = []
+        continue
+
       if line == "/*" or regexIllOne.match(line) or regexIllNoCap.match(line) \
       or regexIllStart.match(line):
         blanks = 0
         chapHead = False
 
       if blanks >= 4:
-          line = "<chap-head pn='XXX'>" + line + "</chap-head>"
-          chapHead = True
-          subHead = False
+        if re.fullmatch(r'contents', line, re.IGNORECASE) != None:
+          startTOC = True
+        line = "<chap-head pn='XXX'>" + line + "</chap-head>"
+        chapHead = True
+        subHead = False
       elif blanks == 1 and chapHead and line != "/*":
         if subHead:
           line = "<heading level='3'>" + line + "</heading>"
@@ -297,6 +362,7 @@ with open(src, "r", encoding=encoding) as input:
       elif blanks >= 2:
         chapHead = False
         subHead = False
+        startTOC = False    # Or error!
       if line == "/#":
         line = "<quote>"
       elif line == "#/":

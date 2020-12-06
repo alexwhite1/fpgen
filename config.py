@@ -192,8 +192,9 @@ from time import gmtime, strftime
 # 4.62     gen: Add fadedpage-toc meta
 # 4.62a    Blank line between credit/caption in text output
 # 4.62b    Clear float in drop-caps
+# 4.63     Add alt tag to <illustration>
 
-VERSION="4.62b"
+VERSION="4.63"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
