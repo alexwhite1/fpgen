@@ -229,10 +229,11 @@ def illustration(line):
   if (mStart or mNoCap) and inIll:
     fatal("already in ill at " + line + ", which started at " + illStartLine)
 
+  commonIll = "<illustration rend='w:WW%' alt='AAA' src='images/XXX.jpg'";
   # One line illustration with caption
   if mOne:
     caption = mOne.group(1)
-    line = "<illustration rend='w:WW%' src='images/XXX.jpg'>\n<caption>\n" + \
+    line = commonIll + ">\n<caption>\n" + \
       caption + "\n</caption>\n</illustration>\n"
     return line
 
@@ -241,12 +242,11 @@ def illustration(line):
     captionStart = line[15:].strip()
     inIll = True
     illStartLine = line
-    return "<illustration rend='w:WW%' src='images/XXX.jpg'>\n<caption>\n" + \
-      captionStart 
+    return commonIll + ">\n<caption>\n" + captionStart 
 
   # Illustration without caption
   if mNoCap:
-    return "<illustration rend='w:WW%' src='images/XXX.jpg'/>"
+    return commonIll + "/>";
 
   return line
 
