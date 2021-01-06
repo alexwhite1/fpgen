@@ -262,7 +262,7 @@ def emitTOC(block, output):
 
   if hasPageNumbers:
     output.write("<table pattern='r h r'>\n")
-    r = re.compile("^([^ ][^ ]*)  *(.*)  *([0-9][0-9]*)$")
+    r = re.compile("^([^ ][^ ]*)  *(.*)[ \.][ \.]*([0-9][0-9]*)$")
   else:
     output.write("<table pattern='r h'>\n")
     r = re.compile("^ *([^ ][^ ]*)  *(.*)$")
@@ -348,16 +348,18 @@ with open(src, "r", encoding=encoding) as input:
         chapHead = False
 
       if blanks >= 4:
-        if re.fullmatch(r'contents', line, re.IGNORECASE) != None:
+        if re.match(r'contents', line, re.IGNORECASE) != None:
           startTOC = True
-        line = "<chap-head pn='XXX'>" + line + "</chap-head>"
+        if not ("<chap-head " in line):
+          line = "<chap-head pn='XXX'>" + line + "</chap-head>"
         chapHead = True
         subHead = False
       elif blanks == 1 and chapHead and line != "/*":
         if subHead:
           line = "<heading level='3'>" + line + "</heading>"
         else:
-          line = "<sub-head>" + line + "</sub-head>"
+          if not ("<sub-head>" in line):
+            line = "<sub-head>" + line + "</sub-head>"
         subHead = True
       elif blanks >= 2:
         chapHead = False
