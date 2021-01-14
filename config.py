@@ -193,8 +193,9 @@ from time import gmtime, strftime
 # 4.62a    Blank line between credit/caption in text output
 # 4.62b    Clear float in drop-caps
 # 4.63     Add alt tag to <illustration>
+# 4.63a    Fix poetry-container css bug
 
-VERSION="4.63"
+VERSION="4.63a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

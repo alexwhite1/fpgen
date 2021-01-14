@@ -3499,7 +3499,7 @@ hr.tbk {
       if m:
         rendopts = ""
 
-      if re.search("poetry-container", self.wb[i]):
+      if re.search("<div class='poetry-container'", self.wb[i]):
         inPoetry = True # poetry lines are different
         self.lastLineRaw = None
       if re.search("<!-- end poetry block -->", self.wb[i]):
