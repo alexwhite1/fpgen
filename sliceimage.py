@@ -83,11 +83,12 @@ def contour(file):
   print("maxslices={}, padding={}, mergeDistancePixels={}, minHeightPixels={}".format(maxslices, padding, options.mergeDistancePixels, options.minHeightPixels))
 
   print(file + ":")
-  if file[-4:] != ".jpg":
-    sys.stderr.write(file + ": File must end in .jpg\n")
+  if file[-4:] != ".jpg" and file[-4:] != ".png":
+    sys.stderr.write(file + ": File must end in .jpg or .png\n")
     exit(1)
   basename = file[0:-4]
-  print("Basename: " + basename)
+  fileFormat = file[-3:]
+  print("Basename: " + basename + ", format=" + fileFormat)
 
   # Load the file, convert to greyscale, and find the contours
   T = io.imread(file)
@@ -175,9 +176,9 @@ def contour(file):
     # Assume no more than 99 slices, fill with leading zero, so fpgen can
     # sort without alpha.  ,w=size allows figuring out width percent
     file = basename + "," + str(sliceNumber).zfill(2) + \
-        ",w=" + str(w) + ".jpg"
+        ",w=" + str(w) + "." + fileFormat;
     print("Writing new slice: " + file)
-    plt.imsave(file, slice, format="jpg", cmap='gray')
+    plt.imsave(file, slice, format=fileFormat, cmap='gray')
 
     if options.gui:
       left = plt.subplot2grid((nslices, 2), (sliceNumber, 0))
