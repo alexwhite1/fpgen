@@ -87,6 +87,8 @@ preamble = """/* This is """ + basename + """-src as of """ + date + """ */
 <property name="cover image" content="images/cover.jpg">
 
 <option name="pstyle" content="indent">
+//<option name="summary-style" content="center">
+//<option name="poetry-style" content="center">
 
 <meta name="DC.Creator" content="AUTHOR">
 <meta name="DC.Title" content="TITLE">
@@ -96,7 +98,7 @@ preamble = """/* This is """ + basename + """-src as of """ + date + """ */
 <meta name="DC.Subject" content="SUBJECT">
 <meta name="Tags" content="SUBJECT">
 <meta name="Series" content="SERIES [15]">
-<meta name="generator" content="fpgen 4.63">
+<meta name="generator" content="fpgen 4.63b">
 
 <lit section="head">
     <style type="text/css">

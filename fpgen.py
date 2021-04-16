@@ -5879,6 +5879,9 @@ illustrationLeftSlicedCSS = """[387]
   text-align:center;
   page-break-inside: avoid;
 }
+.figLeftSliced .caption{
+  float: left;
+}
 """
 
 illustrationRightSlicedCSS = """[388]
@@ -5890,6 +5893,9 @@ illustrationRightSlicedCSS = """[388]
   padding:0;
   text-align:center;
   page-break-inside: avoid;
+}
+.figRightSliced .caption{
+  float: right;
 }
 """
 
