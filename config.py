@@ -195,8 +195,9 @@ from time import gmtime, strftime
 # 4.63     Add alt tag to <illustration>
 # 4.63a    Fix poetry-container css bug
 # 4.63b    Fix caption in sliced float
+# 4.64     gesperrt in text no longer spaced; treat like italic.
 
-VERSION="4.63b"
+VERSION="4.64"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

@@ -3716,6 +3716,7 @@ class Text(Book): #{
     s = re.sub("\[\[\/?i\]\]", "_", s) # italics
     s = re.sub("\[\[\/?b\]\]", "=", s) # bold
     s = re.sub("\[\[\/?u\]\]", "=", s) # underline
+    s = re.sub("\[\[\/?g\]\]", "_", s) # gesperrt: now same as italics
 
     m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s) # small-caps
     while m:
@@ -3723,6 +3724,8 @@ class Text(Book): #{
       s = re.sub("\[\[sc\]\].*?\[\[\/sc\]\]", replace, s, 1)
       m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s)
 
+    # Gesperrt in text is now treated the same as italics.
+    """
     m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s) # gesperrt
     while m:
       replace = ""
@@ -3732,6 +3735,8 @@ class Text(Book): #{
       replace += x[-1]
       s = re.sub("\[\[g\]\].*?\[\[/g\]\]", replace, s, 1)
       m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s)
+    """
+
     return s
 
   # Uppercase between the <sc> tags
@@ -3839,7 +3844,8 @@ class Text(Book): #{
     regexDOT = re.compile(r"\. \.")
     regexFS = re.compile("<\/?fs>")
     regexFS1 = re.compile("<fs:.+?>")
-    regexG = re.compile(r"<g>(.*?)<\/g>")
+    #regexG = re.compile(r"<g>(.*?)<\/g>")
+    regexG = re.compile("<\/?g>")
     regexFont = re.compile("<font:.+?>")
     regexFontEnd = re.compile("<\/?font>")
 
@@ -3860,7 +3866,8 @@ class Text(Book): #{
 
         #self.wb[i] = self.doUnicodeItalic(self.wb[i]) # unicode italic
         self.wb[i] = regexI.sub(replacewith, self.wb[i]) # italic
-        self.wb[i] = regexEM.sub("_", self.wb[i]) # italic
+        self.wb[i] = regexG.sub("_", self.wb[i]) # gesperrt
+        self.wb[i] = regexEM.sub("_", self.wb[i]) # emphasis
         self.wb[i] = regexB.sub("=", self.wb[i]) # bold
         self.wb[i] = self.smallCaps(self.wb[i]) # smallcaps
         self.wb[i] = regexU.sub("=", self.wb[i]) # underline
@@ -3872,6 +3879,8 @@ class Text(Book): #{
         self.wb[i] = re.sub(r"\\<",'≼', self.wb[i]) # escaped open tag marks
         self.wb[i] = re.sub(r"\\>",'≽', self.wb[i]) # escaped close tag marks
 
+        # gesperrt now same as italics.
+        """
         m = regexG.search(self.wb[i]) # gesperrt
         while m:
           replace = ""
@@ -3881,6 +3890,7 @@ class Text(Book): #{
           replace += x[-1] # last character
           self.wb[i] = regexG.sub(replace, self.wb[i], 1)
           m = regexG.search(self.wb[i])
+        """
 
         # new inline tags 2014.01.27
         # inline font size changes ignored in text

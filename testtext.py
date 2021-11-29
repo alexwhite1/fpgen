@@ -43,12 +43,21 @@ class TestTextInline(unittest.TestCase):
     line = self.text.smallCaps("abc<sc>Testing, one two</sc>def")
     self.assertSequenceEqual(line, "abcTesting, one twodef")
 
+  """
   def test_text_inline_gesperrt(self):
     self.text.wb = [
       "abc<g>Testing, one two</g>def"
     ]
     self.text.processInline()
     self.assertSequenceEqual(self.text.wb, [ "abcT□e□s□t□i□n□g□,□ □o□n□e□ □t□w□odef" ])
+  """
+
+  def test_text_inline_gesperrt(self):
+    self.text.wb = [
+      "abc<g>Testing, one two</g>def"
+    ]
+    self.text.processInline()
+    self.assertSequenceEqual(self.text.wb, [ "abc_Testing, one two_def" ])
 
   def test_text_inline_italic(self):
     self.text.wb = [
@@ -71,6 +80,7 @@ class TestTextInline(unittest.TestCase):
     self.text.processInline()
     self.assertSequenceEqual(self.text.wb, [ "abc_TESTING, ONE TWO_def" ])
 
+  """
   def test_text_inline_sc_gesperrt(self):
     self.text.wb = [
       "abc<g><sc>Testing, one two</sc></g>def"
@@ -84,6 +94,21 @@ class TestTextInline(unittest.TestCase):
     ]
     self.text.processInline()
     self.assertSequenceEqual(self.text.wb, [ "abcT□E□S□T□I□N□G□,□ □O□N□E□ □T□W□Odef" ])
+  """
+
+  def test_text_inline_sc_gesperrt(self):
+    self.text.wb = [
+      "abc<g><sc>Testing, one two</sc></g>def"
+    ]
+    self.text.processInline()
+    self.assertSequenceEqual(self.text.wb, [ "abc_TESTING, ONE TWO_def" ])
+
+  def test_text_inline_gesperrt_sc(self):
+    self.text.wb = [
+      "abc<sc><g>Testing, one two</g></sc>def"
+    ]
+    self.text.processInline()
+    self.assertSequenceEqual(self.text.wb, [ "abc_TESTING, ONE TWO_def" ])
 
   def test_text_inline_fs(self):
     self.text.wb = [
