@@ -196,8 +196,9 @@ from time import gmtime, strftime
 # 4.63a    Fix poetry-container css bug
 # 4.63b    Fix caption in sliced float
 # 4.64     gesperrt in text no longer spaced; treat like italic.
+# 4.64a    --ebookid validation for the third decade!
 
-VERSION="4.64"
+VERSION="4.64a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

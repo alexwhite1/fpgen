@@ -62,7 +62,7 @@ def main():
 
   if options.ebookid != "":
     options.formats = "thkep"
-    if not re.match("^20[01]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.ebookid):
+    if not re.match("^20[012]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.ebookid):
       fatal("Ebookid doesn't look correct: " + options.ebookid)
 
   tmp = options.formats
@@ -280,8 +280,9 @@ def processFile(options, bn):
 #  --remove-first-image removed
 OPT_EPUB_ARGS = [
  #"--flow-size", "500",
- "--change-justification", "\"left\"",
+ "--change-justification", "\"justify\"",
  "--embed-all-fonts",
+ "--epub-flatten",
 ]
 
 OPT_PDF_ARGS = [
