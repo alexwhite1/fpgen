@@ -197,8 +197,9 @@ from time import gmtime, strftime
 # 4.63b    Fix caption in sliced float
 # 4.64     gesperrt in text no longer spaced; treat like italic.
 # 4.64a    --ebookid validation for the third decade!
+# 4.64b    Generate -k.epub file
 
-VERSION="4.64a"
+VERSION="4.64b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

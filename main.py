@@ -197,13 +197,13 @@ def processFile(options, bn):
     madeEpub = True
 
   if 'k' in options.formats:
-    print("creating Kindle")
+    print("creating Kindle (.mobi & -k.epub)")
     # make epub as source for kindle
     outfile = "{}-e2.html".format(bn)
     hb = Kindle(options.infile, outfile, options.debug)
     hb.run()
     preserveMargins = (config.uopt.getopt('preserve-margins', 'false') == 'true')
-    args = getConvertArgs(OPT_EPUB_ARGS, outfile, "{}-e2.epub".format(bn), hb)
+    args = getConvertArgs(OPT_EPUB_ARGS, outfile, "{}-k.epub".format(bn), hb)
     if preserveMargins:
       args.extend(OPT_PRESERVE_MARGINS)
 
@@ -214,11 +214,10 @@ def processFile(options, bn):
 
     # generate mobi with Kindlegen based on epub made by ebook-convert
     # os.system("kindlegen {0}-k.html -o {0}.mobi".format(bn))
-    msgs.dprint(1, "kindlegen {0}-e2.epub -o {0}.mobi".format(bn))
-    os.system("kindlegen {0}-e2.epub -o {0}.mobi".format(bn))
+    msgs.dprint(1, "kindlegen {0}-k.epub -o {0}.mobi".format(bn))
+    os.system("kindlegen {0}-k.epub -o {0}.mobi".format(bn))
 
     if not options.saveint:
-      os.remove("{0}-e2.epub".format(bn))
       os.remove("{0}-e2.html".format(bn))
 
   if 'p' in options.formats:
@@ -263,7 +262,7 @@ def processFile(options, bn):
     zip = zipfile.ZipFile(zipname, "w", compression = zipfile.ZIP_DEFLATED)
     print("Adding " + bn + "-src.txt")
     zip.write(bn + "-src.txt")
-    for suffix in [ ".txt", ".html", ".mobi", ".epub", "-a5.pdf" ]:
+    for suffix in [ ".txt", ".html", ".mobi", ".epub", "-k.epub", "-a5.pdf" ]:
       src = bn + suffix
       target = epubid + suffix
       print("Adding " + src + " as " + target)
