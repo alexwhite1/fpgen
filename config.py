@@ -199,8 +199,9 @@ from time import gmtime, strftime
 # 4.64a    --ebookid validation for the third decade!
 # 4.64b    Generate -k.epub file
 # 4.64c    <html> tag use the DC.Language value
+# 4.65     Add <alt>...</alt> within <illustration>
 
-VERSION="4.64c"
+VERSION="4.65"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

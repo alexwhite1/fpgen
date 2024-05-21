@@ -181,7 +181,8 @@ def alignLine(line, align, w, padChar=' '):
 
 # Parse the block within an illustration tag.  Currently may have
 # <caption> and <credit> types of captions.
-# Returns an associative array with one or both of 'caption' and 'credit'
+# Now also <alt>.
+# Returns an associative array with one or both of 'caption' and 'credit', 'alt'
 # as keys, mapping to a list of lines within those tags.
 # If neither is present, returns None
 def parseCaptions(block):
@@ -208,9 +209,15 @@ def parseCaptions(block):
       fatal("Multiple credits in illustration: " + str(block))
     captions['credit'] = trim(block)
     return []
+  def oneAltBlock(openTag, block):
+    if 'alt' in captions:
+      fatal("Multiple alts in illustration: " + str(block))
+    captions['alt'] = trim(block)
+    return []
 
   block = parseEmbeddedTagBlock(block, "caption", oneCaptionBlock)
   block = parseEmbeddedTagBlock(block, "credit", oneCreditBlock)
+  block = parseEmbeddedTagBlock(block, "alt", oneAltBlock)
 
   # Check for any non-empty lines
   if len(trim(block)) > 0:
@@ -2024,6 +2031,7 @@ class HTML(Book): #{
 
   # <caption>...</caption> tags are considered paragraphs themselves.
   # Extract them, and format them up separately.
+  # Convert <alt>...</alt> into an alt='' arg.
   def markIllustrationPara(self):
     def oneIllustration(args, block):
       captions = parseCaptions(block)
@@ -2032,10 +2040,17 @@ class HTML(Book): #{
         return [ "<illustration" + args + "/>" ]
       credit = None
       caption = None
+      alt = None
       if 'caption' in captions:
         caption = captions['caption']
       if 'credit' in captions:
         credit = captions['credit']
+      if 'alt' in captions:
+        alt = captions['alt']
+        alt = " ".join(alt).strip()
+        from html import escape
+        alt = escape(alt, quote=True)
+        args += " alt='" + alt + "'"
 
       # Have just the caption. Mark it up as text paragraphs.
       if not caption is None:
@@ -2047,14 +2062,17 @@ class HTML(Book): #{
       # the normal flow in doIllustrations(). Why can't we mark the paragraphs
       # at that point? Because ordering is all-important in this mess...
       block = []
-      block.append("<illustration" + args + ">")
-      block.append("<caption>")
-      if not credit is None:
-        block.extend(credit)
-      if not caption is None:
-        block.extend(caption)
-      block.append("</caption>")
-      block.append("</illustration>")
+      if caption is None and credit is None:
+        block.append("<illustration" + args + "/>")
+      else:
+        block.append("<illustration" + args + ">")
+        block.append("<caption>")
+        if not credit is None:
+          block.extend(credit)
+        if not caption is None:
+          block.extend(caption)
+        block.append("</caption>")
+        block.append("</illustration>")
       return block
     parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)
 
