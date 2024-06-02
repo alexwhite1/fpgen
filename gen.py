@@ -146,6 +146,7 @@ def main(argv):
   pubdate = getMeta(tree, [ "pss.pubdate", "DC.Created", "DC.date.created" ],
       options.pubdate)
   tags = getMeta(tree, [ "DC.Subject", "Tags" ], options.tags)
+  pdfFormat = getMeta(tree, [ "pdf-format" ], "a5")
 
   if options.cover == None:
     options.cover = getCover(tree)
@@ -174,7 +175,7 @@ def main(argv):
   convert(basename, ".epub", EPUB_ARGS, commonArgs)
 
   pdfargs = [
-    "--paper-size", "a5",
+    "--paper-size", pdfFormat,
     "--pdf-page-margin-left", "20",
     "--pdf-page-margin-right", "20",
     "--pdf-page-margin-top", "20",
@@ -185,7 +186,7 @@ def main(argv):
   if extra:
     print("Extra pdf conversion args: " + extra)
     pdfargs.append(extra)
-  convert(basename, "-a5.pdf", pdfargs, commonArgs)
+  convert(basename, "-" + pdfFormat + ".pdf", pdfargs, commonArgs)
 
   #convert(basename, ".mobi", [
   #  "--mobi-file-type", "new"
