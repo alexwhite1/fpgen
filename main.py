@@ -133,6 +133,20 @@ def getConvertArgs(modelArgs, infile, outfile, hb):
     args.append("--extra-css")
     args.append("\"" + extra + "\"")
 
+  # Normally have two levels of TOC, but allow for none, one or three
+  tocLevels = config.uopt.getopt('toc-levels', '2')
+  try:
+    tocLevels = int(tocLevels)
+  except Exception:
+    fatal("Bad toc-levels option value: " + tocLevels)
+  if tocLevels > 3 or tocLevels < 0:
+    fatal("toc-levels option must be between 0 and 3: " + str(tocLevels))
+  for level in range(tocLevels):
+    # "--level1-toc", "\"//h:h1\"",
+    l = str(level+1)
+    args.append("--level" + l + "-toc")
+    args.append("//h:h" + l)
+
   extra = os.environ.get('FPGEN_EBOOK_CONVERT_EXTRA_ARGS')
   if extra:
     print("Extra conversion args: " + extra)
@@ -313,8 +327,6 @@ OPT_COMMON_ARGS = [
  "--sr1-search", "\"<br\/><br\/>\"",
  "--sr1-replace", "—",
  "--chapter", "\"//*[(name()='h1' or name()='h2')]\"",
- "--level1-toc", "\"//h:h1\"",
- "--level2-toc", "\"//h:h2\"",
 ]
 
 OPT_PRESERVE_MARGINS = [

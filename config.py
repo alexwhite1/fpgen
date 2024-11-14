@@ -200,8 +200,9 @@ from time import gmtime, strftime
 # 4.64b    Generate -k.epub file
 # 4.64c    <html> tag use the DC.Language value
 # 4.65     Add <alt>...</alt> within <illustration>
+# 4.66     Add option toc-levels
 
-VERSION="4.65"
+VERSION="4.66"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 
