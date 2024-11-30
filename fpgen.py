@@ -100,7 +100,7 @@ def wrap2h(s, lm, rm, li, l0, breakOnEmDash):  # 22-Feb-2014
 def wrap2(s, lm=0, rm=0, li=0, ti=0, breakOnEmDash=False):  # 22-Feb-2014
   lines = []
   while "<br/>" in s:
-    m = re.search("(.*?)<br\/>(.*)", s)
+    m = re.search(r"(.*?)<br\/>(.*)", s)
     if m:
       lines += wrap2h(m.group(1).strip(), lm, rm, li, ti, breakOnEmDash)
       s = m.group(2)
@@ -454,7 +454,7 @@ class Book(object): #{
     while i < len(self.wb):
       m = re.match("<meta", self.wb[i])
       if m:
-        if not re.search("\/>$", self.wb[i]):
+        if not re.search(r"\/>$", self.wb[i]):
           self.wb[i] = re.sub(">$", "/>", self.wb[i])
         self.umeta.addmeta(self.wb[i])
         del self.wb[i]
@@ -466,7 +466,7 @@ class Book(object): #{
     self.dprint(1,"addOptionsAndProperties")
     i = 0
     while i < len(self.wb):
-      m = re.match("<property name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
+      m = re.match(r"<property name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
       if m:
         self.uprop.addprop(m.group(1), m.group(2))
         # 22-Feb-2014 if it's a specified cover, need to put it in global variable
@@ -477,7 +477,7 @@ class Book(object): #{
         del self.wb[i]
         continue
 
-      m = re.match("<option name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
+      m = re.match(r"<option name=[\"'](.*?)[\"'] content=[\"'](.*?)[\"']\s*\/?>", self.wb[i])
       if m:
         config.uopt.addopt(m.group(1), m.group(2))
         del self.wb[i]
@@ -614,7 +614,7 @@ class Book(object): #{
 
     # define macros and save
     i = 0
-    regex = re.compile("<macro (.*?)=\"(.*?)\"\/?>")
+    regex = re.compile(r"<macro (.*?)=\"(.*?)\"\/?>")
     while i < len(self.wb):
       m = regex.match(self.wb[i])
       if m:
@@ -673,7 +673,7 @@ class Book(object): #{
     # force page numbers to separate line and to single-quote version
     i = 0
     regex = re.compile(r"<pn=[\"'](.+?)[\"']>")
-    regex1 = re.compile("^(.*?)(\s?<pn='.*?'>\s?)(.*)$")
+    regex1 = re.compile(r"^(.*?)(\s?<pn='.*?'>\s?)(.*)$")
     while i < len(self.wb):
       self.wb[i] = regex.sub(r"<pn='\1'>", self.wb[i])
       m = regex1.search(self.wb[i])
@@ -745,8 +745,8 @@ class Book(object): #{
     i = 0
     while i < len(self.wb):
       if self.gentype == 't':
-        self.wb[i] = re.sub("<\/?I>", "", self.wb[i])
-        self.wb[i] = re.sub("<\/?B>", "", self.wb[i])
+        self.wb[i] = re.sub(r"<\/?I>", "", self.wb[i])
+        self.wb[i] = re.sub(r"<\/?B>", "", self.wb[i])
       else:
         self.wb[i] = self.wb[i].replace("<I>", "<i>")
         self.wb[i] = self.wb[i].replace("<B>", "<b>")
@@ -771,7 +771,7 @@ class Book(object): #{
 
     # ensure standalone illustration line has blank lines before, after
     i = 0
-    regex = re.compile("<illustration.*?\/>")
+    regex = re.compile(r"<illustration.*?\/>")
     while i < len(self.wb):
       if regex.match(self.wb[i]):
         t = self.wb[i]
@@ -842,7 +842,7 @@ class Book(object): #{
 
     # display user-supplied warnings (<warn>...</warn>)
     i = 0
-    regex = re.compile("<warning>(.*?)<\/warning>")
+    regex = re.compile(r"<warning>(.*?)<\/warning>")
     while i < len(self.wb):
       m = regex.match(self.wb[i])
       if m:
@@ -897,7 +897,7 @@ class Book(object): #{
     # Now we can set the globals, since we have now extracted all the metadata
     self.templates.setGlobals(self.umeta.getAsDict())
 
-    regexMacro = re.compile("<expand-macro\s+(.*?)/?>")
+    regexMacro = re.compile(r"<expand-macro\s+(.*?)/?>")
     i = 0
     while i < len(self.wb):
       line = self.wb[i]
@@ -989,7 +989,7 @@ class Book(object): #{
         keys = {}
         opts, chapHead = parseLineEntry("chap-head", line)
         j = i+1
-        while j < len(self.wb) and re.match("^\s*$", self.wb[j]):
+        while j < len(self.wb) and re.match(r"^\s*$", self.wb[j]):
           j += 1
         if j == len(self.wb):
           fatal("End of file after <chap-head>")
@@ -1056,7 +1056,7 @@ def parseFontSize(options1, options2, options3, textOpt):
 
   if "fs" in options3:
     value = options3['fs']
-    if not re.match("[\d\.]+em$", value):
+    if not re.match(r"[\d\.]+em$", value):
       fatal("Font size option fs:" + value + ", must be specified in ems." +
         " Found in options: " + textOpt)
     style = "font-size:{};".format(options3['fs'])
@@ -1342,19 +1342,19 @@ class Lint(Book): #{
     reports = []
     for i,line in enumerate(self.wb):
 
-      if re.match("<tb\/?>", line) and (not empty.match(self.wb[i+1]) or not empty.match(self.wb[i-1])):
+      if re.match(r"<tb\/?>", line) and (not empty.match(self.wb[i+1]) or not empty.match(self.wb[i-1])):
         reports.append("non-isolated <tb> tag:\nline number: {}".format(i))
 
-      if re.match("<pb\/?>", line) and (not empty.match(self.wb[i+1]) or not empty.match(self.wb[i-1])):
+      if re.match(r"<pb\/?>", line) and (not empty.match(self.wb[i+1]) or not empty.match(self.wb[i-1])):
         reports.append("non-isolated <pb> tag:\nline number: {}".format(i))
 
       # all lines stand alone
       standaloneL = line.startswith("<l ") or line.startswith("<l>")
       if standaloneL:
-        if not re.search("<\/l>$", line):
+        if not re.search(r"<\/l>$", line):
           reports.append("line missing closing </l>:\nline number: {}\n{}".format(i,line))
       else:
-        if re.search("<\/l>$", line):
+        if re.search(r"<\/l>$", line):
           reports.append("line missing opening <l>:\nline number: {}\n{}".format(i,line))
 
       # no nested line groups
@@ -1492,7 +1492,7 @@ class HTML(Book): #{
 
   def m2h(self, s, pf=False, lgr=''):
     incoming = s
-    m = re.match("<l(.*?)>(.*?)<\/l>",s)
+    m = re.match(r"<l(.*?)>(.*?)<\/l>",s)
     if not m:
       self.fatal("malformed line: {}".format(s))
     # combine rend specified on line with rend specified for line group
@@ -1517,13 +1517,13 @@ class HTML(Book): #{
       self.fatal("indent requested on right-aligned line. exiting")
 
     # with poetry, leave indents as hard spaces; otherwise, convert to ml
-    m = re.match("(\s+)", t2) # leading spaces on line
+    m = re.match(r"(\s+)", t2) # leading spaces on line
     if m:
       if not pf: # not poetry
         options['ml'] = '{}em'.format(len(m.group(1)))
-        t2 = re.sub("^\s+","",t2)
+        t2 = re.sub(r"^\s+","",t2)
       else:
-        t2 = "&#160;"*len(m.group(1)) + re.sub("^\s+","",t2)
+        t2 = "&#160;"*len(m.group(1)) + re.sub(r"^\s+","",t2)
 
     thetext = t2
     thestyle = "" # reset the style
@@ -1616,8 +1616,8 @@ class HTML(Book): #{
     s = re.sub(" +>", ">", s) # trailing internal spaces in tags
 
     # ensure content in blank lines
-    if re.search("<p class='line[^>]*?><\/p>", s):
-      s = re.sub("<p class='line[^>]*?><\/p>", "<p class='line'>&#160;</p>", s)
+    if re.search(r"<p class='line[^>]*?><\/p>", s):
+      s = re.sub(r"<p class='line[^>]*?><\/p>", "<p class='line'>&#160;</p>", s)
 
     if thisLineRaw != "":
       self.lastLineRaw = thisLineRaw
@@ -1664,7 +1664,7 @@ class HTML(Book): #{
       if re.search("rend='center'",lgopts): # it's a centered line group
         for i, line in enumerate(block):
           # already marked? <l or <ill..
-          if not re.match("^\s*<", line) or re.match("<link", line):
+          if not re.match(r"^\s*<", line) or re.match("<link", line):
             block[i] = "<l>" + line + "</l>" # no, mark it now.
       else: # not a centered line group so honor leading spaces
         illustration = False
@@ -1681,7 +1681,7 @@ class HTML(Book): #{
             # Illustrations are aligned based on their own rend, not
             # an enclosing <lg>, so don't tag with <l>...</l>
             continue
-          if not re.match("^\s*<l", line) or re.match("<link", line): # already marked?
+          if not re.match(r"^\s*<l", line) or re.match("<link", line): # already marked?
             line = "<l>" + line.rstrip() + "</l>"
             m = re.match(r"(<l[^>]*>)(\s+)(.*?)<\/l>", line)
             if m:
@@ -1708,7 +1708,7 @@ class HTML(Book): #{
     # whitespace around <footnote and </footnote
     i = 0
     while i < len(self.wb):
-      if re.match("<\/?footnote", self.wb[i]):
+      if re.match(r"<\/?footnote", self.wb[i]):
         self.wb[i:i+1] = ["", self.wb[i], ""]
         i += 2
       i += 1
@@ -2302,9 +2302,9 @@ class HTML(Book): #{
       # 8203 is ZERO WIDTH SPACE U+200B
       self.wb[i] = self.wb[i].replace('^{}', r'<sup>&#8203;</sup>')
       self.wb[i] = self.wb[i].replace('_{}', r'<sub>&#8203;</sub>')
-      self.wb[i] = re.sub('\^\{(.*?)\}', r'<sup>\1</sup>', self.wb[i]) # superscript format 1: Rob^{t}
-      self.wb[i] = re.sub('\^(.)', r'<sup>\1</sup>', self.wb[i]) # superscript format 2: Rob^t
-      self.wb[i] = re.sub('_\{(.*?)\}', r'<sub>\1</sub>', self.wb[i]) # subscript: H_{2}O
+      self.wb[i] = re.sub(r'\^\{(.*?)\}', r'<sup>\1</sup>', self.wb[i]) # superscript format 1: Rob^{t}
+      self.wb[i] = re.sub(r'\^(.)', r'<sup>\1</sup>', self.wb[i]) # superscript format 2: Rob^t
+      self.wb[i] = re.sub(r'_\{(.*?)\}', r'<sub>\1</sub>', self.wb[i]) # subscript: H_{2}O
 
   # page links
   # 2014.01.14 new in 3.02c
@@ -2594,7 +2594,7 @@ class HTML(Book): #{
 
         # is a width specified? must be in em
         if "w" in opts:
-          m = re.search("(\d+)em", opts["w"])
+          m = re.search(r"(\d+)em", opts["w"])
           rendw = self.marginSize("quote", opts, "w", "")
           drendw = re.sub("%", "percent", rendw)
 
@@ -2613,14 +2613,14 @@ class HTML(Book): #{
 
         # is a font size specified? must be in em
         if "fs" in opts:
-          m = re.search("([\d\.]+)em", opts["fs"])
+          m = re.search(r"([\d\.]+)em", opts["fs"])
           if m:
             rendfs = "{}".format(m.group(1))
           else:
             fatal("<quote>: malformed fs option in rend tag: " + opts["fs"])
 
           # user-specified font size.
-          drendfs = re.sub("\.","r", rendfs)
+          drendfs = re.sub(r"\.","r", rendfs)
           self.wb[i] = "<div class='blockquote"+drendfs+"'>"
           stmp = "[391] div.blockquote" + drendfs+ " { margin:1em 2em; }"
           self.css.addcss(stmp)
@@ -2632,7 +2632,7 @@ class HTML(Book): #{
         if not owned:
           self.wb[i] = "<div class='blockquote'>"
           self.css.addcss("[390] div.blockquote { margin:1em 2em; text-align:justify; }")
-      if re.match("<\/quote>",line):
+      if re.match(r"<\/quote>",line):
         self.wb[i] = "</div>"
 
   def marginSize(self, tag, opts, name, default):
@@ -2689,7 +2689,7 @@ class HTML(Book): #{
 
       # Only in %, so we can calculate margin-left and margin-right!
       if "w" in opts:
-        m = re.search("(\d+)%", opts["w"])
+        m = re.search(r"(\d+)%", opts["w"])
         if m:
           tb_width = "{}".format(m.group(1))
         else:
@@ -2748,7 +2748,7 @@ hr.tbk {
   def doBreaks(self): # 02-Apr-2014 rewrite
     self.dprint(1,"doBreaks")
 
-    regex = re.compile("<tb(.*?)\/?>")
+    regex = re.compile(r"<tb(.*?)\/?>")
     for i,line in enumerate(self.wb):
 
       m = regex.search(line)
@@ -2756,7 +2756,7 @@ hr.tbk {
         self.doThoughtBreak(m, i);
         continue
 
-      if re.match("<pb\/?>",line):
+      if re.match(r"<pb\/?>",line):
         if self.gentype == 'h':
           self.wb[i]= "<hr class='pbk'/>"
           self.css.addcss("[372] hr.pbk { border:none; border-bottom:1px solid silver; width:100%; margin-top:2em; margin-bottom:2em }")
@@ -2765,7 +2765,7 @@ hr.tbk {
           self.css.addcss("[372] div.pbba { page-break-before:always; }")
         continue
 
-      m = re.match("<hr rend='(.*?)'\/?>",line)
+      m = re.match(r"<hr rend='(.*?)'\/?>",line)
       if m:
         if re.search("footnotemark", m.group(1)):
           self.wb[i]= "<hr class='footnotemark'/>"
@@ -3297,7 +3297,7 @@ hr.tbk {
         startSidenote = i
         self.wb[i] = self.wb[i][0:m.start(0)] + "<a class='sidenote'>" + self.wb[i][m.end(0):]
         while i < n:
-          m = re.search("<\/sidenote>", self.wb[i])
+          m = re.search(r"<\/sidenote>", self.wb[i])
           if m:
             self.wb[i] = self.wb[i][0:m.start(0)] + "</a>" + self.wb[i][m.end(0):]
             break
@@ -3551,7 +3551,7 @@ hr.tbk {
         else:
           # Not HTML: No visible page numbers; however, still need anchor tags for index/toc
           self.wb[i]=re.sub("⪦.+?⪧","<a name='Page_{0}' id='Page_{0}'></a>".format(pn), self.wb[i])
-      if re.search("<\/p", line):
+      if re.search(r"<\/p", line):
         inBlockElement = False
 
   # Emit html specific output for <chap-head> and <sub-head> tags
@@ -3735,28 +3735,28 @@ class Text(Book): #{
   # removes tags or converts to text representation
   # one line as string
   def detag(self, s):
-    s = re.sub("\[\[\/?i\]\]", "_", s) # italics
-    s = re.sub("\[\[\/?b\]\]", "=", s) # bold
-    s = re.sub("\[\[\/?u\]\]", "=", s) # underline
-    s = re.sub("\[\[\/?g\]\]", "_", s) # gesperrt: now same as italics
+    s = re.sub(r"\[\[\/?i\]\]", "_", s) # italics
+    s = re.sub(r"\[\[\/?b\]\]", "=", s) # bold
+    s = re.sub(r"\[\[\/?u\]\]", "=", s) # underline
+    s = re.sub(r"\[\[\/?g\]\]", "_", s) # gesperrt: now same as italics
 
-    m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s) # small-caps
+    m = re.search(r"\[\[sc\]\](.*?)\[\[\/sc\]\]", s) # small-caps
     while m:
       replace = m.group(1).upper()
-      s = re.sub("\[\[sc\]\].*?\[\[\/sc\]\]", replace, s, 1)
-      m = re.search("\[\[sc\]\](.*?)\[\[\/sc\]\]", s)
+      s = re.sub(r"\[\[sc\]\].*?\[\[\/sc\]\]", replace, s, 1)
+      m = re.search(r"\[\[sc\]\](.*?)\[\[\/sc\]\]", s)
 
     # Gesperrt in text is now treated the same as italics.
-    """
-    m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s) # gesperrt
+    r"""
+    m = re.search(r"\[\[g\]\](.*?)\[\[/g\]\]", s) # gesperrt
     while m:
       replace = ""
       x = m.group(1)
       for i in range(len(x)-1):
         replace += x[i] + " "
       replace += x[-1]
-      s = re.sub("\[\[g\]\].*?\[\[/g\]\]", replace, s, 1)
-      m = re.search("\[\[g\]\](.*?)\[\[/g\]\]", s)
+      s = re.sub(r"\[\[g\]\].*?\[\[/g\]\]", replace, s, 1)
+      m = re.search(r"\[\[g\]\](.*?)\[\[/g\]\]", s)
     """
 
     return s
@@ -3772,10 +3772,10 @@ class Text(Book): #{
 
     if (scTitle):
       # Title-case: Just delete the tags
-      return re.sub("<\/?sc>", "", line)
+      return re.sub(r"<\/?sc>", "", line)
 
     while True:
-      m = re.search("<sc>(.*?)<\/sc>", line)
+      m = re.search(r"<sc>(.*?)<\/sc>", line)
       if not m:
         break
       sub = line[m.start(1):m.end(1)]
@@ -3817,7 +3817,7 @@ class Text(Book): #{
     mathUpperBoldZero = 0x1d400;
     mathLowerBoldZero = 0x1d41a;
     while True:
-      m = re.search("<i>(.*?)<\/i>", line)
+      m = re.search(r"<i>(.*?)<\/i>", line)
       if not m:
         break
       sub = line[m.start(1):m.end(1)]
@@ -3858,18 +3858,18 @@ class Text(Book): #{
     else:
         replacewith = "_" # emphasis. treat as <em>
 
-    regexOL = re.compile("<\/?ol>")
-    regexI = re.compile("<\/?i>")
-    regexEM = re.compile("<\/?em>")
-    regexB = re.compile("<\/?b>")
-    regexU = re.compile("<\/?u>")
+    regexOL = re.compile(r"<\/?ol>")
+    regexI = re.compile(r"<\/?i>")
+    regexEM = re.compile(r"<\/?em>")
+    regexB = re.compile(r"<\/?b>")
+    regexU = re.compile(r"<\/?u>")
     regexDOT = re.compile(r"\. \.")
-    regexFS = re.compile("<\/?fs>")
+    regexFS = re.compile(r"<\/?fs>")
     regexFS1 = re.compile("<fs:.+?>")
     #regexG = re.compile(r"<g>(.*?)<\/g>")
-    regexG = re.compile("<\/?g>")
+    regexG = re.compile(r"<\/?g>")
     regexFont = re.compile("<font:.+?>")
-    regexFontEnd = re.compile("<\/?font>")
+    regexFontEnd = re.compile(r"<\/?font>")
 
     # A set of characters to be removed.  In case somebody is tweaking
     # the spacing of the html output, we don't want it in the text output,
@@ -3926,8 +3926,8 @@ class Text(Book): #{
         self.wb[i] = regexFontEnd.sub("", self.wb[i])
 
         # remove table super/subscript balance tokens
-        self.wb[i] = re.sub('\^\{\}', '', self.wb[i])
-        self.wb[i] = re.sub('_\{\}', '', self.wb[i])
+        self.wb[i] = re.sub(r'\^\{\}', '', self.wb[i])
+        self.wb[i] = re.sub(r'_\{\}', '', self.wb[i])
 
         i += 1
 
@@ -3938,14 +3938,14 @@ class Text(Book): #{
     for index, line in enumerate(self.wb):
       if line.startswith("<tocloc"):
         tocrequest = True
-        m = re.match("<tocloc(.*?)>", line)
+        m = re.match(r"<tocloc(.*?)>", line)
         if m:
             attrib = m.group(1)
         tocwhere = index
         self.wb[index] = "TOCPLACE"
         break
     if tocrequest:
-      m = re.search("heading=[\"'](.*?)[\"']", attrib)
+      m = re.search(r"heading=[\"'](.*?)[\"']", attrib)
       usehead = "Table of Contents"
       if m:
           usehead = m.group(1)
@@ -4000,8 +4000,8 @@ class Text(Book): #{
     self.dprint(1,"stripLinks")
     i = 0
     while i < len(self.wb):
-      self.wb[i] = re.sub("<\/?link.*?>", "", self.wb[i])
-      self.wb[i] = re.sub("<target.*?>", "", self.wb[i])
+      self.wb[i] = re.sub(r"<\/?link.*?>", "", self.wb[i])
+      self.wb[i] = re.sub(r"<target.*?>", "", self.wb[i])
       i += 1
 
   dittoMark = "”"
@@ -4039,7 +4039,7 @@ class Text(Book): #{
     self.dprint(1,"preProcess")
 
     i = 0
-    matchFN = re.compile("<fn\s+(.*?)/?>")
+    matchFN = re.compile(r"<fn\s+(.*?)/?>")
     while i < len(self.wb):
       line = self.wb[i]
 
@@ -4049,8 +4049,8 @@ class Text(Book): #{
       for tag in para.pstyleTags:
         line = line.replace(tag, "")
 
-      line = re.sub("#(\d+)#", r'\1', line) # page number links
-      line = re.sub("#(\d+):.*?#", r'\1', line) # page number links type 2 2014.01.14
+      line = re.sub(r"#(\d+)#", r'\1', line) # page number links
+      line = re.sub(r"#(\d+):.*?#", r'\1', line) # page number links type 2 2014.01.14
 
       # Replace <fn> markers
       off = 0
@@ -4067,20 +4067,20 @@ class Text(Book): #{
         line = l + line[m.end(0):]
       self.wb[i] = line
 
-      m = re.match("\s+(<l.*)$", self.wb[i])
+      m = re.match(r"\s+(<l.*)$", self.wb[i])
       if m:
         self.wb[i] = m.group(1)
 
       # allow user shortcut <l/> -> </l></l>
-      self.wb[i] = re.sub("<l\/>","<l></l>", self.wb[i])
+      self.wb[i] = re.sub(r"<l\/>","<l></l>", self.wb[i])
 
       if self.wb[i].startswith("<hr rend='footnotemark'>"):
         s = re.sub("<hr rend='footnotemark'>", "▹-----", self.wb[i])
         self.wb[i:i+1] = [".rs 1", s, ".rs 1"]
 
       # remove any target tags
-      if re.search("<target.*?\/>", self.wb[i]):
-        self.wb[i] = re.sub("<target.*?\/>", "", self.wb[i])
+      if re.search(r"<target.*?\/>", self.wb[i]):
+        self.wb[i] = re.sub(r"<target.*?\/>", "", self.wb[i])
       i += 1
 
     # leading spaces inside pre-marked standalong line
@@ -4105,11 +4105,11 @@ class Text(Book): #{
         # Do not touch <lit>!
         i += 1
         continue
-      s = re.sub("<(\/?i)>", r"[[\1]]", s) # italics
-      s = re.sub("<(\/?b)>", r"[[\1]]", s) # bold
-      s = re.sub("<(\/?sc)>", r"[[\1]]", s) # small caps
-      s = re.sub("<(\/?g)>", r"[[\1]]", s) # gesperrt
-      s = re.sub("<(\/?u)>", r"[[\1]]", s) # underline
+      s = re.sub(r"<(\/?i)>", r"[[\1]]", s) # italics
+      s = re.sub(r"<(\/?b)>", r"[[\1]]", s) # bold
+      s = re.sub(r"<(\/?sc)>", r"[[\1]]", s) # small caps
+      s = re.sub(r"<(\/?g)>", r"[[\1]]", s) # gesperrt
+      s = re.sub(r"<(\/?u)>", r"[[\1]]", s) # underline
       s = re.sub(r"\\ ", config.HARD_SPACE, s) # hard spaces
       s = re.sub(r"<figsp>", config.HARD_SPACE, s) # hard spaces
       s = re.sub(r"<shy>|<thinsp>|<nnbsp>|<wjoiner>", "", s) # remove special tags
@@ -4117,7 +4117,7 @@ class Text(Book): #{
       while re.search(r"\. \.", s):
         s = re.sub(r"\. \.", ".□.", s) # spaces in ellipsis
       s = re.sub(r"…", "...", s) # unwrap ellipsis UTF-8 character for text
-      s = re.sub("<\/?r>", "", s) # red markup
+      s = re.sub(r"<\/?r>", "", s) # red markup
       s = re.sub(r"\\%",'⊐', s) # escaped percent signs (macros)
       s = re.sub(r"\\#",'⊏', s) # escaped octothorpes (page links)
       s = re.sub(r"\\<",'≼', s) # escaped open tag marks
@@ -4180,9 +4180,9 @@ class Text(Book): #{
           t.append("▹.rs 1")
           # if there is a <br> in the caption, then user wants
           # control of line breaks. otherwise, wrap
-          m = re.search("<br\/?>", l)
+          m = re.search(r"<br\/?>", l)
           if m: # user control
-            s = re.sub("<br\/?>", "\n", l)
+            s = re.sub(r"<br\/?>", "\n", l)
             u = s.split('\n')
           else: # fpgen wraps illustration line
             u = wrap2(l)
@@ -4235,7 +4235,7 @@ class Text(Book): #{
 
   # Look inside the <tb> tag for a rend='text:hidden'
   def isTbHidden(self, line):
-    m = re.match("<tb\s+(.*?)\/?>", line)
+    m = re.match(r"<tb\s+(.*?)\/?>", line)
     if m:
       args = m.group(1)
       attr = parseTagAttributes("tb", args, tbAttributes)
@@ -4253,7 +4253,7 @@ class Text(Book): #{
     while i < len(self.wb):
       m = regexSidenote.search(self.wb[i])
       if m:
-        m1 = re.search("<sidenote>.*<\/sidenote>", self.wb[i])
+        m1 = re.search(r"<sidenote>.*<\/sidenote>", self.wb[i])
         if m1:
           # Remove <sidenote>...</sidenote>
           self.wb[i] = (self.wb[i][0:m1.start(0)] + self.wb[i][m1.end(0):]).strip()
@@ -4266,7 +4266,7 @@ class Text(Book): #{
           self.wb[i] = self.wb[i][0:m.start(0)]
           j = i+1
           while j < len(self.wb):
-            m = re.search("<\/sidenote>", self.wb[j])
+            m = re.search(r"<\/sidenote>", self.wb[j])
             if m:
               # Remove ...</sidenote>
               self.wb[j] = self.wb[j][m.end(0):]
@@ -4299,15 +4299,15 @@ class Text(Book): #{
     self.qstack = [""] # no initial indent
     i = 0
     regexTable = re.compile(r"<table(.*?)>")
-    regexLg = re.compile("<lg(.*?)>")
-    regexL = re.compile("<l(.*?)>(.*?)<\/l>")
+    regexLg = re.compile(r"<lg(.*?)>")
+    regexL = re.compile(r"<l(.*?)>(.*?)<\/l>")
     regexFootnote = re.compile(r"<footnote\s+(.*?)>")
-    regexHeading = re.compile("<heading(.*?)>(.*?)</heading>")
+    regexHeading = re.compile(r"<heading(.*?)>(.*?)</heading>")
     while i < len(self.wb):
       self.dprint(2,"[rewrap] {}: {}".format(i,self.wb[i]))
       if self.wb[i].startswith("<quote"):
         # is there a prescribed width?
-        m = re.match("<quote rend='w:(.*?)em'>", self.wb[i])
+        m = re.match(r"<quote rend='w:(.*?)em'>", self.wb[i])
         if m:
           rendw = int(m.group(1))
           # user-specified width (in characters). calculate indent
@@ -4320,7 +4320,7 @@ class Text(Book): #{
         del(self.wb[i])
         continue
 
-      if re.match("<\/quote>", self.wb[i]):
+      if re.match(r"<\/quote>", self.wb[i]):
         self.qstack.pop()
         if len(self.qstack) == 0:
           fatal("</quote> encountered without matching open <quote>" + self.last(i))
@@ -4461,7 +4461,7 @@ class Text(Book): #{
 
       # ----- footnote marker ----------------------------------------------
       if self.wb[i].startswith("<hr"):
-        m = re.search("rend='(.*?)'\/?>",self.wb[i])
+        m = re.search(r"rend='(.*?)'\/?>",self.wb[i])
         t = ["▹.rs 1"]
         if re.search("footnotemark", m.group(1)):
           t.append("▹-----")
@@ -4495,7 +4495,7 @@ class Text(Book): #{
       if m:
         startloc = i
         j = i
-        while not re.match("<\/table>", self.wb[j]):
+        while not re.match(r"<\/table>", self.wb[j]):
           j += 1
         endloc = j
         block = self.makeTable(self.wb[startloc:endloc+1])
@@ -4601,7 +4601,7 @@ class Text(Book): #{
     if align == "left":
       howmuch = 0
     elif align == "ml":
-      m = re.search("([\d\.]+)em", alignValue)
+      m = re.search(r"([\d\.]+)em", alignValue)
       if m:
         # indent left
         howmuch = int(float(m.group(1)))
@@ -4616,7 +4616,7 @@ class Text(Book): #{
     if align == "right":
       howmuch = 0
     elif align == "mr":
-      m = re.search("([\d\.]+)em", alignValue)
+      m = re.search(r"([\d\.]+)em", alignValue)
       if m:
         # indent right
         howmuch = int(float(m.group(1)))
@@ -4804,7 +4804,7 @@ class Text(Book): #{
               fatal("Use of rend='align-last' without a last line: " + itext)
             itext = " " * len(lastLine) + itext
 
-          m = re.search("ml:(\d+)em", irend)
+          m = re.search(r"ml:(\d+)em", irend)
           if m:
             isml = True
             itext = config.HARD_SPACE * int(m.group(1)) + itext
@@ -4841,7 +4841,7 @@ class Text(Book): #{
           thetext = m.group(2)
           rendlen = 0
           textlen = 0
-          m = re.search("m[lr]:([\d\.]+)em", therend)
+          m = re.search(r"m[lr]:([\d\.]+)em", therend)
           if m: # length may be affected
             rendlen = int(m.group(1))
           if not empty.match(thetext): # if not empty
@@ -4878,11 +4878,11 @@ class Text(Book): #{
             thetext = ""
           irend = m.group(1)
 
-          m = re.search("ml:([\d\.]+)em", irend) # padding on left?
+          m = re.search(r"ml:([\d\.]+)em", irend) # padding on left?
           if m:
             thetext = config.HARD_SPACE * int(m.group(1)) + thetext
 
-          m = re.search("mr:([\d\.]+)", irend) # right aligned
+          m = re.search(r"mr:([\d\.]+)", irend) # right aligned
           if m:
             inright = int(m.group(1))
             fstr = "{:>"+str(maxw-inright)+"}"
@@ -4978,15 +4978,15 @@ class Text(Book): #{
       i += 1
 
     for i in range(len(self.wb)):
-      self.wb[i] = re.sub("\s+\.rs",".rs", self.wb[i])
+      self.wb[i] = re.sub(r"\s+\.rs",".rs", self.wb[i])
 
     i = 0
     if len(self.wb) > 0:
-      while re.match("▹?\.rs", self.wb[i]): # no initial vertical space
+      while re.match(r"▹?\.rs", self.wb[i]): # no initial vertical space
         del self.wb[0]
     while i < len(self.wb)-1:
-      m1 = re.match("▹?\.rs (\d+)", self.wb[i])
-      m2 = re.match("▹?\.rs (\d+)", self.wb[i+1])
+      m1 = re.match(r"▹?\.rs (\d+)", self.wb[i])
+      m2 = re.match(r"▹?\.rs (\d+)", self.wb[i+1])
       if m1 and m2:
         self.wb[i] = ".rs {}".format(max(int(m1.group(1)),int(m2.group(1))))
         del(self.wb[i+1])
@@ -4999,11 +4999,11 @@ class Text(Book): #{
   def finalRend(self):
     self.dprint(1,"finalRend")
 
-    regexI = re.compile("\[\[\/?i\]\]")
-    regexB = re.compile("\[\[\/?b\]\]")
-    regexU = re.compile("\[\[\/?u\]\]")
-    regexSC = re.compile("\[\[\/?sc\]\]")
-    regexRS = re.compile(".rs (\d+)")
+    regexI = re.compile(r"\[\[\/?i\]\]")
+    regexB = re.compile(r"\[\[\/?b\]\]")
+    regexU = re.compile(r"\[\[\/?u\]\]")
+    regexSC = re.compile(r"\[\[\/?sc\]\]")
+    regexRS = re.compile(r".rs (\d+)")
 
     i = 0
     while i < len(self.wb):
@@ -5662,7 +5662,7 @@ class TableCell: #{
     self.lines = []
     s = self.getData()
     while True:
-      m = re.search("(.*?)<br\/>(.*)", s)
+      m = re.search(r"(.*?)<br\/>(.*)", s)
       if not m:
         break
       self.lines.extend(self.format1(m.group(1), align, w))
