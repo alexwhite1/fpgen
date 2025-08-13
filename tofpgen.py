@@ -42,12 +42,12 @@ else:
 
 basename = re.sub('-src.txt$', '', src)
 
-regexFootnote = re.compile("^\[Footnote ([ABC0-9][0-9]*): (.*)$")
-regexIllStart = re.compile("^\[Illustration: *")
-regexIllOne = re.compile("^\[Illustration: (.*)\]$")
-regexIllNoCap = re.compile("^\[Illustration]$")
-regexFNRef = re.compile("\[([ABCD0-9][0-9]*)\]")
-sidenoteRE = re.compile("\[Sidenote: (.*)\]$")
+regexFootnote = re.compile(r"^\[Footnote ([ABC0-9][0-9]*): (.*)$")
+regexIllStart = re.compile(r"^\[Illustration: *")
+regexIllOne = re.compile(r"^\[Illustration: (.*)\]$")
+regexIllNoCap = re.compile(r"^\[Illustration]$")
+regexFNRef = re.compile(r"\[([ABCD0-9][0-9]*)\]")
+sidenoteRE = re.compile(r"\[Sidenote: (.*)\]$")
 
 
 postamble = """
@@ -98,7 +98,7 @@ preamble = """/* This is """ + basename + """-src as of """ + date + """ */
 <meta name="DC.Subject" content="SUBJECT">
 <meta name="Tags" content="SUBJECT">
 <meta name="Series" content="SERIES [15]">
-<meta name="generator" content="fpgen 4.63b">
+<meta name="generator" content="fpgen 4.64a">
 
 <lit section="head">
     <style type="text/css">
@@ -264,10 +264,10 @@ def emitTOC(block, output):
 
   if hasPageNumbers:
     output.write("<table pattern='r h r'>\n")
-    r = re.compile("^([^ ][^ ]*)  *(.*)[ \.][ \.]*([0-9][0-9]*)$")
+    r = re.compile(r"^([^ ][^ ]*)  *(.*)[ \.][ \.]*([0-9][0-9]*)$")
   else:
     output.write("<table pattern='r h'>\n")
-    r = re.compile("^ *([^ ][^ ]*)  *(.*)$")
+    r = re.compile(r"^ *([^ ][^ ]*)  *(.*)$")
 
   for l in block:
     if l == "":
@@ -350,7 +350,7 @@ with open(src, "r", encoding=encoding) as input:
         chapHead = False
 
       if blanks >= 4:
-        if re.match(r'contents', line, re.IGNORECASE) != None:
+        if re.search(r'contents', line, re.IGNORECASE) != None:
           startTOC = True
         if not ("<chap-head " in line):
           line = "<chap-head pn='XXX'>" + line + "</chap-head>"
