@@ -694,7 +694,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_2(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -704,7 +704,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_2_verse(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "<verse>", "", "v1", "v2" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -714,7 +714,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_stage(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "[stage1", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -725,7 +725,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_stage_inline(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "[stage1] text", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -743,7 +743,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_stage_leading_spaces(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "    [stage1", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -754,7 +754,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_stage_right(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "<right>[stage1", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -765,7 +765,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_stage_right_2line(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "<right>", "[stage1", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -776,7 +776,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_explicit_stage(self):
     self.d.oneDramaBlock("", [ "l1", "l2", "", "<stage>stage1", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -789,7 +789,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
     self.d.oneDramaBlock("", [
       "l1", "l2", "", "<stage>", "stage1", "stage2", "", "l3"
     ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, None, True),
@@ -800,7 +800,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_explicit_sp(self):
     self.d.oneDramaBlock("", [ "<sp>speaker</sp>l1", "l2", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, "speaker", False),
@@ -810,7 +810,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_explicit_sp_own_line(self):
     self.d.oneDramaBlock("", [ "<sp>speaker</sp>", "l1", "l2", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, "speaker", False),
@@ -820,7 +820,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
 
   def test_drama_parse_explicit_sp_blank_line(self):
     self.d.oneDramaBlock("", [ "<sp>speaker</sp>", "", "l1", "l2", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       self.d.speech.call_args_list,
       [
         call(["l1", "l2"], False, "speaker", False),
@@ -835,7 +835,7 @@ class TestOneDramaBlockMethod(unittest.TestCase):
     d.stageDirection = MagicMock()
     d.emitCss = MagicMock(name='emitCss')
     d.oneDramaBlock("", [ "⩤sc⩥speaker⩤/sc⩥: l1", "l2", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       d.speech.call_args_list,
       [
         call([": l1", "l2"], False, "speaker", False),
@@ -851,13 +851,13 @@ class TestOneDramaBlockMethod(unittest.TestCase):
     d.emitCss = MagicMock(name='emitCss')
     d.speakerStandalone = MagicMock()
     d.oneDramaBlock("", [ "⩤sc⩥speaker⩤/sc⩥", "", "l1", "l2", "", "l3" ])
-    self.assertEquals(
+    self.assertEqual(
       d.speakerStandalone.call_args_list,
       [
         call("speaker"),
       ]
     );
-    self.assertEquals(
+    self.assertEqual(
       d.speech.call_args_list,
       [
         call([""], False, "speaker", False),

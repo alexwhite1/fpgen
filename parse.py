@@ -296,12 +296,12 @@ class TestParsing(unittest.TestCase):
     def f(arg, orig):
       index = self.callbackN
       self.callbackN += 1
-      self.assertEquals(line, orig)
-      self.assertEquals(arg, expectedArg[index])
+      self.assertEqual(line, orig)
+      self.assertEqual(arg, expectedArg[index])
       return replacement[index] if replacement != None else ""
     result = _parseEmbeddedTagWithoutContent(line, "tag", f)
-    self.assertEquals(self.callbackN, 1 if replacement == None else len(replacement))
-    self.assertEquals(result, expectedResult)
+    self.assertEqual(self.callbackN, 1 if replacement == None else len(replacement))
+    self.assertEqual(result, expectedResult)
 
   def test_embed_without_empty(self):
     line = ""
@@ -360,14 +360,14 @@ class TestParsing(unittest.TestCase):
     def f(arg, content, orig):
       index = self.callbackN
       self.callbackN += 1
-      self.assertEquals(line, orig)
-      self.assertEquals(arg, expectedArg[index])
-      self.assertEquals(content, expectedContent[index])
+      self.assertEqual(line, orig)
+      self.assertEqual(arg, expectedArg[index])
+      self.assertEqual(content, expectedContent[index])
       return replacement[index] if replacement != None else ""
 
     result = _parseEmbeddedSingleLineTagWithContent(line, "tag", f)
-    self.assertEquals(self.callbackN, 1 if replacement == None else len(replacement))
-    self.assertEquals(result, expectedResult)
+    self.assertEqual(self.callbackN, 1 if replacement == None else len(replacement))
+    self.assertEqual(result, expectedResult)
 
   def test_embed_content_empty(self):
     line = ""
@@ -445,7 +445,7 @@ class TestParsing(unittest.TestCase):
     self.callbackN = -1
     def f(l0, block):
       self.callbackN += 1
-      self.assertEquals(l0, open)
+      self.assertEqual(l0, open)
       self.assertSequenceEqual(block, expectedBlocks[self.callbackN])
       return replacementBlocks[self.callbackN] if replacementBlocks != None else []
 
@@ -543,7 +543,7 @@ class TestParsing(unittest.TestCase):
     self.callbackN = -1
     def f(l0, block):
       self.callbackN += 1
-      self.assertEquals(l0, open)
+      self.assertEqual(l0, open)
       self.assertSequenceEqual(block, expectedBlocks[self.callbackN])
       return replacementBlocks[self.callbackN] if replacementBlocks != None else []
 

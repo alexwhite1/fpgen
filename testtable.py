@@ -2,6 +2,7 @@ import unittest
 from fpgen import ColDescr, Text, Book, \
   TableCell, parseTableRows, parseTablePattern
 import config
+import re
 
 class TestParseTableColumn(unittest.TestCase):
   expect = ColDescr('r')
@@ -168,35 +169,35 @@ class TestTableCellFormat(unittest.TestCase):
     t = parseTableRows([ "r1", "r2" ], self.colDesc2)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r1")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r1")
     l = t[1].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r2")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r2")
 
   def testParseTableRows_tooMany(self):
     t = parseTableRows([ "r1", "r2|xyzzy" ], self.colDesc1)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r1")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r1")
     l = t[1].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r2")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r2")
 
   def testParseTableRows_strip(self):
     t = parseTableRows([ "   r1    " ], self.colDesc1)
     self.assertEqual(len(t), 1)
     l = t[0].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r1")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r1")
 
   def testParseTableRows_preserve(self):
     t = parseTableRows([ "   r1    " ], [ ColDescr("lS") ])
     self.assertEqual(len(t), 1)
     l = t[0].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "\u2007\u2007\u2007r1")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "\u2007\u2007\u2007r1")
 
   # Don't want to break existing tables with trailing or-bars
   @unittest.expectedFailure
@@ -209,12 +210,12 @@ class TestTableCellFormat(unittest.TestCase):
     t = parseTableRows([ "r1", "r2", "<col=1>", "r1c2"], self.colDesc2)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
-    self.assertEquals(len(l), 2)
-    self.assertEquals(l[0].getData(), "r1")
-    self.assertEquals(l[1].getData(), "r1c2")
+    self.assertEqual(len(l), 2)
+    self.assertEqual(l[0].getData(), "r1")
+    self.assertEqual(l[1].getData(), "r1c2")
     l = t[1].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r2")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r2")
 
   def testParseTableRows_col1_failure(self):
     with self.assertRaises(SystemExit) as cm:
@@ -230,77 +231,77 @@ class TestTableCellFormat(unittest.TestCase):
     t = parseTableRows([ "r1", "r2", "<col=1>", "r1c2|r1c3"], self.colDesc3)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
-    self.assertEquals(len(l), 3)
-    self.assertEquals(l[0].getData(), "r1")
-    self.assertEquals(l[1].getData(), "r1c2")
-    self.assertEquals(l[2].getData(), "r1c3")
+    self.assertEqual(len(l), 3)
+    self.assertEqual(l[0].getData(), "r1")
+    self.assertEqual(l[1].getData(), "r1c2")
+    self.assertEqual(l[2].getData(), "r1c3")
     l = t[1].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r2")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r2")
 
   def testParseTableRows_3col(self):
     t = parseTableRows(
       [ "r1", "r2", "<col=1>", "r1c2", "r2c2", "<col=2>", "r1c3", "r2c3" ], self.colDesc3)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
-    self.assertEquals(len(l), 3)
-    self.assertEquals(l[0].getData(), "r1")
-    self.assertEquals(l[1].getData(), "r1c2")
-    self.assertEquals(l[2].getData(), "r1c3")
+    self.assertEqual(len(l), 3)
+    self.assertEqual(l[0].getData(), "r1")
+    self.assertEqual(l[1].getData(), "r1c2")
+    self.assertEqual(l[2].getData(), "r1c3")
     l = t[1].getCells()
-    self.assertEquals(len(l), 3)
-    self.assertEquals(l[0].getData(), "r2")
-    self.assertEquals(l[1].getData(), "r2c2")
-    self.assertEquals(l[2].getData(), "r2c3")
+    self.assertEqual(len(l), 3)
+    self.assertEqual(l[0].getData(), "r2")
+    self.assertEqual(l[1].getData(), "r2c2")
+    self.assertEqual(l[2].getData(), "r2c3")
 
   def testParseTableRows_3col_span(self):
     t = parseTableRows(
       [ "r1", "r2", "<col=1>", "r1c2", "<span>", "<col=2>", "<span>", "r2c3" ], self.colDesc3)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
-    self.assertEquals(len(l), 3)
-    self.assertEquals(l[0].getData(), "r1")
-    self.assertEquals(l[1].getData(), "r1c2")
+    self.assertEqual(len(l), 3)
+    self.assertEqual(l[0].getData(), "r1")
+    self.assertEqual(l[1].getData(), "r1c2")
     assert l[2].isSpanned()
     l = t[1].getCells()
-    self.assertEquals(len(l), 3)
-    self.assertEquals(l[0].getData(), "r2")
+    self.assertEqual(len(l), 3)
+    self.assertEqual(l[0].getData(), "r2")
     assert l[1].isSpanned()
-    self.assertEquals(l[2].getData(), "r2c3")
+    self.assertEqual(l[2].getData(), "r2c3")
 
   def testParseTableRows_col_skip(self):
     t = parseTableRows([ "r1", "r2", "<col=2>", "r1c3"], self.colDesc3)
     self.assertEqual(len(t), 2)
     l = t[0].getCells()
-    self.assertEquals(len(l), 3)
-    self.assertEquals(l[0].getData(), "r1")
-    self.assertEquals(l[1].getData(), "")
-    self.assertEquals(l[2].getData(), "r1c3")
+    self.assertEqual(len(l), 3)
+    self.assertEqual(l[0].getData(), "r1")
+    self.assertEqual(l[1].getData(), "")
+    self.assertEqual(l[2].getData(), "r1c3")
     l = t[1].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r2")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r2")
 
   def testParseTableRows_row_skip(self):
     t = parseTableRows([ "r1", "r2", "<col=2>", "", "", "", "r4c3"], self.colDesc3)
     self.assertEqual(len(t), 4)
 
     l = t[0].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r1")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r1")
 
     l = t[1].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "r2")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "r2")
 
     l = t[2].getCells()
-    self.assertEquals(len(l), 1)
-    self.assertEquals(l[0].getData(), "")
+    self.assertEqual(len(l), 1)
+    self.assertEqual(l[0].getData(), "")
 
     l = t[3].getCells()
-    self.assertEquals(len(l), 3)
-    self.assertEquals(l[0].getData(), "")
-    self.assertEquals(l[1].getData(), "")
-    self.assertEquals(l[2].getData(), "r4c3")
+    self.assertEqual(len(l), 3)
+    self.assertEqual(l[0].getData(), "")
+    self.assertEqual(l[1].getData(), "")
+    self.assertEqual(l[2].getData(), "r4c3")
 
   def testL(self):
     col = ColDescr('l')
@@ -431,29 +432,29 @@ class TestMakeTable(unittest.TestCase):
     #  t.uprint("Line: " + l)
     # 11 + 11 = 22, 75-22=53//2 = 26.
     # Should be 26 + 1 + 10 + 1 + 10 
-    self.assertEquals(len(u[textN]), 48)
-    self.assertEquals(u[textN][0], '▹')
+    self.assertEqual(len(u[textN]), 48)
+    self.assertEqual(u[textN][0], '▹')
 
   def test_toowide(self):
     l = 'x' * 74
     # Column width truncated to 74
     u = self.t.makeTable([ "<table pattern='r99'>", l, "</table>" ])
-    self.assertEquals(u[1], config.FORMATTED_PREFIX + l)
+    self.assertEqual(u[1], config.FORMATTED_PREFIX + l)
 
   def test_toowide1(self):
     l = 'x' * 80
     # Column width truncated to 74
     u = self.t.makeTable([ "<table pattern='r99'>", l, "</table>" ])
     # Chop-wrap onto two lines
-    self.assertEquals(u[1], config.FORMATTED_PREFIX + 'x'*74)
-    self.assertEquals(u[2], config.FORMATTED_PREFIX + ' '*68 + 'x'*6)
+    self.assertEqual(u[1], config.FORMATTED_PREFIX + 'x'*74)
+    self.assertEqual(u[2], config.FORMATTED_PREFIX + ' '*68 + 'x'*6)
 
   def test_toowide2(self):
     l = 'x' * 80
     # Column width not truncated
     u = self.t.makeTable([ "<table rend='textwidth:99' pattern='r99'>", l, "</table>" ])
     # Right justified in 99 columns, with special no wrap
-    self.assertEquals(u[1], config.FORMATTED_PREFIX + config.NO_WRAP_PREFIX +
+    self.assertEqual(u[1], config.FORMATTED_PREFIX + config.NO_WRAP_PREFIX +
       ' '*18 + 'x'*80)
 
   def test_t1(self):
@@ -594,7 +595,9 @@ class TestMakeTable(unittest.TestCase):
         "_",
       "</table>" ])
     assert len(u) == 5
-    self.assertRegexpMatches(u[1], "────────────────┰─$")
+    #self.assertRegexpMatches(u[1], "────────────────┰─$")
+    #self.assertTrue(re.match(u[1], "────────────────┰─$"))
+    assert u[1].endswith("────────────────┰─")
     assert u[2].endswith("               1┃A")
     assert u[3].endswith("────────────────┸─")
 
@@ -623,7 +626,7 @@ class TestMakeTable(unittest.TestCase):
         "word longer test w1|B",
       "</table>"
     ])
-    self.assertEquals(len(u), 5)
+    self.assertEqual(len(u), 5)
     assert u[1].endswith("    word B")
     assert u[2].endswith("  longer")
     assert u[3].endswith(" test w1")
