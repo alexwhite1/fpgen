@@ -202,8 +202,9 @@ from time import gmtime, strftime
 # 4.65     Add <alt>...</alt> within <illustration>
 # 4.66     Add option toc-levels
 # 4.67     Support for python 3.13 (Strings that should be regexs)
+# 4.67a    Fix illustration in text output with <alt>
 
-VERSION="4.67"
+VERSION="4.67a"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

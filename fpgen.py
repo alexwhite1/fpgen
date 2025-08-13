@@ -4150,45 +4150,46 @@ class Text(Book): #{
     def oneIllustration(args, block):
       attr = parseTagAttributes("illustration", args, illustrationAttributes)
       t = []
-      if len(block) == 0:
-        t.append("<l>[Illustration]</l>")
-      else:
-        captions = parseCaptions(block)
-        credit = None
-        caption = None
-        if 'caption' in captions:
-          caption = captions['caption']
-        if 'credit' in captions:
-          credit = captions['credit']
-        if caption is None:
-          if credit is None:
-            c = [ "" ]
-          else:
-            c = [ " ".join(credit).strip() ]
-        elif not credit is None:
-          c = [
-              " ".join(credit).strip(),
-              " ".join(caption).strip()
-            ]
+
+      captions = parseCaptions(block)
+      if captions == None:
+        captions = []
+      credit = None
+      caption = None
+      # Note alt is completely ignored in text output
+      if 'caption' in captions:
+        caption = captions['caption']
+      if 'credit' in captions:
+        credit = captions['credit']
+      if caption is None:
+        if credit is None:
+          return [ "<l>[Illustration]</l>" ]
         else:
-          c = [ " ".join(caption).strip() ]
+          c = [ " ".join(credit).strip() ]
+      elif not credit is None:
+        c = [
+            " ".join(credit).strip(),
+            " ".join(caption).strip()
+          ]
+      else:
+        c = [ " ".join(caption).strip() ]
 
-        c[0] = "[Illustration: " + c[0]
-        c[-1] = c[-1] + "]"
+      c[0] = "[Illustration: " + c[0]
+      c[-1] = c[-1] + "]"
 
-        for l in c:
-          t.append("▹.rs 1")
-          # if there is a <br> in the caption, then user wants
-          # control of line breaks. otherwise, wrap
-          m = re.search(r"<br\/?>", l)
-          if m: # user control
-            s = re.sub(r"<br\/?>", "\n", l)
-            u = s.split('\n')
-          else: # fpgen wraps illustration line
-            u = wrap2(l)
-          for x in u:
-            t.append(config.FORMATTED_PREFIX+x) # may be multiple lines
-          t.append("▹.rs 1")
+      for l in c:
+        t.append("▹.rs 1")
+        # if there is a <br> in the caption, then user wants
+        # control of line breaks. otherwise, wrap
+        m = re.search(r"<br\/?>", l)
+        if m: # user control
+          s = re.sub(r"<br\/?>", "\n", l)
+          u = s.split('\n')
+        else: # fpgen wraps illustration line
+          u = wrap2(l)
+        for x in u:
+          t.append(config.FORMATTED_PREFIX+x) # may be multiple lines
+        t.append("▹.rs 1")
       return t
 
     parseStandaloneTagBlock(self.wb, "illustration", oneIllustration, allowClose = True)

@@ -261,3 +261,49 @@ class TestTextFormatLineGroup(unittest.TestCase):
       self.P+12*self.H+'l1',
       self.P+12*self.H+'lo_ng_er'
     ])
+
+  def test_illustration_alt_param(self):
+    self.text.wb = [
+      "<illustration rend='w:80% occupy:60%' alt='Four children' src='image/010.jpg'/>"
+    ]
+    self.text.illustrations()
+    self.assertSequenceEqual(self.text.wb, [ "<l>[Illustration]</l>" ])
+
+  def test_illustration_alt_inline(self):
+    self.text.wb = [
+      "<illustration rend='w:80% occupy:60%' src='image/010.jpg'>",
+      "<alt>Four Children</alt>",
+      "</illustration>"
+    ]
+    self.text.illustrations()
+    self.assertSequenceEqual(self.text.wb, [ "<l>[Illustration]</l>" ])
+
+  def test_illustration_caption(self):
+    self.text.wb = [
+      "<illustration rend='w:80% occupy:60%' src='image/010.jpg'>",
+      "<caption>Four Children</caption>",
+      "</illustration>"
+    ]
+    config.LINE_WIDTH = 80
+    self.text.illustrations()
+    self.assertSequenceEqual(self.text.wb, [
+      "▹.rs 1",
+      "▹[Illustration: Four Children]",
+      "▹.rs 1",
+    ])
+
+  def test_illustration_caption_with_wrap(self):
+    self.text.wb = [
+      "<illustration rend='w:80% occupy:60%' src='image/010.jpg'>",
+      "<caption>Four Children</caption>",
+      "</illustration>"
+    ]
+    config.LINE_WIDTH = 20
+    self.text.illustrations()
+    self.assertSequenceEqual(self.text.wb, [
+      "▹.rs 1",
+      "▹[Illustration: Four",
+      "▹Children]",
+      "▹.rs 1",
+    ])
+
