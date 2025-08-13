@@ -638,10 +638,7 @@ class TestHTMLPara(unittest.TestCase):
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
-      "<caption>",
-      "</caption>",
-      "</illustration>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
       "",
       "<pb>",
     ]);
@@ -649,20 +646,14 @@ class TestHTMLPara(unittest.TestCase):
   def test_html_illustration_empty_caption2(self):
     self.html.wb = [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
-      "<caption>",
-      "</caption>",
-      "</illustration>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
       "",
       "<pb>",
     ]
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
-      "<caption>",
-      "</caption>",
-      "</illustration>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
       "",
       "<pb>",
     ]);
@@ -679,10 +670,7 @@ class TestHTMLPara(unittest.TestCase):
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
-      "<caption>",
-      "</caption>",
-      "</illustration>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
       "",
       "<pb>",
     ]);
@@ -701,10 +689,7 @@ class TestHTMLPara(unittest.TestCase):
     self.html.markPara();
     self.assertSequenceEqual(self.html.wb, [
       "",
-      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'>",
-      "<caption>",
-      "</caption>",
-      "</illustration>",
+      "<illustration id='frontis' rend='w:100%' src='images/frontis.jpg'/>",
       "",
       "<pb>",
     ]);
