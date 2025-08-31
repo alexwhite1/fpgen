@@ -214,10 +214,25 @@ def get_file_paragraphs(args):
 
 
 ##########
+# Convert boolean option to boolean value
+##########
+def convert_option( option):
+    if 'T' in option:
+       return True
+    else:
+       return False
+
+
+##########
 # Start a session with the language tool server
 ##########
-def get_language_tool(language):
-        return language_tool_python.LanguageTool(language, config={'cacheSize': 1000, 'pipelineCaching': True})
+def get_language_tool(args):
+    cache=convert_option(args.cache)
+
+    if cache:
+        return language_tool_python.LanguageTool(args.language, config={'cacheSize': 1000, 'pipelineCaching': True})
+
+    return language_tool_python.LanguageTool(args.language)
 
 
 ##########
@@ -255,6 +270,7 @@ def language_tool_find(lt, args, rules ):
 
                 found_count+=1
 
+                print('  Category:', match.category, '  Rule Issue:', match.ruleIssueType)
                 print('  ', match)
                 print_count+=1
 
@@ -262,15 +278,6 @@ def language_tool_find(lt, args, rules ):
     print('Total matches in file:', match_count)
     print('Total matches printed:', found_count)
 
-
-##########
-# Convert boolean option to boolean value
-##########
-def convert_option( option):
-    if 'T' in option:
-       return True
-    else:
-       return False
 
 
 ##########
@@ -283,12 +290,13 @@ def language_tool_skip(lt, args):
     pp_count=0
     print_count=0
 
-    skip_comma    =convert_option(args.comma)
-    skip_compound =convert_option(args.compound)
-    skip_diacritic=convert_option(args.diacritic)
-    skip_hyphen   =convert_option(args.hyphen)
-    skip_ignore   =convert_option(args.ignore)
-    skip_spelling =convert_option(args.spelling)
+    skip_comma      =convert_option(args.comma)
+    skip_compound   =convert_option(args.compound)
+    skip_diacritic  =convert_option(args.diacritic)
+    skip_hyphen     =convert_option(args.hyphen)
+    skip_ignore     =convert_option(args.ignore)
+    skip_punctuation=convert_option(args.punctuation)
+    skip_spelling   =convert_option(args.spelling)
 
     paragraphs=get_file_paragraphs(args)
     for paragraph in paragraphs:
@@ -304,6 +312,13 @@ def language_tool_skip(lt, args):
         output_header=True
         match_count+=len(matches)
         for match in matches:
+            if match.ruleIssueType=='style':
+                if match.category=='REDUNDANCY':
+                    # e.g. WHETHER: the question whether -> whether
+                    continue
+                if match.category=='STYLE':
+                    # e.g. FOR_EVER_GB: for ever -> forever
+                    continue
             if match.ruleId in IGNORE:
                 if skip_ignore:
                     continue
@@ -327,6 +342,9 @@ def language_tool_skip(lt, args):
                 # e.g. UP_AND_COMING_HYPHEN, ROLL_OUT_HYPHEN, MISSING_HYPHEN
                 if skip_hyphen:
                     continue
+            if 'UPPERCASE_SENTENCE_START' in match.ruleId:
+                if skip_punctuation:
+                    continue
             if 'FR_SPELLING_RULE' in match.ruleId:
                 if skip_spelling:
                     continue
@@ -344,6 +362,7 @@ def language_tool_skip(lt, args):
 
             found_count+=1
 
+            print('  Category:', match.category, '  Rule Issue:', match.ruleIssueType)
             print('  ', match)
             print_count+=1
 
@@ -384,12 +403,14 @@ def get_args():
     EXTRA_HELP   ='Name of text file containing extra language-tool rules to ignore (see pplt_example.txt)'
 
     # Optional options
-    COMMA_HELP    ='Skip rules containing \'COMMA\' (e.g. COMMA_AFTER_A_MONTH)'
-    COMPOUND_HELP ='Skip rules containing \'COMPOUND\' (e.g. CAR_POOL_COMPOUND)'
-    DIACRITIC_HELP='Skip rules containing \'DIACRITIC\' (e.g. )'
-    HYPHEN_HELP   ='Skip rules containing \'HYPHEN\' (e.g. MISSING_HYPHEN)'
-    IGNORE_HELP   ='Skip rules in hard-coded array  (e.g. rule \'GIMME\' suggests \'gimme\' be changed to \'give me\')'
-    SPELLING_HELP ='Skip rules related to spelling (e.g., MORFOLOGIK_RULE_EN_GB and MORFOLOGIK_RULE_EN_US)'
+    CACHE_HELP      ='Speed up processing for multiple runs'
+    COMMA_HELP      ='Skip rules containing \'COMMA\' (e.g. COMMA_AFTER_A_MONTH)'
+    COMPOUND_HELP   ='Skip rules containing \'COMPOUND\' (e.g. CAR_POOL_COMPOUND)'
+    DIACRITIC_HELP  ='Skip rules containing \'DIACRITIC\' (e.g. )'
+    HYPHEN_HELP     ='Skip rules containing \'HYPHEN\' (e.g. MISSING_HYPHEN)'
+    IGNORE_HELP     ='Skip rules in hard-coded array  (e.g. rule \'GIMME\' suggests \'gimme\' be changed to \'give me\')'
+    PUNCTUATION_HELP='Skip rules related to lower case word after period (e.g UPPERCASE_SENTENCE_START, )'
+    SPELLING_HELP   ='Skip rules related to spelling (e.g., MORFOLOGIK_RULE_EN_GB and MORFOLOGIK_RULE_EN_US)'
 
     FIND_HELP    ='Name of text file containing rules to display (see pplt_example.txt)'
     VERBOSE_HELP ='Show details: operation, language-tool rules'
@@ -398,31 +419,35 @@ def get_args():
     LANGUAGE_CHOICES=['en',  'en-AU', 'en-CA', 'en-GB', 'en-NZ', 'en-US', 'en-ZA', 'fr', 'fr-BE', 'fr-CA']
 
     parser=argparse.ArgumentParser(prog=PROGRAM_NAME, description=PROGRAM_DESCRIPTION, epilog=PROGRAM_EPILOG, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('filename',                                                                  help=FILENAME_HELP)
-    parser.add_argument('-l', '--language',  choices=LANGUAGE_CHOICES,      required=True,          help=LANGUAGE_HELP)
-    parser.add_argument('-e', '--extra',     action='store',      type=str, default='none',         help=EXTRA_HELP)
-    parser.add_argument('-c', '--comma',     choices=BOOLEAN_CHOICES,       default='True',         help=COMMA_HELP)
-    parser.add_argument('-d', '--diacritic', choices=BOOLEAN_CHOICES,       default='False',        help=DIACRITIC_HELP)
-    parser.add_argument('-i', '--ignore',    choices=BOOLEAN_CHOICES,       default='True',        help=IGNORE_HELP)
-    parser.add_argument('-k', '--compound',  choices=BOOLEAN_CHOICES,       default='True',         help=COMPOUND_HELP)
-    parser.add_argument('-s', '--spelling',  choices=BOOLEAN_CHOICES,       default='True',         help=SPELLING_HELP)
-    parser.add_argument('-y', '--hyphen',    choices=BOOLEAN_CHOICES,       default='True',         help=HYPHEN_HELP)
-    parser.add_argument('-f', '--find',      action='store',      type=str, default='none',         help=FIND_HELP)
-    parser.add_argument('-v', '--verbose',   action='store_true',           default='store_false',  help=VERBOSE_HELP)
+    parser.add_argument('filename',                                                                   help=FILENAME_HELP)
+    parser.add_argument('-l', '--language',    choices=LANGUAGE_CHOICES,      required=True,          help=LANGUAGE_HELP)
+    parser.add_argument('-e', '--extra',       action='store',      type=str, default='none',         help=EXTRA_HELP)
+    parser.add_argument('-c', '--comma',       choices=BOOLEAN_CHOICES,       default='True',         help=COMMA_HELP)
+    parser.add_argument('-d', '--diacritic',   choices=BOOLEAN_CHOICES,       default='False',        help=DIACRITIC_HELP)
+    parser.add_argument('-i', '--ignore',      choices=BOOLEAN_CHOICES,       default='True',         help=IGNORE_HELP)
+    parser.add_argument('-k', '--compound',    choices=BOOLEAN_CHOICES,       default='True',         help=COMPOUND_HELP)
+    parser.add_argument('-p', '--punctuation', choices=BOOLEAN_CHOICES,       default='True',         help=PUNCTUATION_HELP)
+    parser.add_argument('-s', '--spelling',    choices=BOOLEAN_CHOICES,       default='True',         help=SPELLING_HELP)
+    parser.add_argument('-y', '--hyphen',      choices=BOOLEAN_CHOICES,       default='True',         help=HYPHEN_HELP)
+    parser.add_argument(      '--cache',       choices=BOOLEAN_CHOICES,       default='False',        help=CACHE_HELP)
+    parser.add_argument('-f', '--find',        action='store',      type=str, default='none',         help=FIND_HELP)
+    parser.add_argument('-v', '--verbose',     action='store_true',           default='store_false',  help=VERBOSE_HELP)
 
     args=parser.parse_args()
     if args.verbose==True:
-        print('args.filename: ', args.filename)
-        print('args.language: ', args.language)
-        print('args.extra:    ', args.extra)
-        print('args.comma:    ', args.comma)
-        print('args.diacritic:', args.diacritic)
-        print('args.ignore:   ', args.ignore)
-        print('args.compound: ', args.compound)
-        print('args.spelling: ', args.spelling)
-        print('args.hyphen:   ', args.hyphen)
-        print('args.find:     ', args.find)
-        print('args.verbose:  ', args.verbose)
+        print('args.filename:   ', args.filename)
+        print('args.language:   ', args.language)
+        print('args.extra:      ', args.extra)
+        print('args.comma:      ', args.comma)
+        print('args.diacritic:  ', args.diacritic)
+        print('args.ignore:     ', args.ignore)
+        print('args.compound:   ', args.compound)
+        print('args.punctuation:', args.punctuation)
+        print('args.spelling:   ', args.spelling)
+        print('args.hyphen:     ', args.hyphen)
+        print('args.caching:    ', args.caching)
+        print('args.find:       ', args.find)
+        print('args.verbose:    ', args.verbose)
 
     return args
 
@@ -454,7 +479,7 @@ def get_file_rules(filename):
 args = get_args()
 
 # Get language tool
-lt=get_language_tool(args.language)
+lt=get_language_tool(args)
 
 # Find rules specified by user file
 if args.find!='none':
