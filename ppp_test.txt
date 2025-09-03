@@ -1,0 +1,42 @@
+Run ppp.py with this as the input file.
+Examine printed output for correct warnings.
+Do a diff of this file and output file for verify.
+Each line below is a test case for ppp.py.
+remove space before question mark ?
+remove space before exclamation mark !
+remove space before semicolon ;
+remove space before question mark ? more text
+remove space before exclamation mark ! more text
+remove space before semicolon ; more text
+no changes?
+no changes!
+no changes;
+warning about too many spaces  ?
+warning about too many spaces  !
+warning about too many spaces  ;
+? warning about start of sentence
+! warning about start of sentence
+; warning about start of sentence
+    ? warning about start of sentence
+     ! warning about start of sentence
+      ; warning about start of sentence
+warning about too many spaces after tire —  
+add nbspace before tiret, not after—
+add nbspace before tiret, not after —
+—add nbspace after tiret, not before
+— add nbspace after tiret, not before
+      —add nbspace after tiret, not before
+      — add nbspace after tiret, not before
+no nbsp between double tiret ——
+no nbsp between double tiret —— text
+replace space between double tiret — —
+replace space between double tiret — — text
+insert nbsp: text
+insert nbsp «text text text»
+replace space with nbsp « text text text »
+warning about too many spaces with nbsp «  text text text  »
+warning about too many spaces with nbsp «  text text text»
+warning about too many spaces with nbsp «text text text  »
+» warning aoubt start of sentence
+warning about end of sentence «
+: warning about start of sentence
