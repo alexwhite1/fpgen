@@ -5,13 +5,15 @@ import re
 LEAVE_MARKER='x07'
 GOOD_MARKER ='x08'
 
+line_number=0
+
 
 ##########
 # Generic output of warnings
 ##########
 def print_warning(part, warning):
     part=part.replace('\n','')
-    print(f'Text: \'{part}\'')
+    print(f'Line {line_number}. Text: \'{part}\'')
     print( '  - Warning: ', warning)
 
 
@@ -126,7 +128,11 @@ def update_french_CA(args):
 
     skip=False
     # March through the file, line by line
+    global line_number
+    line_number=0
     for line in lines:
+        line_number+=1
+
         # Want to skip over the <lit section="head"> section
         # Just write it out lines, no processing
         if line.count('<lit')==1:
@@ -199,53 +205,6 @@ def update_french_CA(args):
     print('Finished writing:', args.output)
 
 
-##########
-# Get program arguments
-##########
-def output_french_CA_info():
-    print('')
-    print('List of things this program will, and will not, do')
-    print('')
-    print('1. Will report the following as a possible issue for fpgen:')
-    print('   (i.e. no changes)')
-    print('   a. \'<space><space>;\'')
-    print('   b. \'<space><space>!\'')
-    print('   c. \'<space><space>?\'')
-    print('')
-    print('2. Update the following to assist fpgen to insert narrow-no-break spaces:')
-    print('   (i.e. remove the space)')
-    print('   a. \'<text><space>;\' -> \'<text>;\'')
-    print('   b. \'<text><space>!\' -> \'<text>!\'')
-    print('   c. \'<text><space>?\' -> \'<text>?\'')
-    print('')
-    print('3. Will report the following:')
-    print('   (i.e. no changes)')
-    print('   a. \'«<space><space>\'')
-    print('   b. \'<space><space>»\'')
-    print('   c. \'<space><space>:\'')
-    print('   d. \'<space><space>—\'')
-    print('   e. \'—<space><space>\'')
-    print('')
-    print('4. Update the following with a no-break space')
-    print('   (i.e. replace space with non-break space)')
-    print('   a. \'«<space><text>\' -> \'«<nbsp><text>\'')
-    print('   b. \'<text><space>»\' -> \'<text><nbsp>»\'')
-    print('   c. \'<text><space>:\' -> \'<text><nbsp>:\'')
-    print('   d. \'<text><space>—<space><text>\' -> \'<text><nbsp>—<nbsp><text>\'')
-    print('')
-    print('5. Insert nobreak space')
-    print('   a. \'«<text>\' -> \'«<nbsp><text>\'')
-    print('   b. \'<text>»\' -> \'<text><nbsp>»\'')
-    print('   c. \'<text>:\' -> \'<text><nbsp>:\'')
-    print('   d. \'<text>—<text>\' -> \'<text><nbsp>—<nbsp><text>\'')
-    print('')
-    print('6. Special handling for the tiret')
-    print('   a. No <nbsp> at the start of the line')
-    print('   b. No <nbsp> at the end of the line')
-    print('   c. remove all <nbsp> between a double tiret')
-    print('   d. remove space between a double tiret')
-    print('')
-
 
 ##########
 # Get program arguments
@@ -253,13 +212,14 @@ def output_french_CA_info():
 def get_args():
 
     PROGRAM_NAME='python3 ppp.py'
-    PROGRAM_DESCRIPTION='''This program adds punctuation for non-english languages.
+    PROGRAM_DESCRIPTION='''This program adds punctuation for non-English languages.
                            It takes as input the file provided to PP after the proofing and formating.
-                           For French, this includes: adding non-break spaces for the following: \':\', \'«\', \'»\', and \'—\' (tiret).
+                           For French, this includes adding non-break spaces for the following:
+                           \':\', \'«\', \'»\', and \'—\' (tiret, an emdash).
                            '''
     # Required options
     FILENAME_HELP='Name of text file containing the PP book'
-    LANGUAGE_HELP='Set of language rules to use: fr (French)'
+    LANGUAGE_HELP='Set of language rules to use: fr-CA (Canadian French)'
     OUTPUT_HELP  ='Name of output file'
     INFO_HELP    ='The rules followed insert no-break spaces'
     VERBOSE_HELP ='Show details'
@@ -272,14 +232,12 @@ def get_args():
     parser.add_argument('-l', '--language',  choices=LANGUAGE_CHOICES,      required=True,          help=LANGUAGE_HELP)
     parser.add_argument('-o', '--output',    action='store',      type=str, required=True,          help=OUTPUT_HELP)
     parser.add_argument('-v', '--verbose',   action='store_true',           default='store_false',  help=VERBOSE_HELP)
-    parser.add_argument(      '--info',      action='store_true',           default='store_false',  help=INFO_HELP)
 
     args=parser.parse_args()
     if args.verbose==True:
         print('args.filename: ', args.filename)
         print('args.language: ', args.language)
         print('args.output:   ', args.output)
-        print('args.info:     ', args.info)
         print('args.verbose:  ', args.verbose)
 
     return args
@@ -293,10 +251,6 @@ def get_args():
 args = get_args()
 
 if args.language=='fr-CA':
-    if args.info==True:
-        output_french_CA_info()
-        exit()
-
     update_french_CA(args)
     exit()
 
