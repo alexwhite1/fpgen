@@ -20,7 +20,7 @@ def print_warning(part, warning):
 ##########
 # Tidy the French punctuation so fpgen can insert narrow-no-break spaces
 ##########
-def tidy_punctuation(part, target, target_plus_space, leave, leave_warning):
+def tidy_punctuation(part, target, target_plus_space, target_plus_nbspace, leave, leave_warning):
     if part.count(target)==0:
         # Nothing to do
         return part
@@ -36,7 +36,8 @@ def tidy_punctuation(part, target, target_plus_space, leave, leave_warning):
     # Hide items we do not want to change
     part=part.replace(leave, LEAVE_MARKER)
     
-    # Tidy things up (i.e. remove the space)
+    # Tidy things up (i.e. remove the spaces)
+    part=part.replace(target_plus_nbspace, target)
     part=part.replace(target_plus_space, target)
 
     # Restore items
@@ -161,17 +162,18 @@ def update_french_CA(args):
         for part in parts:
             new=part
 
-            # Update part so fpgen can do the narrow no-break insertions
-            new=tidy_punctuation(new, ';', ' ;', '  ;', 'too many spaces before semicolon')
-            new=tidy_punctuation(new, '!', ' !', '  !', 'too many spaces before exclamation point')
-            new=tidy_punctuation(new, '?', ' ?', '  ?', 'too many spaces before question mark')
-
             # Update part with no-break spaces
             new=update_punctuation(new, '«', '« ', '«  ', '«\\ ', 'too many spaces after left guillemet')
             new=update_punctuation(new, '»', ' »', '  »', '\\ »', 'too many spaces before right guilemet')
             new=update_punctuation(new, ':', ' :', '  :', '\\ :', 'too many spaces before colon')
             new=update_punctuation(new, '—', ' —', '  —', '\\ —', 'too many spaces before tiret')
             new=update_punctuation(new, '—', '— ', '—  ', '—\\ ', 'too many spaces after tiret')
+
+            # Update part so fpgen can do the narrow no-break insertions
+            # Has to be done after update_punctuation calls
+            new=tidy_punctuation(new, ';', ' ;', '\\ ;', '  ;', 'too many spaces before semicolon')
+            new=tidy_punctuation(new, '!', ' !', '\\ !', '  !', 'too many spaces before exclamation point')
+            new=tidy_punctuation(new, '?', ' ?', '\\ ?', '  ?', 'too many spaces before question mark')
 
             # Insert updated part back into the line
             line=line.replace(part,new)
@@ -193,7 +195,7 @@ def update_french_CA(args):
         line=line.replace('—\\ \n', '—\n')
 
         # Fix up the case where there are two tirets in a row
-        line=line.replace('—\\ —', '—-')
+        line=line.replace('—\\ —', '——')
 
         # Sanity checks
         check_end_of_line(line, ' \n', 'space at end of line')
