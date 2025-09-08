@@ -2,41 +2,80 @@ Run ppp.py with this as the input file.
 Examine printed output for correct warnings.
 Do a diff of this file and output file for verify.
 Each line below is a test case for ppp.py.
+Test case 1
 remove space before question mark ?
+Test case 2
 remove space before exclamation mark !
+Test case 3
 remove space before semicolon ;
+Test case 4
 remove space before question mark ? more text
+Test case 5
 remove space before exclamation mark ! more text
+Test case 6
 remove space before semicolon ; more text
+Test case 7
 no changes?
+Test case 8
 no changes!
+Test case 9
 no changes;
-warning about too many spaces  ?
-warning about too many spaces  !
-warning about too many spaces  ;
-? warning about start of sentence
-! warning about start of sentence
-; warning about start of sentence
-    ? warning about start of sentence
-     ! warning about start of sentence
-      ; warning about start of sentence
-warning about too many spaces after tire —  
+Test case 10
+Too many spaces  ?
+Test case 11
+Too many spaces  !
+Test case 12
+Too many spaces  ;
+Test case 13
+? at start of sentence
+Test case 14
+! at start of sentence
+Test case 15
+; at start of sentence
+Test case 16
+    ? at start of sentence
+Test case 17
+     ! at start of sentence
+Test case 18
+      ; at start of sentence
+Test case 19
+Too many spaces after tiret —  
+Test case 20
 add nbspace before tiret, not after—
+Test case 21
 add nbspace before tiret, not after —
+Test case 22
 —add nbspace after tiret, not before
+Test case 23
 — add nbspace after tiret, not before
+Test case 24
       —add nbspace after tiret, not before
+Test case 25
       — add nbspace after tiret, not before
+Test case 26
 no nbsp between double tiret ——
+Test case 27
 no nbsp between double tiret —— text
+Test case 28
 replace space between double tiret — —
+Test case 29
 replace space between double tiret — — text
+Test case 30
 insert nbsp: text
+Test case 31
 insert nbsp «text text text»
+Test case 32
 replace space with nbsp « text text text »
-warning about too many spaces with nbsp «  text text text  »
-warning about too many spaces with nbsp «  text text text»
-warning about too many spaces with nbsp «text text text  »
-» warning aoubt start of sentence
-warning about end of sentence «
-: warning about start of sentence
+Test case 33
+Too many spaces with nbsp «  text text text  »
+Test case 34
+Too many spaces with nbsp «  text text text»
+Test case 35
+Too many spaces with nbsp «text text text  »
+Test case 36
+» at start of sentence
+Test case 37
+At end of sentence «
+Test case 38
+: atstart of sentence
+
