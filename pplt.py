@@ -494,7 +494,7 @@ def get_args():
         print('args.punctuation:', args.punctuation)
         print('args.spelling:   ', args.spelling)
         print('args.hyphen:     ', args.hyphen)
-        print('args.caching:    ', args.caching)
+        print('args.cache:      ', args.cache)
         print('args.find:       ', args.find)
         print('args.verbose:    ', args.verbose)
 
