@@ -22,13 +22,14 @@ IGNORE.append('AFTERWARDS_US')                       #
 IGNORE.append('ALL_OF_THE')                          # all of the -> all the
 IGNORE.append('ALL_MOST_SOME_OF_NOUN')               # all of laughter -> all laughter, all of the laughter
 IGNORE.append('AND_BUT')                             # remove and or but
-IGNORE.append('ANY_MORE')
+IGNORE.append('ANY_MORE')                            # just on eleven o’clock -> just at eleven o’clock
 IGNORE.append('APARTMENT-FLAT')                      # apartment -> flat
 IGNORE.append('ARTICLE_ADJECTIVE_OF')                # Use a noun, not an adjective, between ‘the’ and ‘of’
 IGNORE.append('AS_IS_VBG')                           # It appears that a pronoun is missing
 IGNORE.append('ASK_NO_PREPOSITION')                  # tell to me -> tell me
 IGNORE.append('ASK_THE_QUESTION')                    # ask the question -> ask
 IGNORE.append('ASSOCIATE_TOGETHER')                  # associated together -> associate
+IGNORE.append('AT_TIME')                             # ask the question -> ask
 IGNORE.append('BALD-HEADED')                         # bald headed -> bald
 IGNORE.append('BECAUSE_OF_THE_FACT_THAT')            # because of the fact that -> because
 IGNORE.append('BEEN_PART_AGREEMENT')                 # suppose -> supposed, or supposing
@@ -170,6 +171,28 @@ HIGH_LIGHT.append('QUESTION_MARK')                 # sentence may need a questio
 ##########
 # Read file and split into paragrpahs
 ##########
+def add_rule_to_ignore(doc, double, single, rule):
+    a=doc.count(double)
+    b=doc.count(double.capitalize())
+    if a+b>0:
+        a=doc.count(single)
+        b=doc.count(single.capitalize())
+        if a+b==0:
+            IGNORE.append(rule)
+
+
+##########
+# Read file and split into paragrpahs
+##########
+def add_rules_to_ignore_based_on_usage(doc):
+    add_rule_to_ignore(doc, 'worth while', 'worthwhile', 'WORTH_WHILE')
+    add_rule_to_ignore(doc, 'short cut',   'shortcut',   'SHORT_CUT')
+    add_rule_to_ignore(doc, 'near by',     'nearby',     'NEAR_BY')
+
+
+##########
+# Read file and split into paragrpahs
+##########
 def get_file_paragraphs(args):
     with open(args.filename, 'r', encoding='utf-8') as file:
         doc=file.read()
@@ -177,6 +200,8 @@ def get_file_paragraphs(args):
 
     # Remove italics
     doc=doc.replace('_', '')
+
+    add_rules_to_ignore_based_on_usage(doc)
 
     # Language tool does not like spaced ellipses
     doc=doc.replace('. . . .', '....')
@@ -238,14 +263,18 @@ def get_language_tool(args):
 ##########
 # March through paragraphs, finding specified rules
 ##########
-def language_tool_find(lt, args, rules ):
+def language_tool_find(args, rules ):
 
-    found_count=0
     match_count=0
     pp_count=0
     print_count=0
 
+    # Read file before starting language tool
     paragraphs=get_file_paragraphs(args)
+
+    # Get language tool
+    lt=get_language_tool(args)
+
     for paragraph in paragraphs:
         pp_count+=1
 
@@ -261,6 +290,8 @@ def language_tool_find(lt, args, rules ):
         for match in matches:
             if match.ruleId in rules:
 
+                print_count+=1
+
                 # Output header for this paragraph 
                 if output_header:
                     print(f'{print_count}. Paragraph:{pp_count}')
@@ -268,24 +299,21 @@ def language_tool_find(lt, args, rules ):
                     print('')
                     output_header=False
 
-                found_count+=1
-
                 print('  Category:', match.category, '  Rule Issue:', match.ruleIssueType)
                 print('  ', match)
-                print_count+=1
 
     print('')
     print('Total matches in file:', match_count)
-    print('Total matches printed:', found_count)
+    print('Total matches printed:', print_count)
 
+    lt.close()
 
 
 ##########
 # March through paragraphs, skipping specified rules
 ##########
-def language_tool_skip(lt, args):
+def language_tool_skip(args):
 
-    found_count=0
     match_count=0
     pp_count=0
     print_count=0
@@ -298,7 +326,12 @@ def language_tool_skip(lt, args):
     skip_punctuation=convert_option(args.punctuation)
     skip_spelling   =convert_option(args.spelling)
 
+    # Read file before starting language tool
     paragraphs=get_file_paragraphs(args)
+
+    # Get language tool
+    lt=get_language_tool(args)
+
     for paragraph in paragraphs:
         pp_count+=1
 
@@ -312,11 +345,25 @@ def language_tool_skip(lt, args):
         output_header=True
         match_count+=len(matches)
         for match in matches:
+            if match.category=='COLLOCATIONS':
+                # e.g. AT_THE_JOB: at the job -> on the job
+                continue
+            if match.category=='BRITISH_ENGLISH':
+                if match.ruleIssueType=='locale-violation':
+                    # e.g. GROUND_FIRST_FLOOR: ground floor -> first floor
+                    continue
+            if match.category=='AMERICAN_ENGLISH':
+                if match.ruleIssueType=='locale-violation':
+                    # e.g. TAKE_A_BATH: take a bath -> have a bath
+                    continue
             if match.ruleIssueType=='style':
                 if match.category=='REDUNDANCY':
                     # e.g. WHETHER: the question whether -> whether
                     continue
                 if match.category=='STYLE':
+                    # e.g. FOR_EVER_GB: for ever -> forever
+                    continue
+                if match.category=='AMERICAN_ENGLISH_STYLE':
                     # e.g. FOR_EVER_GB: for ever -> forever
                     continue
             if match.ruleId in IGNORE:
@@ -353,6 +400,8 @@ def language_tool_skip(lt, args):
                 if skip_spelling:
                     continue
 
+            print_count+=1
+
             # Output header for this paragraph 
             if output_header:
                 print(f'{print_count}. Paragraph:{pp_count}')
@@ -360,15 +409,15 @@ def language_tool_skip(lt, args):
                 print('')
                 output_header=False
 
-            found_count+=1
-
             print('  Category:', match.category, '  Rule Issue:', match.ruleIssueType)
             print('  ', match)
-            print_count+=1
 
     print('')
     print('Total matches in file:', match_count)
-    print('Total matches printed:', found_count)
+    print('Total matches printed:', print_count)
+
+    lt.close()
+
 
 
 ##########
@@ -478,9 +527,6 @@ def get_file_rules(filename):
 # Get program arguments
 args = get_args()
 
-# Get language tool
-lt=get_language_tool(args)
-
 # Find rules specified by user file
 if args.find!='none':
     find_rules=get_file_rules(args.find)
@@ -488,8 +534,7 @@ if args.find!='none':
         print('Looking the following rules specified by the user:')
         print('    ', find_rules)
         print('')
-    language_tool_find(lt, args, find_rules)
-    lt.close()
+    language_tool_find(args, find_rules)
     exit()
 
 # Add on any user specified rules to ignore
@@ -506,7 +551,5 @@ if args.verbose==True:
     print('    ', IGNORE)
     print('')
 
-language_tool_skip(lt, args)
-
-lt.close()
+language_tool_skip(args)
 
