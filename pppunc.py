@@ -4,6 +4,8 @@ import re
 
 LEAVE_MARKER='x07'
 GOOD_MARKER ='x08'
+FORMAT_EMDASH_MARKER ='x0b'
+#FORMAT_EMDASH_MARKER ='^'
 
 line_number=0
 
@@ -108,6 +110,36 @@ def check_end_of_line(line, target, warning):
 
 
 ##########
+# Hide more than 2 groups of characters (e.g. format related emdash)
+##########
+def hide_triples(line, target, replace, warning):
+    src=target+target+target
+    if line.count(src)==0:
+        return line
+
+    if line.count(replace)>0:
+        print('ERROR: vertical tab character in line')
+
+    print_warning(line, warning)
+
+    dst=replace+replace+replace
+    line=line.replace(src, dst)
+    line=line.replace(replace+target, replace+replace)
+    line=line.replace(replace+target, replace+replace)
+    line=line.replace(replace+target, replace+replace)
+
+    return line
+
+
+##########
+# Restore hidden characters
+##########
+def restore_triples(line, target, replace):
+    if line.count(target)==0:
+        return line
+    return line.replace(target,replace)
+
+##########
 # March through the file updating the French as needed
 ##########
 def update_french_CA(args):
@@ -151,11 +183,14 @@ def update_french_CA(args):
                 out.write(FPGEN_LINE)
                 add_fpgen=False
 
+        # Hide tiret based formatting (i.e. ————)
+        line=hide_triples(line, '—', FORMAT_EMDASH_MARKER, 'tiret formatting will be ignored')
+
         # Strip off leading white space
         temp=line.lstrip()
 
         # Remove all the html business
-        pattern=re.compile('<.*?>')
+        pattern=re.compile('<.*?>', re.NOFLAG)
         parts=re.split(pattern, temp)
 
         # Fix up punctuation in each part of the line
@@ -178,6 +213,7 @@ def update_french_CA(args):
             # Insert updated part back into the line
             line=line.replace(part,new)
 
+
         # Fix up case where tiret is the first non-white space character in the line
         temp=line.lstrip()
         if temp.startswith('\\ —'):
@@ -196,6 +232,9 @@ def update_french_CA(args):
 
         # Fix up the case where there are two tirets in a row
         line=line.replace('—\\ —', '——')
+
+        # Restore any tiret based formatting
+        line=restore_triples(line, FORMAT_EMDASH_MARKER, '—')
 
         # Sanity checks
         check_end_of_line(line, ' \n', 'space at end of line')
