@@ -110,22 +110,21 @@ def check_end_of_line(line, target, warning):
 
 
 ##########
-# Hide more than 2 groups of characters (e.g. format related emdash)
+# Hide more than 1 groups of characters (e.g. format related emdash)
 ##########
-def hide_triples(line, target, replace, warning):
-    src=target+target+target
+def hide_doubles(line, target, replace, warning):
+    src=target+target
     if line.count(src)==0:
         return line
 
     if line.count(replace)>0:
         print('ERROR: vertical tab character in line')
 
+    # Let the user know we are skipping these chracters
     print_warning(line, warning)
 
-    dst=replace+replace+replace
+    dst=replace+replace
     line=line.replace(src, dst)
-    line=line.replace(replace+target, replace+replace)
-    line=line.replace(replace+target, replace+replace)
     line=line.replace(replace+target, replace+replace)
 
     return line
@@ -134,10 +133,11 @@ def hide_triples(line, target, replace, warning):
 ##########
 # Restore hidden characters
 ##########
-def restore_triples(line, target, replace):
+def restore_doubles(line, target, replace):
     if line.count(target)==0:
         return line
     return line.replace(target,replace)
+
 
 ##########
 # March through the file updating the French as needed
@@ -183,8 +183,9 @@ def update_french_CA(args):
                 out.write(FPGEN_LINE)
                 add_fpgen=False
 
-        # Hide tiret based formatting (i.e. ————)
-        line=hide_triples(line, '—', FORMAT_EMDASH_MARKER, 'tiret formatting will be ignored')
+        # Hide tiret based formatting (i.e. ——)
+        # This also includes unspoken names
+        line=hide_doubles(line, '—', FORMAT_EMDASH_MARKER, 'tiret formatting will be ignored')
 
         # Strip off leading white space
         temp=line.lstrip()
@@ -234,7 +235,7 @@ def update_french_CA(args):
         line=line.replace('—\\ —', '——')
 
         # Restore any tiret based formatting
-        line=restore_triples(line, FORMAT_EMDASH_MARKER, '—')
+        line=restore_doubles(line, FORMAT_EMDASH_MARKER, '—')
 
         # Sanity checks
         check_end_of_line(line, ' \n', 'space at end of line')
@@ -246,17 +247,20 @@ def update_french_CA(args):
     print('Finished writing:', args.output)
 
 
+LANGUAGE_CHOICES=['fr-CA']
 
 ##########
 # Get program arguments
 ##########
 def get_args():
 
-    PROGRAM_NAME='python3 ppp.py'
+    PROGRAM_NAME='pppunc.py'
     PROGRAM_DESCRIPTION='''This program adds punctuation for non-English languages.
-                           It takes as input the file provided to PP after the proofing and formating.
+                           It takes as input the file provided to PP after the proofing and formatting.
                            For French, this includes adding non-break spaces for the following:
-                           \':\', \'«\', \'»\', and \'—\' (tiret, an emdash).
+                           \':\', \'«\', \'»\', and \'—\' (tiret, an em dash).
+                           And some fgen preparation by removing any preceding space from the following:
+                           \';\', \'?\', \'!\'.
                            '''
     # Required options
     FILENAME_HELP='Name of text file containing the PP book'
@@ -266,11 +270,10 @@ def get_args():
     VERBOSE_HELP ='Show details'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
-    LANGUAGE_CHOICES=['fr-CA']
 
-    parser=argparse.ArgumentParser(prog=PROGRAM_NAME, description=PROGRAM_DESCRIPTION, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('filename',                                                                  help=FILENAME_HELP)
-    parser.add_argument('-l', '--language',  choices=LANGUAGE_CHOICES,      required=True,          help=LANGUAGE_HELP)
+    parser=argparse.ArgumentParser(prog=PROGRAM_NAME, description=PROGRAM_DESCRIPTION)
+    parser.add_argument('filename',                                                                 help=FILENAME_HELP)
+    parser.add_argument('-l', '--language',  action='store',      type=str, required=True,          help=LANGUAGE_HELP)
     parser.add_argument('-o', '--output',    action='store',      type=str, required=True,          help=OUTPUT_HELP)
     parser.add_argument('-v', '--verbose',   action='store_true',           default='store_false',  help=VERBOSE_HELP)
 
@@ -291,9 +294,10 @@ def get_args():
 # Get program arguments
 args = get_args()
 
-if args.language=='fr-CA':
+if args.language in LANGUAGE_CHOICES:
     update_french_CA(args)
     exit()
 
 print('Language not supported: args.language')
+print('Supported languages are:', LANGUAGE_CHOICES)
 
