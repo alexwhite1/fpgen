@@ -1,11 +1,24 @@
 import argparse
 import re
 
+# It was too easy to use a dash instead of a em dash
+# So, formulated all the tiret based strings from one tiret
+NBSPACE='\\ '
+SPACE=' '
+TIRET='—'
+TIRET_SPACE=TIRET+SPACE
+TIRET_SPACE_SPACE=TIRET+SPACE+SPACE
+TIRET_NBSPACE=TIRET+NBSPACE
+SPACE_TIRET=SPACE+TIRET
+SPACE_SPACE_TIRET=SPACE+SPACE+TIRET
+NBSPACE_TIRET=NBSPACE+TIRET
+TIRET_SPACE_TIRET=TIRET+SPACE+TIRET
 
-LEAVE_MARKER='x07'
-GOOD_MARKER ='x08'
-FORMAT_EMDASH_MARKER ='x0b'
-#FORMAT_EMDASH_MARKER ='^'
+LEAVE_MARKER='x07'              # bell (beep)
+GOOD_MARKER ='x08'              # backspace
+FORMAT_EMDASH_MARKER ='x0b'     # vertical tab
+#FORMAT_EMDASH_MARKER ='^'      # for debugging
+TIRET_SPACE_TIRET_MARKER ='x0e' # shift out
 
 line_number=0
 
@@ -120,9 +133,6 @@ def hide_doubles(line, target, replace, warning):
     if line.count(replace)>0:
         print('ERROR: vertical tab character in line')
 
-    # Let the user know we are skipping these chracters
-    print_warning(line, warning)
-
     dst=replace+replace
     line=line.replace(src, dst)
     line=line.replace(replace+target, replace+replace)
@@ -167,7 +177,7 @@ def update_french_CA(args):
         line_number+=1
 
         # Want to skip over the <lit section="head"> section
-        # Just write it out lines, no processing
+        # Just write out lines, no processing
         if line.count('<lit')==1:
             skip=True
         if skip:
@@ -183,9 +193,14 @@ def update_french_CA(args):
                 out.write(FPGEN_LINE)
                 add_fpgen=False
 
-        # Hide tiret based formatting (i.e. ——)
-        # This also includes unspoken names
-        line=hide_doubles(line, '—', FORMAT_EMDASH_MARKER, 'tiret formatting will be ignored')
+        # Hide tiret based formatting (e.g., —————)
+        # This also includes unspoken names (i.e., ——)
+        line=hide_doubles(line, TIRET, FORMAT_EMDASH_MARKER, 'tiret formatting will be ignored')
+
+        # Hide bad tiret combination
+        if line.count(TIRET_SPACE_TIRET)>0:
+            print_warning(line, 'tirets seperated by a space')
+            line=line.replace(TIRET_SPACE_TIRET, TIRET_SPACE_TIRET_MARKER)
 
         # Strip off leading white space
         temp=line.lstrip()
@@ -199,11 +214,12 @@ def update_french_CA(args):
             new=part
 
             # Update part with no-break spaces
-            new=update_punctuation(new, '«', '« ', '«  ', '«\\ ', 'too many spaces after left guillemet')
-            new=update_punctuation(new, '»', ' »', '  »', '\\ »', 'too many spaces before right guilemet')
-            new=update_punctuation(new, ':', ' :', '  :', '\\ :', 'too many spaces before colon')
-            new=update_punctuation(new, '—', ' —', '  —', '\\ —', 'too many spaces before tiret')
-            new=update_punctuation(new, '—', '— ', '—  ', '—\\ ', 'too many spaces after tiret')
+            new=update_punctuation(new, '«', '« ', '«  ', '«'+NBSPACE, 'too many spaces after left guillemet')
+            new=update_punctuation(new, '»', ' »', '  »', NBSPACE+'»', 'too many spaces before right guilemet')
+            new=update_punctuation(new, ':', ' :', '  :', NBSPACE+':', 'too many spaces before colon')
+
+            new=update_punctuation(new, TIRET, SPACE_TIRET, SPACE_SPACE_TIRET, NBSPACE_TIRET, 'too many spaces before tiret')
+            new=update_punctuation(new, TIRET, TIRET_SPACE, TIRET_SPACE_SPACE, TIRET_NBSPACE, 'too many spaces after tiret')
 
             # Update part so fpgen can do the narrow no-break insertions
             # Has to be done after update_punctuation calls
@@ -215,10 +231,10 @@ def update_french_CA(args):
             line=line.replace(part,new)
 
 
-        # Fix up case where tiret is the first non-white space character in the line
+        # Fix up case where nbspace added to start of line
         temp=line.lstrip()
-        if temp.startswith('\\ —'):
-            line=line.replace('\\ —', '—', 1)
+        if temp.startswith(NBSPACE):
+            line=line.replace(NBSPACE, '', 1)
 
         # Sanity checks
         check_start_of_line(line, ';', 'semicolon at start of line')
@@ -226,21 +242,21 @@ def update_french_CA(args):
         check_start_of_line(line, '?', 'question mark at start of line')
         check_start_of_line(line, '»', 'right guilemet at start of line')
         check_start_of_line(line, ':', 'colon at start of line')
-        check_start_of_line(line, '\\ ', 'no-break space at start of line')
+        check_start_of_line(line, NBSPACE, 'no-break space at start of line')
 
-        # Fix up case where tiret is at the end of the line
-        line=line.replace('—\\ \n', '—\n')
-
-        # Fix up the case where there are two tirets in a row
-        line=line.replace('—\\ —', '——')
+        # Fix up case where nbspac is at the end of the line
+        line=line.replace(NBSPACE+'\n', '\n')
 
         # Restore any tiret based formatting
-        line=restore_doubles(line, FORMAT_EMDASH_MARKER, '—')
+        line=restore_doubles(line, FORMAT_EMDASH_MARKER, TIRET)
+
+        # Restore bad tiret combination
+        line=line.replace(TIRET_SPACE_TIRET_MARKER, TIRET_SPACE_TIRET)
 
         # Sanity checks
         check_end_of_line(line, ' \n', 'space at end of line')
         check_end_of_line(line, '«\n', 'left guilemet at end of line')
-        check_end_of_line(line, '\\ \n', 'no-break space at end of line')
+        check_end_of_line(line, NBSPACE+'n', 'no-break space at end of line')
 
         out.write(line)
 
@@ -255,11 +271,11 @@ LANGUAGE_CHOICES=['fr-CA']
 def get_args():
 
     PROGRAM_NAME='pppunc.py'
-    PROGRAM_DESCRIPTION='''This program adds punctuation for non-English languages.
+    PROGRAM_DESCRIPTION='''This program adds spaces around punctuation for non-English languages.
                            It takes as input the file provided to PP after the proofing and formatting.
                            For French, this includes adding non-break spaces for the following:
                            \':\', \'«\', \'»\', and \'—\' (tiret, an em dash).
-                           And some fgen preparation by removing any preceding space from the following:
+                           And some fpgen preparation by removing any preceding space from the following:
                            \';\', \'?\', \'!\'.
                            '''
     # Required options

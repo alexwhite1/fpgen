@@ -57,9 +57,9 @@ no nbsp between double tiret ——
 Test case 27
 no nbsp between double tiret —— text
 Test case 28
-replace space between double tiret — —
+warning about space between double tiret — —
 Test case 29
-replace space between double tiret — — text
+warning space between double tiret — — text
 Test case 30
 insert nbsp: text
 Test case 31
@@ -67,17 +67,17 @@ insert nbsp «text text text»
 Test case 32
 replace space with nbsp « text text text »
 Test case 33
-Too many spaces with nbsp «  text text text  »
+Too many spaces «  text text text  »
 Test case 34
-Too many spaces with nbsp «  text text text»
+Too many spaces «  text text text»
 Test case 35
-Too many spaces with nbsp «text text text  »
+Too many spaces «text text text  »
 Test case 36
-» at start of sentence
+» warning start of sentence
 Test case 37
-At end of sentence «
+  warning end of sentence «
 Test case 38
-: at start of sentence
+: warning start of sentence
 Test case 39
 «add nbspace after and before»
 Test case 40
