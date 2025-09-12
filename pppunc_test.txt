@@ -1,19 +1,25 @@
-Run ppp.py with this as the input file.
+Run pppunc.py with this as the input file.
 Examine printed output for correct warnings.
-Do a diff of this file and output file for verify.
-Each line below is a test case for ppp.py.
+Do a diff of this file and output file to verify.
+Each line below is a test case for pppunc.py.
+A Y indicates a space should be removed
+An X indicates a no-break space should be inserted
+A W indicates a warning
+
+fpgen test cases
+----------------
 Test case 1
-remove space before question mark ?
+remove space Y ?
 Test case 2
-remove space before exclamation mark !
+remove space Y !
 Test case 3
-remove space before semicolon ;
+remove space Y ;
 Test case 4
-remove space before question mark ? more text
+remove space  Y ? text
 Test case 5
-remove space before exclamation mark ! more text
+remove space  Y ! text
 Test case 6
-remove space before semicolon ; more text
+remove space  Y ; text
 Test case 7
 no changes?
 Test case 8
@@ -21,73 +27,85 @@ no changes!
 Test case 9
 no changes;
 Test case 10
-Too many spaces  ?
+Too many spaces W  ?
 Test case 11
-Too many spaces  !
+Too many spaces W  !
 Test case 12
-Too many spaces  ;
+Too many spaces W  ;
 Test case 13
-? at start of sentence
+? W at start of sentence
 Test case 14
-! at start of sentence
+! W at start of sentence
 Test case 15
-; at start of sentence
+; W at start of sentence
 Test case 16
-    ? at start of sentence
+    ?W at start of sentence
 Test case 17
-     ! at start of sentence
+     !W at start of sentence
 Test case 18
-      ; at start of sentence
-Test case 19
-Too many spaces after tiret —  
-Test case 20
-add nbspace before tiret, not after—
-Test case 21
-add nbspace before tiret, not after —
-Test case 22
-—add nbspace after tiret, not before
-Test case 23
-— add nbspace after tiret, not before
-Test case 24
-      —add nbspace after tiret, not before
-Test case 25
-      — add nbspace after tiret, not before
-Test case 26
-no nbsp between double tiret ——
-Test case 27
-no nbsp between double tiret —— text
-Test case 28
-warning about space between double tiret — —
-Test case 29
-warning space between double tiret — — text
-Test case 30
-insert nbsp: text
-Test case 31
-insert nbsp «text text text»
-Test case 32
-replace space with nbsp « text text text »
-Test case 33
-Too many spaces «  text text text  »
-Test case 34
-Too many spaces «  text text text»
-Test case 35
-Too many spaces «text text text  »
-Test case 36
-» warning start of sentence
-Test case 37
-  warning end of sentence «
-Test case 38
-: warning start of sentence
-Test case 39
-«add nbspace after and before»
-Test case 40
-Blah blah blah «ignore the tiret formatting» Blah blah blah
-Test case 41
-—————————————— «ignore the tiret formatting» ——————————
-Test case 42
- ————————————— «ignore the tiret formatting» ——————————
-Test case 43
-  ———————————— «ignore the tiret formatting» ——————————
-Test case 44
-«add nbspace after and before»
+      ;W at start of sentence
+
+tiret test cases
+----------------
+Test case 101
+Too many spaces X —  W text
+Test case 102
+add nbspace X—
+Test case 103
+add nbspace X —
+Test case 104
+—X add nbspace
+Test case 105
+—X add nbspace
+Test case 106
+      —X add nbspace
+Test case 107
+      —X add nbspace
+Test case 108
+      —X add nbspace
+Test case 109
+no change ——
+Test case 110
+no change —— text
+Test case 111
+warning about space between double tiret W — —
+Test case 112
+warning space between double tiret — — W text
+Test case 113
+—————————————— X—X ignore the formatting X—X ——————————
+Test case 114
+ ————————————— X — X ignore the tiret formatting X — X ——————————
+
+
+colon testing
+-------------
+Test case 200
+insert nbsp X:
+Test case 201
+insert nbsp X: text
+Test case 202
+: W at start of sentence
+
+guillemet testing
+-----------------
+Test case 301
+insert nbsp «»
+Test case 302
+insert nbsp «X text text text»
+Test case 303
+replace space with nbsp « X text text text X »
+Test case 304
+Too many spaces «  W text text text W  »
+Test case 305
+Too many spaces «  W text text text X»
+Test case 306
+Too many spaces «X text text text W  »
+Test case 307
+» W warning start of sentence
+Test case 308
+  warning end of sentence W «
+Test case 309
+«X add nbspace X»
+Test case 310
+text « X add nbspace » text
 
