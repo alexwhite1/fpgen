@@ -139,20 +139,51 @@ Then the command is shortened to:
 
 work % python3 git/fpgen/pplt.py -l en-CA Between_Gold_Curtains/Between_Gold_Curtains.txt          
 1. Paragraph:7
-  Reductions in the American tariff might promise an outlet for European goods to thus alleviate the problem have been proposed on a limited scale but it is clear that discussion of the tariff in general will not be raised even to the high level of the argument advanced by Mr. Dooley. “The tariff! What difference does it make? Th’ foreigner pays th’ tax annyhow. He does! said Mr. Dooley, if he ain’t turned back at Castle Garden.” Nor is there much prospect of discussion of the tariff in the United States and Canada since European countries cannot expect to have much influence on this subject and again in the words of Mr. Dooley. “Them that the tariff looks after will look after the tariff.” The tariff becomes the chief instrument in American imperialism. “The mind that thinks in terms of the protectionist symbol is equally at home in the imperialist symbol.”[3] It is as much a contradiction in terms “to speak of protective tariffs as instruments of free enterprise as to speak of militarism or imperialism as instruments of free enterprise.”[4] Trade barriers and monopolies become deadly enemies of free enterprise capitalism.[5]
+  Reductions in the American tariff might promise an outlet for European goods
+to thus alleviate the problem have been proposed on a limited scale but it is
+clear that discussion of the tariff in general will not be raised even to the
+high level of the argument advanced by Mr. Dooley. “The tariff! What difference
+does it make? Th’ foreigner pays th’ tax annyhow. He does! said Mr. Dooley, if
+he ain’t turned back at Castle Garden.” Nor is there much prospect of discussion
+of the tariff in the United States and Canada since European countries cannot
+expect to have much influence on this subject and again in the words of Mr.
+Dooley. “Them that the tariff looks after will look after the tariff.” The tariff
+becomes the chief instrument in American imperialism. “The mind that thinks in
+terms of the protectionist symbol is equally at home in the imperialist symbol.”[3]
+It is as much a contradiction in terms “to speak of protective tariffs as
+instruments of free enterprise as to speak of militarism or imperialism as
+instruments of free enterprise.”[4] Trade barriers and monopolies become deadly
+enemies of free enterprise capitalism.[5]
 
   Category: TYPOS   Rule Issue: misspelling
    Offset 327, length 2, Rule ID: TH_THORIUM
-Message: Make sure that ‘Th’ is the chemical symbol for thorium, and not a typing error. Did you mean “The”?
+Message: Make sure that ‘Th’ is the chemical symbol for thorium, and not a
+typing error. Did you mean “The”?
 Suggestion: The
 ...e tariff! What difference does it make? Th’ foreigner pays th’ tax annyhow. He doe...
                                            ^^
 2. Paragraph:9
-  It is hardly possible for Canadians to understand the attitude of hostility because of the overwhelming influence of American propaganda[6] and even more difficult to strengthen the European point of view. Americans are the best propagandists because they are the best advertisers.[7] Whatever hope of continued autonomy Canada may have in the future must depend on her success in withstanding American influence and assisting in the development of a third bloc[8] designed to withstand the pressure of the United States and Russia but there is little evidence that Canada is capable of these herculean efforts and much that she will continue to be justly regarded as an instrument of the United States. The tariff has long since been forgotten in Canada and there is little prospect of its revival. We too have our mild imperialist ventures as shown in our acquisition of Newfoundland. “War is self-defence against reform.”[9] Neither a nation, nor a commonwealth, nor a civilization can endure in which one half in slavery believes itself free because of a statement, the Bill of Rights,[10] and attempts to enslave the other half which is free.
+  It is hardly possible for Canadians to understand the attitude of hostility
+because of the overwhelming influence of American propaganda[6] and even more
+difficult to strengthen the European point of view. Americans are the best
+propagandists because they are the best advertisers.[7] Whatever hope of
+continued autonomy Canada may have in the future must depend on her success in
+withstanding American influence and assisting in the development of a third
+bloc[8] designed to withstand the pressure of the United States and Russia but
+there is little evidence that Canada is capable of these herculean efforts and
+much that she will continue to be justly regarded as an instrument of the United
+States. The tariff has long since been forgotten in Canada and there is little
+prospect of its revival. We too have our mild imperialist ventures as shown in
+our acquisition of Newfoundland. “War is self-defence against reform.”[9]
+Neither a nation, nor a commonwealth, nor a civilization can endure in which
+one half in slavery believes itself free because of a statement, the Bill of
+Rights,[10] and attempts to enslave the other half which is free.
 
   Category: TYPOGRAPHY   Rule Issue: typographical
    Offset 593, length 9, Rule ID: CAPITALIZATION_NNP_DERIVED
-Message: Possible alternative capitalization. Some adjectives that are derived from proper nouns can have both an initial capital letter and an initial lower case letter. If there is a close association with the proper noun, use “Herculean”.
+Message: Possible alternative capitalization. Some adjectives that are derived
+from proper nouns can have both an initial capital letter and an initial lower
+case letter. If there is a close association with the proper noun, use “Herculean”.
 Suggestion: Herculean
 ...vidence that Canada is capable of these herculean efforts and much that she will continue...
                                            ^^^^^^^^^
@@ -164,11 +195,26 @@ work %
 
 work % python3 git/fpgen/pplt.py -l en-CA -p F Between_Gold_Curtains/Between_Gold_Curtains.txt          
 1. Paragraph:7
-  Reductions in the American tariff might promise an outlet for European goods to thus alleviate the problem have been proposed on a limited scale but it is clear that discussion of the tariff in general will not be raised even to the high level of the argument advanced by Mr. Dooley. “The tariff! What difference does it make? Th’ foreigner pays th’ tax annyhow. He does! said Mr. Dooley, if he ain’t turned back at Castle Garden.” Nor is there much prospect of discussion of the tariff in the United States and Canada since European countries cannot expect to have much influence on this subject and again in the words of Mr. Dooley. “Them that the tariff looks after will look after the tariff.” The tariff becomes the chief instrument in American imperialism. “The mind that thinks in terms of the protectionist symbol is equally at home in the imperialist symbol.”[3] It is as much a contradiction in terms “to speak of protective tariffs as instruments of free enterprise as to speak of militarism or imperialism as instruments of free enterprise.”[4] Trade barriers and monopolies become deadly enemies of free enterprise capitalism.[5]
+  Reductions in the American tariff might promise an outlet for European goods
+to thus alleviate the problem have been proposed on a limited scale but it is
+clear that discussion of the tariff in general will not be raised even to the
+high level of the argument advanced by Mr. Dooley. “The tariff! What difference
+does it make? Th’ foreigner pays th’ tax annyhow. He does! said Mr. Dooley, if
+he ain’t turned back at Castle Garden.” Nor is there much prospect of discussion
+of the tariff in the United States and Canada since European countries cannot
+expect to have much influence on this subject and again in the words of Mr.
+Dooley. “Them that the tariff looks after will look after the tariff.” The tariff
+becomes the chief instrument in American imperialism. “The mind that thinks in
+terms of the protectionist symbol is equally at home in the imperialist symbol.”[3]
+It is as much a contradiction in terms “to speak of protective tariffs as
+instruments of free enterprise as to speak of militarism or imperialism as
+instruments of free enterprise.”[4] Trade barriers and monopolies become deadly
+enemies of free enterprise capitalism.[5]
 
   Category: TYPOS   Rule Issue: misspelling
    Offset 327, length 2, Rule ID: TH_THORIUM
-Message: Make sure that ‘Th’ is the chemical symbol for thorium, and not a typing error. Did you mean “The”?
+Message: Make sure that ‘Th’ is the chemical symbol for thorium, and not a
+typing error. Did you mean “The”?
 Suggestion: The
 ...e tariff! What difference does it make? Th’ foreigner pays th’ tax annyhow. He doe...
                                            ^^
@@ -179,16 +225,33 @@ Suggestion: Said
 ...oreigner pays th’ tax annyhow. He does! said Mr. Dooley, if he ain’t turned back at ...
                                            ^^^^
 3. Paragraph:9
-  It is hardly possible for Canadians to understand the attitude of hostility because of the overwhelming influence of American propaganda[6] and even more difficult to strengthen the European point of view. Americans are the best propagandists because they are the best advertisers.[7] Whatever hope of continued autonomy Canada may have in the future must depend on her success in withstanding American influence and assisting in the development of a third bloc[8] designed to withstand the pressure of the United States and Russia but there is little evidence that Canada is capable of these herculean efforts and much that she will continue to be justly regarded as an instrument of the United States. The tariff has long since been forgotten in Canada and there is little prospect of its revival. We too have our mild imperialist ventures as shown in our acquisition of Newfoundland. “War is self-defence against reform.”[9] Neither a nation, nor a commonwealth, nor a civilization can endure in which one half in slavery believes itself free because of a statement, the Bill of Rights,[10] and attempts to enslave the other half which is free.
+  It is hardly possible for Canadians to understand the attitude of hostility
+because of the overwhelming influence of American propaganda[6] and even more
+difficult to strengthen the European point of view. Americans are the best
+propagandists because they are the best advertisers.[7] Whatever hope of
+continued autonomy Canada may have in the future must depend on her success in
+withstanding American influence and assisting in the development of a third
+bloc[8] designed to withstand the pressure of the United States and Russia but
+there is little evidence that Canada is capable of these herculean efforts and
+much that she will continue to be justly regarded as an instrument of the United
+States. The tariff has long since been forgotten in Canada and there is little
+prospect of its revival. We too have our mild imperialist ventures as shown in
+our acquisition of Newfoundland. “War is self-defence against reform.”[9]
+Neither a nation, nor a commonwealth, nor a civilization can endure in which
+one half in slavery believes itself free because of a statement, the Bill of
+Rights,[10] and attempts to enslave the other half which is free.
 
   Category: TYPOGRAPHY   Rule Issue: typographical
    Offset 593, length 9, Rule ID: CAPITALIZATION_NNP_DERIVED
-Message: Possible alternative capitalization. Some adjectives that are derived from proper nouns can have both an initial capital letter and an initial lower case letter. If there is a close association with the proper noun, use “Herculean”.
+Message: Possible alternative capitalization. Some adjectives that are derived
+from proper nouns can have both an initial capital letter and an initial lower
+case letter. If there is a close association with the proper noun, use “Herculean”.
 Suggestion: Herculean
 ...vidence that Canada is capable of these herculean efforts and much that she will continue...
                                            ^^^^^^^^^
 4. Paragraph:18
-  [8] See “B. S. Keirstead, Canada at the crossroads in foreign policy,” International Affairs, Spring, 1948. pp. 97-110.
+  [8] See “B. S. Keirstead, Canada at the crossroads in foreign policy,”
+International Affairs, Spring, 1948. pp. 97-110.
 
   Category: CASING   Rule Issue: typographical
    Offset 108, length 2, Rule ID: UPPERCASE_SENTENCE_START
