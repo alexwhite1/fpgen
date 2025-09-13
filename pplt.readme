@@ -33,10 +33,10 @@ For more information on the Python Language Tool:
 
 3.0 Help:
 =========
-work % python3 ./git/fpgen/pplt.py -h
-usage: python3 pplt.py [-h] -l {en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA} [-e EXTRA] [-c {True,T,False,F}] [-d {True,T,False,F}]
-                       [-i {True,T,False,F}] [-k {True,T,False,F}] [-p {True,T,False,F}] [-s {True,T,False,F}] [-y {True,T,False,F}]
-                       [--cache {True,T,False,F}] [-f FIND] [-v]
+hughdagg@iMac work % python3 ./git/fpgen/pplt.py -h
+usage: python3 pplt.py [-h] -l {de,de-AT,de-DE,de-CH,en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA} [-e EXTRA] [-c {True,T,False,F}]
+                       [-d {True,T,False,F}] [-i {True,T,False,F}] [-k {True,T,False,F}] [-p {True,T,False,F}] [-s {True,T,False,F}]
+                       [-y {True,T,False,F}] [--cache {True,T,False,F}] [-f FIND] [-v]
                        filename
 
 This program is a thin front end calling the python language tool library which has 6000+ rules for flagging potential documentation issues.
@@ -50,9 +50,10 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -l {en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA}, --language {en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA}
-                        Set of language rules to use: en (English), fr (French). With different variants for spell checking: BE (Belgium), CA
-                        (Canada), GB (Great Britain), US (United States), ZA (South Africa) (default: None)
+  -l {de,de-AT,de-DE,de-CH,en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA}, --language {de,de-AT,de-DE,de-CH,en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA}
+                        Set of language rules to use: de (German), en (English), fr (French). With different variants for spell checking: AT
+                        (Austria), AU (Australia), BE (Belgium), CA (Canada), CH (Switzerland), DE (German), GB (Great Britain), NZ (New
+                        Zealand), US (United States), ZA (South Africa) (default: None)
   -e EXTRA, --extra EXTRA
                         Name of text file containing extra language-tool rules to ignore (see pplt_example.txt) (default: none)
   -c {True,T,False,F}, --comma {True,T,False,F}

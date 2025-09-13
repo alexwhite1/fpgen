@@ -392,7 +392,13 @@ def language_tool_skip(args):
             if 'UPPERCASE_SENTENCE_START' in match.ruleId:
                 if skip_punctuation:
                     continue
+            if 'THE_PUNCT' in match.ruleId:
+                if skip_punctuation:
+                    continue
             if 'FR_SPELLING_RULE' in match.ruleId:
+                if skip_spelling:
+                    continue
+            if 'GERMAN_SPELLER_RULE' in match.ruleId:
                 if skip_spelling:
                     continue
             if 'MORFOLOGIK_RULE_EN' in match.ruleId:
@@ -446,8 +452,13 @@ def get_args():
 
     # Required options
     FILENAME_HELP='Name of text file containing the PP book'
-    LANGUAGE_HELP='''Set of language rules to use: en (English), fr (French).
-                     With different variants for spell checking: BE (Belgium), CA (Canada), GB (Great Britain), US (United States), ZA (South Africa)'''
+    LANGUAGE_HELP='''Set of language rules to use: de (German), en (English), fr (French).
+                     With different variants for spell checking:
+                     AT (Austria), AU (Australia), BE (Belgium),
+                     CA (Canada), CH (Switzerland), DE (German),
+                     GB (Great Britain), NZ (New Zealand),
+                     US (United States), ZA (South Africa)
+                     '''
 
     EXTRA_HELP   ='Name of text file containing extra language-tool rules to ignore (see pplt_example.txt)'
 
@@ -465,7 +476,7 @@ def get_args():
     VERBOSE_HELP ='Show details: operation, language-tool rules'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
-    LANGUAGE_CHOICES=['en',  'en-AU', 'en-CA', 'en-GB', 'en-NZ', 'en-US', 'en-ZA', 'fr', 'fr-BE', 'fr-CA']
+    LANGUAGE_CHOICES=['de', 'de-AT', 'de-DE', 'de-CH', 'en', 'en-AU', 'en-CA', 'en-GB', 'en-NZ', 'en-US', 'en-ZA', 'fr', 'fr-BE', 'fr-CA']
 
     parser=argparse.ArgumentParser(prog=PROGRAM_NAME, description=PROGRAM_DESCRIPTION, epilog=PROGRAM_EPILOG, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('filename',                                                                   help=FILENAME_HELP)
