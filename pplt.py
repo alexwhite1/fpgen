@@ -452,10 +452,10 @@ def get_args():
 
     # Required options
     FILENAME_HELP='Name of text file containing the PP book'
-    LANGUAGE_HELP='''Set of language rules to use: de (German), en (English), fr (French).
+    LANGUAGE_HELP='''Set of language rules to use: en (English).
                      With different variants for spell checking:
-                     AT (Austria), AU (Australia), BE (Belgium),
-                     CA (Canada), CH (Switzerland), DE (German),
+                     AU (Australia),
+                     CA (Canada),
                      GB (Great Britain), NZ (New Zealand),
                      US (United States), ZA (South Africa)
                      '''
@@ -476,7 +476,8 @@ def get_args():
     VERBOSE_HELP ='Show details: operation, language-tool rules'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
-    LANGUAGE_CHOICES=['de', 'de-AT', 'de-DE', 'de-CH', 'en', 'en-AU', 'en-CA', 'en-GB', 'en-NZ', 'en-US', 'en-ZA', 'fr', 'fr-BE', 'fr-CA']
+    #LANGUAGE_CHOICES=['de', 'de-AT', 'de-DE', 'de-CH', 'en', 'en-AU', 'en-CA', 'en-GB', 'en-NZ', 'en-US', 'en-ZA', 'fr', 'fr-BE', 'fr-CA']
+    LANGUAGE_CHOICES=['en', 'en-AU', 'en-CA', 'en-GB', 'en-NZ', 'en-US', 'en-ZA']
 
     parser=argparse.ArgumentParser(prog=PROGRAM_NAME, description=PROGRAM_DESCRIPTION, epilog=PROGRAM_EPILOG, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('filename',                                                                   help=FILENAME_HELP)
