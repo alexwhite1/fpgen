@@ -80,6 +80,20 @@ majority of the rules will not be actionable. There has been roughly, on average
 issue per book. However, most books have no potential issues with the rest having single digit potential issues.
 
 
+3.1 Input file
+==============
+An input file can be used to specify rules. The example input file shown below has the rule on
+the left with an option comment on the right.
+
+THEE                 # thee -> the
+ONTO_ON_TO           # on to -> onto
+OUT_COME             # out comes -> outcomes
+
+For the -e option it allows the user to add rules to ignore; for this case, the script would ignore
+these 3 rules as well. For the -f option it allows the user to find only the rules specified; for this
+case, the script would only display these 3 rules.
+
+
 4.0 Installation:
 =================
 
