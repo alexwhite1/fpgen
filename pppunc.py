@@ -1,6 +1,10 @@
 import argparse
 import re
 
+
+GIT_HASH='$Id:$'
+
+
 # It was too easy to use a dash instead of a em dash
 # So, formulated all the tiret based strings from one tiret
 NBSPACE='\\ '
