@@ -4,7 +4,6 @@ import re
 
 GIT_HASH='$Id:$'
 
-
 # It was too easy to use a dash instead of a em dash
 # So, formulated all the tiret based strings from one tiret
 NBSPACE='\\ '
@@ -288,6 +287,7 @@ def get_args():
     OUTPUT_HELP  ='Name of output file'
     INFO_HELP    ='The rules followed insert no-break spaces'
     VERBOSE_HELP ='Show details'
+    VERSION_HELP ='Show version of script'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
@@ -296,6 +296,7 @@ def get_args():
     parser.add_argument('-l', '--language',  action='store',      type=str, required=True,          help=LANGUAGE_HELP)
     parser.add_argument('-o', '--output',    action='store',      type=str, required=True,          help=OUTPUT_HELP)
     parser.add_argument('-v', '--verbose',   action='store_true',           default='store_false',  help=VERBOSE_HELP)
+    parser.add_argument(      '--version',   action='version',    version='Sept 27, 2025, 11:30AM', help=VERSION_HELP)
 
     args=parser.parse_args()
     if args.verbose==True:
