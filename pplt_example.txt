@@ -1,0 +1,9 @@
+ANY_BODY             # any one -> anyone
+EVERYDAY_EVERY_DAY   # everday -> every day
+EVERY_WHERE          # every where -> everwhere
+FOR_EVER_CA          # for ever -> forever
+MAY_BE               # may be -> maybe
+NEAR_BY              # near by -> nearby
+ONTO_ON_TO           # on to -> onto
+OUT_COME             # out comes -> outcomes
+WORTH_WHILE          # worth while -> worthwhile

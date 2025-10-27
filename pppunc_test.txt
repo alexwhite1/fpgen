@@ -1,0 +1,111 @@
+Run pppunc.py with this as the input file.
+Examine printed output for correct warnings.
+Do a diff of this file and output file to verify.
+Each line below is a test case for pppunc.py.
+A Y indicates a space should be removed
+An X indicates a no-break space should be inserted
+A W indicates a warning
+
+fpgen test cases
+----------------
+Test case 1
+remove space Y ?
+Test case 2
+remove space Y !
+Test case 3
+remove space Y ;
+Test case 4
+remove space  Y ? text
+Test case 5
+remove space  Y ! text
+Test case 6
+remove space  Y ; text
+Test case 7
+no changes?
+Test case 8
+no changes!
+Test case 9
+no changes;
+Test case 10
+Too many spaces W  ?
+Test case 11
+Too many spaces W  !
+Test case 12
+Too many spaces W  ;
+Test case 13
+? W at start of sentence
+Test case 14
+! W at start of sentence
+Test case 15
+; W at start of sentence
+Test case 16
+    ?W at start of sentence
+Test case 17
+     !W at start of sentence
+Test case 18
+      ;W at start of sentence
+
+tiret test cases
+----------------
+Test case 101
+Too many spaces X —  W text
+Test case 102
+add nbspace X—
+Test case 103
+add nbspace X —
+Test case 104
+—X add nbspace
+Test case 105
+—X add nbspace
+Test case 106
+      —X add nbspace
+Test case 107
+      —X add nbspace
+Test case 108
+      —X add nbspace
+Test case 109
+no change ——
+Test case 110
+no change —— text
+Test case 111
+warning about space between double tiret W — —
+Test case 112
+warning space between double tiret — — W text
+Test case 113
+—————————————— X—X ignore the formatting X—X ——————————
+Test case 114
+ ————————————— X — X ignore the tiret formatting X — X ——————————
+
+
+colon testing
+-------------
+Test case 200
+insert nbsp X:
+Test case 201
+insert nbsp X: text
+Test case 202
+: W at start of sentence
+
+guillemet testing
+-----------------
+Test case 301
+insert nbsp «»
+Test case 302
+insert nbsp «X text text text»
+Test case 303
+replace space with nbsp « X text text text X »
+Test case 304
+Too many spaces «  W text text text W  »
+Test case 305
+Too many spaces «  W text text text X»
+Test case 306
+Too many spaces «X text text text W  »
+Test case 307
+» W warning start of sentence
+Test case 308
+  warning end of sentence W «
+Test case 309
+«X add nbspace X»
+Test case 310
+text « X add nbspace » text
+

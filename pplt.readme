@@ -1,0 +1,281 @@
+
+1.0 General:
+============
+
+This program is a thin front end calling the python language tool library which
+has 6000+ rules for flagging potential documentation issues. Each paragraph in
+the file will be passed to the language tool server and a list of rules
+(i.e. potential issues) returned that need to be investigated. By default, the
+program will ignore rules outside the proofing purview, which can be tweaked
+using the different boolean-based options. Other options allow you to add to
+the rules to ignore using the -e option, or limit the display to a list of
+particular rules using the -f option.
+
+
+For more information on the Python Language Tool:
+
+1. https://pypi.org/project/language-tool-python/
+
+2. https://dev.languagetool.org/languages
+
+3. https://forum.languagetool.org/t/languagetool-lang-code-details/999
+
+4. https://community.languagetool.org/rule/list?lang=en
+
+
+2.0 Usage Examples:
+===================
+
+1. python3 git/fpgen/pplt.py -l en-US Beyond_Rio_Grande/Beyond_Rio_Grande.txt
+
+2. python3 git/fpgen/pplt.py -p F Between_Gold_Curtains/Between_Gold_Curtains.txt -l en-CA --verbose
+
+
+3.0 Help:
+=========
+hughdagg@iMac work % python3 ./git/fpgen/pplt.py -h
+usage: python3 pplt.py [-h] -l {de,de-AT,de-DE,de-CH,en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA} [-e EXTRA] [-c {True,T,False,F}]
+                       [-d {True,T,False,F}] [-i {True,T,False,F}] [-k {True,T,False,F}] [-p {True,T,False,F}] [-s {True,T,False,F}]
+                       [-y {True,T,False,F}] [--cache {True,T,False,F}] [-f FIND] [-v]
+                       filename
+
+This program is a thin front end calling the python language tool library which has 6000+ rules for flagging potential documentation issues.
+Each paragraph in the file will be passed to the language tool server and a list of rules (i.e. potential issues) returned that need to be
+investigated. By default, the program will ignore rules outside the proofing purview, which can be tweaked using the different boolean-based
+options. Other options allow you to add to the rules to ignore using the -e option, or limit the display to a list of particular rules using
+the -f option.
+
+positional arguments:
+  filename              Name of text file containing the PP book
+
+options:
+  -h, --help            show this help message and exit
+  -l {de,de-AT,de-DE,de-CH,en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA}, --language {de,de-AT,de-DE,de-CH,en,en-AU,en-CA,en-GB,en-NZ,en-US,en-ZA,fr,fr-BE,fr-CA}
+                        Set of language rules to use: de (German), en (English), fr (French). With different variants for spell checking: AT
+                        (Austria), AU (Australia), BE (Belgium), CA (Canada), CH (Switzerland), DE (German), GB (Great Britain), NZ (New
+                        Zealand), US (United States), ZA (South Africa) (default: None)
+  -e EXTRA, --extra EXTRA
+                        Name of text file containing extra language-tool rules to ignore (see pplt_example.txt) (default: none)
+  -c {True,T,False,F}, --comma {True,T,False,F}
+                        Skip rules containing 'COMMA' (e.g. COMMA_AFTER_A_MONTH) (default: True)
+  -d {True,T,False,F}, --diacritic {True,T,False,F}
+                        Skip rules containing 'DIACRITIC' (e.g. ) (default: False)
+  -i {True,T,False,F}, --ignore {True,T,False,F}
+                        Skip rules in hard-coded array (e.g. rule 'GIMME' suggests 'gimme' be changed to 'give me') (default: True)
+  -k {True,T,False,F}, --compound {True,T,False,F}
+                        Skip rules containing 'COMPOUND' (e.g. CAR_POOL_COMPOUND) (default: True)
+  -p {True,T,False,F}, --punctuation {True,T,False,F}
+                        Skip rules related to lower case word after period (e.g UPPERCASE_SENTENCE_START, ) (default: True)
+  -s {True,T,False,F}, --spelling {True,T,False,F}
+                        Skip rules related to spelling (e.g., MORFOLOGIK_RULE_EN_GB and MORFOLOGIK_RULE_EN_US) (default: True)
+  -y {True,T,False,F}, --hyphen {True,T,False,F}
+                        Skip rules containing 'HYPHEN' (e.g. MISSING_HYPHEN) (default: True)
+  --cache {True,T,False,F}
+                        Speed up processing for multiple runs (default: False)
+  -f FIND, --find FIND  Name of text file containing rules to display (see pplt_example.txt) (default: none)
+  -v, --verbose         Show details: operation, language-tool rules (default: store_false)
+
+Note that the language tool was primarily developed for creating a new document rather than proofing a published document. Hence, the
+majority of the rules will not be actionable. There has been roughly, on average, for a book containing 'proper' language, one potential
+issue per book. However, most books have no potential issues with the rest having single digit potential issues.
+
+
+3.1 Input file
+==============
+An input file can be used to specify rules. The example input file shown below has the rule on
+the left with an option comment on the right.
+
+THEE                 # thee -> the
+ONTO_ON_TO           # on to -> onto
+OUT_COME             # out comes -> outcomes
+
+For the -e option it allows the user to add rules to ignore; for this case, the script would ignore
+these 3 rules as well. For the -f option it allows the user to find only the rules specified; for this
+case, the script would only display these 3 rules.
+
+
+4.0 Installation:
+=================
+
+The python Language Tool package requires Python3.
+
+You will need to install along side the fpgen python used to PP.
+
+
+4.1 MAC
+=======
+1. Install python3
+2. run the program and install any python package that are reported missing
+3. User seawolf used brew
+
+
+4.1 Windows
+===========
+
+Many thanks to jcricket for doing the initial beta testing on Windows, and providing install instructions! 
+
+Steps for the Command Prompt:
+
+1. "C:\Users\doe\AppData\Local\Programs\Python\Python310\python.exe" -m venv .venv
+
+2. To verify that venv is available enter:
+     dir C:\Users\doe\.venv
+   This will list directories. Verify that Lib, Scripts are there.
+
+3. Then enter the complete file name of where the text to be verified is located:
+     cd "C:\Users\doe\OneDrive\Desktop\DP working files\In Smooth Reading\grant allen\12345678"
+   The prompt should then show the complete file name.
+
+4. To activate venv, enter this:
+     C:\Users\doe\.venv\Scripts\activate
+   This will change the prompt to have (.venv) at the front of it.
+
+5. To add the language tool, at the prompt enter:
+     pip install language-tool-python
+
+6. To run pplt, at the prompt enter: 
+     python "C:\DP software\fpgen\fpgen-master\pplt.py" "C:\Users\doe\OneDrive\Desktop\DP working files\In Smooth Reading\vintage\12345678\vintage1.txt" -l en-CA
+   Make the appropriate file name changes to run pplt for the desired text.
+
+7. To exit the venv, at the prompt enter: deactivate
+
+If you create a batch file and adding it to pplt folder,
+You can shorten the command a bit. Open in Notepad and added this:
+  @echo off
+  python "C:\DP software\fpgen\fpgen-master\pplt.py" %1 -l en-CA
+then saved as pplt.bat
+
+Then the command is shortened to:
+  pplt "C:\Users\doe\OneDrive\Desktop\DP working files\In Smooth Reading\vintage\12345678\vintage1.txt"
+
+
+5.0 Samples
+===========
+
+work % python3 git/fpgen/pplt.py -l en-CA Between_Gold_Curtains/Between_Gold_Curtains.txt          
+1. Paragraph:7
+  Reductions in the American tariff might promise an outlet for European goods
+to thus alleviate the problem have been proposed on a limited scale but it is
+clear that discussion of the tariff in general will not be raised even to the
+high level of the argument advanced by Mr. Dooley. “The tariff! What difference
+does it make? Th’ foreigner pays th’ tax annyhow. He does! said Mr. Dooley, if
+he ain’t turned back at Castle Garden.” Nor is there much prospect of discussion
+of the tariff in the United States and Canada since European countries cannot
+expect to have much influence on this subject and again in the words of Mr.
+Dooley. “Them that the tariff looks after will look after the tariff.” The tariff
+becomes the chief instrument in American imperialism. “The mind that thinks in
+terms of the protectionist symbol is equally at home in the imperialist symbol.”[3]
+It is as much a contradiction in terms “to speak of protective tariffs as
+instruments of free enterprise as to speak of militarism or imperialism as
+instruments of free enterprise.”[4] Trade barriers and monopolies become deadly
+enemies of free enterprise capitalism.[5]
+
+  Category: TYPOS   Rule Issue: misspelling
+   Offset 327, length 2, Rule ID: TH_THORIUM
+Message: Make sure that ‘Th’ is the chemical symbol for thorium, and not a
+typing error. Did you mean “The”?
+Suggestion: The
+...e tariff! What difference does it make? Th’ foreigner pays th’ tax annyhow. He doe...
+                                           ^^
+2. Paragraph:9
+  It is hardly possible for Canadians to understand the attitude of hostility
+because of the overwhelming influence of American propaganda[6] and even more
+difficult to strengthen the European point of view. Americans are the best
+propagandists because they are the best advertisers.[7] Whatever hope of
+continued autonomy Canada may have in the future must depend on her success in
+withstanding American influence and assisting in the development of a third
+bloc[8] designed to withstand the pressure of the United States and Russia but
+there is little evidence that Canada is capable of these herculean efforts and
+much that she will continue to be justly regarded as an instrument of the United
+States. The tariff has long since been forgotten in Canada and there is little
+prospect of its revival. We too have our mild imperialist ventures as shown in
+our acquisition of Newfoundland. “War is self-defence against reform.”[9]
+Neither a nation, nor a commonwealth, nor a civilization can endure in which
+one half in slavery believes itself free because of a statement, the Bill of
+Rights,[10] and attempts to enslave the other half which is free.
+
+  Category: TYPOGRAPHY   Rule Issue: typographical
+   Offset 593, length 9, Rule ID: CAPITALIZATION_NNP_DERIVED
+Message: Possible alternative capitalization. Some adjectives that are derived
+from proper nouns can have both an initial capital letter and an initial lower
+case letter. If there is a close association with the proper noun, use “Herculean”.
+Suggestion: Herculean
+...vidence that Canada is capable of these herculean efforts and much that she will continue...
+                                           ^^^^^^^^^
+
+Total matches in file: 30
+Total matches printed: 2
+work % 
+
+
+work % python3 git/fpgen/pplt.py -l en-CA -p F Between_Gold_Curtains/Between_Gold_Curtains.txt          
+1. Paragraph:7
+  Reductions in the American tariff might promise an outlet for European goods
+to thus alleviate the problem have been proposed on a limited scale but it is
+clear that discussion of the tariff in general will not be raised even to the
+high level of the argument advanced by Mr. Dooley. “The tariff! What difference
+does it make? Th’ foreigner pays th’ tax annyhow. He does! said Mr. Dooley, if
+he ain’t turned back at Castle Garden.” Nor is there much prospect of discussion
+of the tariff in the United States and Canada since European countries cannot
+expect to have much influence on this subject and again in the words of Mr.
+Dooley. “Them that the tariff looks after will look after the tariff.” The tariff
+becomes the chief instrument in American imperialism. “The mind that thinks in
+terms of the protectionist symbol is equally at home in the imperialist symbol.”[3]
+It is as much a contradiction in terms “to speak of protective tariffs as
+instruments of free enterprise as to speak of militarism or imperialism as
+instruments of free enterprise.”[4] Trade barriers and monopolies become deadly
+enemies of free enterprise capitalism.[5]
+
+  Category: TYPOS   Rule Issue: misspelling
+   Offset 327, length 2, Rule ID: TH_THORIUM
+Message: Make sure that ‘Th’ is the chemical symbol for thorium, and not a
+typing error. Did you mean “The”?
+Suggestion: The
+...e tariff! What difference does it make? Th’ foreigner pays th’ tax annyhow. He doe...
+                                           ^^
+  Category: CASING   Rule Issue: typographical
+   Offset 372, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: Said
+...oreigner pays th’ tax annyhow. He does! said Mr. Dooley, if he ain’t turned back at ...
+                                           ^^^^
+3. Paragraph:9
+  It is hardly possible for Canadians to understand the attitude of hostility
+because of the overwhelming influence of American propaganda[6] and even more
+difficult to strengthen the European point of view. Americans are the best
+propagandists because they are the best advertisers.[7] Whatever hope of
+continued autonomy Canada may have in the future must depend on her success in
+withstanding American influence and assisting in the development of a third
+bloc[8] designed to withstand the pressure of the United States and Russia but
+there is little evidence that Canada is capable of these herculean efforts and
+much that she will continue to be justly regarded as an instrument of the United
+States. The tariff has long since been forgotten in Canada and there is little
+prospect of its revival. We too have our mild imperialist ventures as shown in
+our acquisition of Newfoundland. “War is self-defence against reform.”[9]
+Neither a nation, nor a commonwealth, nor a civilization can endure in which
+one half in slavery believes itself free because of a statement, the Bill of
+Rights,[10] and attempts to enslave the other half which is free.
+
+  Category: TYPOGRAPHY   Rule Issue: typographical
+   Offset 593, length 9, Rule ID: CAPITALIZATION_NNP_DERIVED
+Message: Possible alternative capitalization. Some adjectives that are derived
+from proper nouns can have both an initial capital letter and an initial lower
+case letter. If there is a close association with the proper noun, use “Herculean”.
+Suggestion: Herculean
+...vidence that Canada is capable of these herculean efforts and much that she will continue...
+                                           ^^^^^^^^^
+4. Paragraph:18
+  [8] See “B. S. Keirstead, Canada at the crossroads in foreign policy,”
+International Affairs, Spring, 1948. pp. 97-110.
+
+  Category: CASING   Rule Issue: typographical
+   Offset 108, length 2, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: Pp
+...,” International Affairs, Spring, 1948. pp. 97-110.
+                                           ^^
+
+Total matches in file: 30
+Total matches printed: 4
+work % 
+
