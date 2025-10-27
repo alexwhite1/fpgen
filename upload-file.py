@@ -43,27 +43,38 @@ if options.password == None or options.user == None:
 if options.bookid == None:
   fatal("Must specify a book id!")
 
-if not re.match("^20[012]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.bookid):
+if not re.match(r"^20[012]\d[01]\d[0-9a-zA-Z][0-9a-zA-Z]$", options.bookid):
   fatal("Bookid doesn't look correct: " + options.bookid)
 
 if len(args) < 1:
   fatal("Usage: upload-file [--user fpusername] [--password fppassword] [--bookid book-id] file ...")
 
-formats = { ".jpg", ".png" }
+imgFormats = { ".jpg", ".png" }
+bookFormats = { ".epub", ".pdf", ".mobi" }
+
 with FPSession(options.user, options.password, sandbox=options.sandbox) as fps:
   for file in args:
     found = False
-    for format in formats:
+    book = False
+    for format in imgFormats:
       if file.endswith(format):
         found = True
         break
     if not found:
-      fatal("File " + file + " must end in " + str(formats))
+      for format in bookFormats:
+        if file.endswith(format):
+          book = True
+          break
+      if not book:
+        fatal("File " + file + " must end in " + str(imgFormats) + " or " + str(bookFormats))
     dirname = os.path.dirname(file)
     basename = os.path.basename(file)
-    if not re.match("^[\w \.]*$", dirname):
+    if not re.match(r"^[\w \.]*$", dirname):
       fatal("Bad directory: " + dirname)
-    if not re.match("^[\w \.]*$", basename):
+    if not re.match(r"^[\w \.]*$", basename):
       fatal("Bad filename: " + basename)
 
-    fps.uploadOne(options.bookid, file)
+    if book:
+      fps.uploadFormat(options.bookid, format[1:])
+    else:
+      fps.uploadOne(options.bookid, file)
