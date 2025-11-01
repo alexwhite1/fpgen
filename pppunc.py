@@ -207,13 +207,39 @@ def update_french_CA(args):
 
         # Strip off leading white space
         temp=line.lstrip()
+        orig=temp
 
-        # Remove all the html business
+        new_line=''
+        raw_line=''
         pattern=re.compile('<.*?>', re.NOFLAG)
-        parts=re.split(pattern, temp)
+        # Process line parts(i.e. html, text) one by one
+        # For html, add to the end of the new line
+        # For text, update punctuation, and add to the end of the new line
+        while True:
+            # Find all the html
+            parts=re.findall(pattern, temp)
+            if len(parts)!=0:
+                part=parts[0]
+                if part!='':
+                    if temp.startswith(part):
+                        # This is html, at the start of the line, tack it on unchanged
+                        new_line=new_line+part
+                        raw_line=raw_line+part
+                        # Delete what we just processed
+                        temp=temp.replace(part, '', 1)
+                        continue
 
-        # Fix up punctuation in each part of the line
-        for part in parts:
+            # Find all the text
+            parts=re.split(pattern, temp)
+            if len(parts)==0:
+                break
+            part=parts[0]
+            if part=='':
+                break
+
+            raw_line=raw_line+part
+            # Delete what we will process
+            temp=temp.replace(part, '', 1)
             new=part
 
             # Update part with no-break spaces
@@ -230,9 +256,15 @@ def update_french_CA(args):
             new=tidy_punctuation(new, '!', ' !', '\\ !', '  !', 'too many spaces before exclamation point')
             new=tidy_punctuation(new, '?', ' ?', '\\ ?', '  ?', 'too many spaces before question mark')
 
-            # Insert updated part back into the line
-            line=line.replace(part,new)
+            # Add updated text part to end of new line
+            new_line=new_line+new
 
+        # Sanity check
+        if orig!=raw_line:
+            print_warning(orig,     'ERROR building new line')
+            print_warning(raw_line, 'ERROR building new line')
+
+        line=line.replace(raw_line, new_line, 1)
 
         # Fix up case where nbspace added to start of line
         temp=line.lstrip()
@@ -288,6 +320,8 @@ def get_args():
     INFO_HELP    ='The rules followed insert no-break spaces'
     VERBOSE_HELP ='Show details'
     VERSION_HELP ='Show version of script'
+    # Increment number and change the date for every release
+    VERSION      ='V2. November 1, 2025, 09:58 PM'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
@@ -296,7 +330,7 @@ def get_args():
     parser.add_argument('-l', '--language',  action='store',      type=str, required=True,          help=LANGUAGE_HELP)
     parser.add_argument('-o', '--output',    action='store',      type=str, required=True,          help=OUTPUT_HELP)
     parser.add_argument('-v', '--verbose',   action='store_true',           default='store_false',  help=VERBOSE_HELP)
-    parser.add_argument(      '--version',   action='version',    version='Sept 27, 2025, 11:30AM', help=VERSION_HELP)
+    parser.add_argument(      '--version',   action='version',    version=VERSION,                  help=VERSION_HELP)
 
     args=parser.parse_args()
     if args.verbose==True:
