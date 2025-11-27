@@ -244,7 +244,7 @@ def update_french_CA(args):
 
             # Update part with no-break spaces
             new=update_punctuation(new, '«', '« ', '«  ', '«'+NBSPACE, 'too many spaces after left guillemet')
-            new=update_punctuation(new, '»', ' »', '  »', NBSPACE+'»', 'too many spaces before right guilemet')
+            new=update_punctuation(new, '»', ' »', '  »', NBSPACE+'»', 'too many spaces before right guillemet')
             new=update_punctuation(new, ':', ' :', '  :', NBSPACE+':', 'too many spaces before colon')
 
             new=update_punctuation(new, TIRET, SPACE_TIRET, SPACE_SPACE_TIRET, NBSPACE_TIRET, 'too many spaces before tiret')
@@ -275,7 +275,7 @@ def update_french_CA(args):
         check_start_of_line(line, ';', 'semicolon at start of line')
         check_start_of_line(line, '!', 'exclamation mark at start of line')
         check_start_of_line(line, '?', 'question mark at start of line')
-        check_start_of_line(line, '»', 'right guilemet at start of line')
+        check_start_of_line(line, '»', 'right guillemet at start of line')
         check_start_of_line(line, ':', 'colon at start of line')
         check_start_of_line(line, NBSPACE, 'no-break space at start of line')
 
@@ -290,7 +290,7 @@ def update_french_CA(args):
 
         # Sanity checks
         check_end_of_line(line, ' \n', 'space at end of line')
-        check_end_of_line(line, '«\n', 'left guilemet at end of line')
+        check_end_of_line(line, '«\n', 'left guillemet at end of line')
         check_end_of_line(line, NBSPACE+'n', 'no-break space at end of line')
 
         out.write(line)
@@ -321,7 +321,7 @@ def get_args():
     VERBOSE_HELP ='Show details'
     VERSION_HELP ='Show version of script'
     # Increment number and change the date for every release
-    VERSION      ='V2. November 1, 2025, 09:58 PM'
+    VERSION      ='V3. November 27, 2025, 10:50 PM'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
