@@ -71,7 +71,7 @@ def tidy_punctuation(part, target, target_plus_space, target_plus_nbspace, leave
 ##########
 # Update the French punctuation with no-break spaces
 ##########
-def update_punctuation(part, target, target_plus_space, leave, good, leave_warning):
+def update_punctuation(part, first_text, target, target_plus_space, leave, good, leave_warning):
     if part.count(target)==0:
         # Nothing to do
         return part
@@ -104,15 +104,20 @@ def update_punctuation(part, target, target_plus_space, leave, good, leave_warni
         print('ERROR: Bell character in string')
     if part.count(GOOD_MARKER)>0:
         print('ERROR: Backspace character in string')
-    
+
+    if first_text:
+        temp=part.lstrip()
+        if temp.startswith(NBSPACE):
+            part=part.replace(NBSPACE,'',1)
+
     return part
 
 
 ##########
 # Sanity check for start of line
 ##########
-def check_start_of_line(line, target, warning):
-    temp=line.lstrip()
+def check_start_of_line(part, line, target, warning):
+    temp=part.lstrip()
     if temp.startswith(target):
         print_warning(line, warning)
 
@@ -123,6 +128,42 @@ def check_start_of_line(line, target, warning):
 def check_end_of_line(line, target, warning):
     if line.count(target):
         print_warning(line, warning)
+
+
+##########
+# Fix start of line for right guillemant
+##########
+def fix_right_guillemet_at_start_of_line(part):
+    # Remove whitespace from start of part
+    temp=part.lstrip()
+    if temp.startswith('»'):
+        pass
+    else:
+        # Nothing to do
+        return part
+
+    # Fix up the following (https://en.wikipedia.org/wiki/Quotation_mark):
+    #   In old-style printed books, when quotations span multiple lines of
+    # text (including multiple paragraphs), an additional closing quotation
+    # sign is traditionally used at the beginning of each line continuing
+    # a quotation; this right-pointing guillemet at the beginning of a line
+    # does not close the current quotation.
+
+    # Remove any spaces after the guillemant
+    while True:
+        if temp.startswith('» '):
+            temp=temp.replace('» ', '»', 1)
+            part=part.replace('» ', '»', 1)
+        else:
+            break
+
+    if temp.startswith('»'+NBSPACE):
+        # Nothing to do
+        return part
+
+    # Insert no-break space
+    part=part.replace('»', '»'+NBSPACE, 1)
+    return part
 
 
 ##########
@@ -155,7 +196,7 @@ def restore_doubles(line, target, replace):
 ##########
 # March through the file updating the French as needed
 ##########
-def update_french_CA(args):
+def update_french(args):
     with open(args.filename, 'r', encoding='utf-8') as file:
         lines=file.readlines()
         file.close()
@@ -215,6 +256,7 @@ def update_french_CA(args):
         # Process line parts(i.e. html, text) one by one
         # For html, add to the end of the new line
         # For text, update punctuation, and add to the end of the new line
+        first_text=True
         while True:
             # Find all the html
             parts=re.findall(pattern, temp)
@@ -243,12 +285,12 @@ def update_french_CA(args):
             new=part
 
             # Update part with no-break spaces
-            new=update_punctuation(new, '«', '« ', '«  ', '«'+NBSPACE, 'too many spaces after left guillemet')
-            new=update_punctuation(new, '»', ' »', '  »', NBSPACE+'»', 'too many spaces before right guillemet')
-            new=update_punctuation(new, ':', ' :', '  :', NBSPACE+':', 'too many spaces before colon')
+            new=update_punctuation(new, first_text, '«', '« ', '«  ', '«'+NBSPACE, 'too many spaces after left guillemet')
+            new=update_punctuation(new, first_text, '»', ' »', '  »', NBSPACE+'»', 'too many spaces before right guillemet')
+            new=update_punctuation(new, first_text, ':', ' :', '  :', NBSPACE+':', 'too many spaces before colon')
 
-            new=update_punctuation(new, TIRET, SPACE_TIRET, SPACE_SPACE_TIRET, NBSPACE_TIRET, 'too many spaces before tiret')
-            new=update_punctuation(new, TIRET, TIRET_SPACE, TIRET_SPACE_SPACE, TIRET_NBSPACE, 'too many spaces after tiret')
+            new=update_punctuation(new, first_text, TIRET, SPACE_TIRET, SPACE_SPACE_TIRET, NBSPACE_TIRET, 'too many spaces before tiret')
+            new=update_punctuation(new, first_text, TIRET, TIRET_SPACE, TIRET_SPACE_SPACE, TIRET_NBSPACE, 'too many spaces after tiret')
 
             # Update part so fpgen can do the narrow no-break insertions
             # Has to be done after update_punctuation calls
@@ -256,8 +298,21 @@ def update_french_CA(args):
             new=tidy_punctuation(new, '!', ' !', '\\ !', '  !', 'too many spaces before exclamation point')
             new=tidy_punctuation(new, '?', ' ?', '\\ ?', '  ?', 'too many spaces before question mark')
 
+            if first_text:
+                new=fix_right_guillemet_at_start_of_line(new)
+
+                # Sanity checks
+                check_start_of_line(new, line, ';', 'semicolon at start of line')
+                check_start_of_line(new, line, '!', 'exclamation mark at start of line')
+                check_start_of_line(new, line, '?', 'question mark at start of line')
+                check_start_of_line(new, line, ':', 'colon at start of line')
+                check_start_of_line(new, line, NBSPACE, 'no-break space at start of line')
+
+                first_text=False
+
             # Add updated text part to end of new line
             new_line=new_line+new
+
 
         # Sanity check
         if orig!=raw_line:
@@ -266,20 +321,7 @@ def update_french_CA(args):
 
         line=line.replace(raw_line, new_line, 1)
 
-        # Fix up case where nbspace added to start of line
-        temp=line.lstrip()
-        if temp.startswith(NBSPACE):
-            line=line.replace(NBSPACE, '', 1)
-
-        # Sanity checks
-        check_start_of_line(line, ';', 'semicolon at start of line')
-        check_start_of_line(line, '!', 'exclamation mark at start of line')
-        check_start_of_line(line, '?', 'question mark at start of line')
-        check_start_of_line(line, '»', 'right guillemet at start of line')
-        check_start_of_line(line, ':', 'colon at start of line')
-        check_start_of_line(line, NBSPACE, 'no-break space at start of line')
-
-        # Fix up case where nbspac is at the end of the line
+        # Fix up case where nbspace is at the end of the line
         line=line.replace(NBSPACE+'\n', '\n')
 
         # Restore any tiret based formatting
@@ -298,7 +340,7 @@ def update_french_CA(args):
     print('Finished writing:', args.output)
 
 
-LANGUAGE_CHOICES=['fr-CA']
+LANGUAGE_CHOICES=['fr', 'fr-CA']
 
 ##########
 # Get program arguments
@@ -315,13 +357,13 @@ def get_args():
                            '''
     # Required options
     FILENAME_HELP='Name of text file containing the PP book'
-    LANGUAGE_HELP='Set of language rules to use: fr-CA (Canadian French)'
+    LANGUAGE_HELP='Set of language rules to use: fr, fr-CA (Canadian French)'
     OUTPUT_HELP  ='Name of output file'
     INFO_HELP    ='The rules followed insert no-break spaces'
     VERBOSE_HELP ='Show details'
     VERSION_HELP ='Show version of script'
     # Increment number and change the date for every release
-    VERSION      ='V3. November 27, 2025, 10:50 PM'
+    VERSION      ='V4. December 07, 2025, 10:30 PM'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
@@ -350,7 +392,7 @@ def get_args():
 args = get_args()
 
 if args.language in LANGUAGE_CHOICES:
-    update_french_CA(args)
+    update_french(args)
     exit()
 
 print('Language not supported: args.language')
