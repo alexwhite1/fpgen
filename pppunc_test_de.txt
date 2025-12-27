@@ -1,0 +1,210 @@
+Run pppunc.py with this as the input file.
+Examine printed output for correct warnings.
+Do a diff of this file and output file to verify.
+Each line below is a test case for pppunc.py.
+A Y indicates a space should be removed
+A W indicates a warning
+
+
+space before punctuation
+------------------------
+
+Test case 1
+SPACE WARNING ?
+SPACE WARNING  ?
+
+Test case 2
+SPACE WARNING !
+SPACE WARNING  !
+
+Test case 3
+SPACE WARNING ;
+SPACE WARNING  ;
+
+Test case 4
+SPACE WARNING .
+SPACE WARNING  .
+
+Test case 5
+SPACE WARNING ,
+SPACE WARNING  ,
+
+Test case 7
+SPACE WARNING :
+SPACE WARNING  :
+
+
+too many spaces
+---------------
+
+Test case 21
+»  TOO MANY SPACES WARNING
+TEXT »  TOO MANY SPACES WARNING
+
+Test case 22
+›  TOO MANY SPACES WARNING
+TEXT ›  TOO MANY SPACES WARNING
+
+Test case 23
+„  TOO MANY SPACES WARNING
+TEXT „  TOO MANY SPACES WARNING
+
+Test case 24
+TEXT  « TOO MANY SPACES WARNING
+
+Test case 25
+TEXT  ‹ TOO MANY SPACES WARNING
+
+Test case 26
+TEXT  “ TOO MANY SPACES WARNING
+
+
+sanity check
+------------
+
+test case 31
+END OF LINE WARNING»
+END OF LINE WARNING »
+END OF LINE WARNING » 
+
+test case 32
+END OF LINE WARNING›
+END OF LINE WARNING ›
+END OF LINE WARNING › 
+
+test case 33
+END OF LINE WARNING„
+END OF LINE WARNING „
+END OF LINE WARNING „ 
+
+test case 34
+« START OF LINE WARNING
+ « START OF LINE WARNING
+  « START OF LINE WARNING
+
+test case 35
+‹ START OF LINE WARNING
+ ‹ START OF LINE WARNING
+  ‹ START OF LINE WARNING
+
+test case 36
+“ START OF LINE WARNING
+ “ START OF LINE WARNING
+  “ START OF LINE WARNING
+
+
+remove space
+------------
+
+Test case 41
+» REMOVE SPACE
+TEXT » REMOVE SPACE
+
+Test case 42
+› REMOVE SPACE
+TEXT › REMOVE SPACE
+
+Test case 43
+„ REMOVE SPACE
+TEXT „ REMOVE SPACE
+
+Test case 24
+TEXT « REMOVE SPACE
+
+Test case 45
+TEX ‹ REMOVE SPACE
+
+Test case 46
+TEXT “ REMOVE SPACE
+
+
+remove spaces
+-------------
+
+Test case 51
+» REMOVE SPACES «
+» REMOVE SPACES « TEXT
+TEXT » REMOVE SPACES «
+TEXT » REMOVE SPACES « TEXT
+
+Test case 52
+› REMOVE SPACES ‹
+› REMOVE SPACES ‹ TEXT
+TEXT › REMOVE SPACES ‹
+TEXT › REMOVE SPACES ‹ TEXT
+
+Test case 52
+„ REMOVE SPACES “
+„ REMOVE SPACES “ TEXT
+TEXT „ REMOVE SPACES “
+TEXT „ REMOVE SPACES “ TEXT
+
+
+do nothing
+----------
+
+Test case 61
+»DO NOTHING«
+»DO  NOTHING« TEXT
+TEXT »DO NOTHING«
+TEXT »DO NOTHING« TEXT
+
+Test case 62
+›DO NOTHING‹
+›DO NOTHING‹ TEXT
+TEXT ›DO NOTHING‹
+TEXT ›DO NOTHING‹ TEXT
+
+Test case 62
+„DO NOTHING“
+„DO NOTHING“ TEXT
+TEXT „DO NOTHING“
+TEXT „DO NOTHING“ TEXT
+
+
+dash testing
+------------
+
+test case 71
+——LEAVE HIDDEN NAME
+—— LEAVE HIDDEN NAME
+LEAVE HIDDEN NAME——
+LEAVE HIDDEN NAME ——
+LEAVE HIDDEN NAME —— TEXT
+LEAVE HIDDEN NAME——TEXT
+
+test case 72
+———LEAVE FORMAT LINE
+——— LEAVE FORMAT LINE
+LEAVE FORMAT LINE———
+LEAVE FORMAT LINE ———
+LEAVE FORMAT LINE ——— TEXT
+LEAVE FORMAT LINE ——————————
+LEAVE FORMAT LINE——————————TEXT
+
+test case 72
+— LEAVE EMDASH
+TEXT — LEAVE EMDASH
+LEAVE EMDASH —
+
+test case 73
+—  REMOVE SPACE
+—       REMOVE SPACE
+TEXT  —  REMOVE SPACE
+TEXT   —   REMOVE SPACE
+REMOVE SPACE  —
+REMOVE SPACE      —
+
+test case 74
+– LEAVE ENDASH
+TEXT – LEAVE ENDASH
+LEAVE ENDASH –
+
+test case 75
+–  REMOVE SPACE
+–       REMOVE SPACE
+TEXT  –  REMOVE SPACE
+TEXT   –   REMOVE SPACE
+REMOVE SPACE  –
+REMOVE SPACE      –
+

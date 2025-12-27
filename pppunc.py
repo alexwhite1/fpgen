@@ -25,7 +25,6 @@ TIRET_SPACE_TIRET_MARKER ='x0e' # shift out
 
 line_number=0
 
-
 ##########
 # Generic output of warnings
 ##########
@@ -131,6 +130,14 @@ def check_end_of_line(line, target, warning):
 
 
 ##########
+# Sanity check for unwanted space
+##########
+def check_for_unwanted_space(line, target, warning):
+    if line.count(target):
+        print_warning(line, warning)
+
+
+##########
 # Fix start of line for right guillemant
 ##########
 def fix_right_guillemet_at_start_of_line(part):
@@ -191,6 +198,7 @@ def restore_doubles(line, target, replace):
     if line.count(target)==0:
         return line
     return line.replace(target,replace)
+
 
 
 ##########
@@ -340,7 +348,180 @@ def update_french(args):
     print('Finished writing:', args.output)
 
 
-LANGUAGE_CHOICES=['fr', 'fr-CA']
+##########
+# Remove any spaces between target and text (either before or after)
+##########
+def remove_spaces(part, target):
+    if part.count(target)==0:
+        # Nothing to do
+        return part
+
+    replace=target.replace(" ", "")
+    # Remove all target characters
+    while True:
+        if part.count(target):
+            part=part.replace(target, replace)
+            continue
+        break
+
+    return part
+
+
+DE_LG_Q='»'    # left guillemet (opposite of French
+DE_RG_Q='«'    # right guillemet (opposite of French)
+DE_LS_Q='›'    # left single pointer; not a greater than character
+DE_RS_Q='‹'    # right single pointer; not a less than character
+DE_LD_Q='„'    # left double
+DE_RD_Q='“'    # right double
+
+EM_DASH='—'
+EN_DASH='–'
+
+##########
+# March through the file updating the German as needed
+##########
+def update_german(args):
+    with open(args.filename, 'r', encoding='utf-8') as file:
+        lines=file.readlines()
+        file.close()
+
+    out= open(args.output, 'w', encoding='utf-8')
+
+    skip=False
+    # March through the file, line by line
+    global line_number
+    line_number=0
+    for line in lines:
+        line_number+=1
+
+        # Want to skip over the <lit section="head"> section
+        # Just write out lines, no processing
+        if line.count('<lit')==1:
+            skip=True
+        if skip:
+            out.write(line)
+            if line.count('</lit>')==1:
+                skip=False
+            continue
+
+        # Hide em-dash based formatting (e.g., —————)
+        # This also includes unspoken names (i.e., ——)
+        line=hide_doubles(line, EM_DASH, FORMAT_EMDASH_MARKER, 'em-dash formatting will be ignored')
+
+        # Strip off leading white space
+        temp=line.lstrip()
+        orig=temp
+
+        new_line=''
+        raw_line=''
+        pattern=re.compile('<.*?>', re.NOFLAG)
+        # Process line parts(i.e. html, text) one by one
+        # For html, add to the end of the new line
+        # For text, update punctuation, and add to the end of the new line
+        first_text=True
+        while True:
+            # Find all the html
+            parts=re.findall(pattern, temp)
+            if len(parts)!=0:
+                part=parts[0]
+                if part!='':
+                    if temp.startswith(part):
+                        # This is html, at the start of the line, tack it on unchanged
+                        new_line=new_line+part
+                        raw_line=raw_line+part
+                        # Delete what we just processed
+                        temp=temp.replace(part, '', 1)
+                        continue
+
+            # Find all the text
+            parts=re.split(pattern, temp)
+            if len(parts)==0:
+                break
+            part=parts[0]
+            if part=='':
+                break
+
+            raw_line=raw_line+part
+            # Delete what we will process
+            temp=temp.replace(part, '', 1)
+            new=part
+
+            # Remove spaces between quote and text
+            new=tidy_punctuation(new, '»', '» ', '» ', '»  ', 'too many spaces after left quote')
+            new=tidy_punctuation(new, '›', '› ', '› ', '›  ', 'too many spaces after left quote')
+            new=tidy_punctuation(new, '„', '„ ', '„ ', '„  ', 'too many spaces after left quote')
+            new=tidy_punctuation(new, '«', ' «', ' «', '  «', 'too many spaces before right quote')
+            new=tidy_punctuation(new, '‹', ' ‹', ' ‹', '  ‹', 'too many spaces before right quote')
+            new=tidy_punctuation(new, '“', ' “', ' “', '  “', 'too many spaces before right quote')
+
+            # Sanity check for unwanted spaces (Plenk in German)
+            if new.count("...")==0:
+                # no unspaced ellipsis
+                if new.count(". . .")==0:
+                    # no spaced ellipsis
+                    check_for_unwanted_space(new, " .", "space before period")
+            check_for_unwanted_space(new, " ,", "space before comma")
+            check_for_unwanted_space(new, " ?", "space before question mark")
+            check_for_unwanted_space(new, " !", "space before exclamation mark")
+            check_for_unwanted_space(new, " :", "space before colon")
+            check_for_unwanted_space(new, " ;", "space before semicolon")
+
+            # Removing spaces around the different dashes
+            new=remove_spaces(new, " "+EM_DASH)
+            new=remove_spaces(new, " "+EN_DASH)
+            new=remove_spaces(new, EM_DASH+" ")
+            new=remove_spaces(new, EN_DASH+" ")
+
+            # Add 1 space around the different dashes
+            new=new.replace(EM_DASH," "+EM_DASH+" ")
+            new=new.replace(EN_DASH," "+EN_DASH+" ")
+
+            # Correct any double spaces around dashes
+            new=new.replace(EM_DASH+"  "+EM_DASH, EM_DASH+" "+EM_DASH)
+            new=new.replace(EN_DASH+"  "+EN_DASH, EN_DASH+" "+EN_DASH)
+            new=new.replace(EM_DASH+"  "+EN_DASH, EM_DASH+" "+EN_DASH)
+            new=new.replace(EN_DASH+"  "+EM_DASH, EN_DASH+" "+EM_DASH)
+
+            if first_text:
+                if new.startswith(" "+EM_DASH):
+                    new=new.replace(" "+EM_DASH, EM_DASH, 1)
+                if new.startswith(" "+EN_DASH):
+                    new=new.replace(" "+EN_DASH, EN_DASH, 1)
+
+                # Sanity checks
+                check_start_of_line(new, line, DE_RG_Q, 'end quote at start of line')
+                check_start_of_line(new, line, DE_RS_Q, 'end quote at start of line')
+                check_start_of_line(new, line, DE_RD_Q, 'end quote at start of line')
+
+                first_text=False
+
+            # Add updated text part to end of new line
+            new_line=new_line+new
+
+
+        # Sanity check
+        if orig!=raw_line:
+            print_warning(orig,     'ERROR building new line')
+            print_warning(raw_line, 'ERROR building new line')
+
+        line=line.replace(raw_line, new_line, 1)
+
+        # Fix up case where dash is at the end of the line (i.e. remove space)
+        line=line.replace(EM_DASH+' '+'\n', EM_DASH+'\n')
+        line=line.replace(EN_DASH+' '+'\n', EN_DASH+'\n')
+
+        # Restore any em-dash based formatting
+        line=restore_doubles(line, FORMAT_EMDASH_MARKER, TIRET)
+
+        # Sanity checks
+        check_end_of_line(line, ' \n', 'space at end of line')
+
+        out.write(line)
+
+    print('Finished writing:', args.output)
+
+
+LANGUAGE_CHOICES=['de', 'fr', 'fr-CA']
 
 ##########
 # Get program arguments
@@ -354,16 +535,24 @@ def get_args():
                            \':\', \'«\', \'»\', and \'—\' (tiret, an em dash).
                            And some fpgen preparation by removing any preceding space from the following:
                            \';\', \'?\', \'!\'.
+                           For German, this includes:
+                           removing any spaces immediate after an open quote,
+                           removing any spaces immediately before a close quote,
+                           and dash (i.e. em-dash, and en-dash) handling (i.e.
+                           \'dash<space>\' at start of line,
+                           \'<space>dash\' at end of line,
+                           and \'<space>dash<space>\' within the line.
                            '''
     # Required options
     FILENAME_HELP='Name of text file containing the PP book'
-    LANGUAGE_HELP='Set of language rules to use: fr, fr-CA (Canadian French)'
+    LANGUAGE_HELP='Set of language rules to use: de (German), fr, fr-CA (Canadian French)'
     OUTPUT_HELP  ='Name of output file'
     INFO_HELP    ='The rules followed insert no-break spaces'
     VERBOSE_HELP ='Show details'
     VERSION_HELP ='Show version of script'
+
     # Increment number and change the date for every release
-    VERSION      ='V4. December 07, 2025, 10:30 PM'
+    VERSION      ='V5. December 27, 2025, 03:00 PM'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
@@ -390,6 +579,10 @@ def get_args():
 
 # Get program arguments
 args = get_args()
+
+if args.language=='de':
+    update_german(args)
+    exit()
 
 if args.language in LANGUAGE_CHOICES:
     update_french(args)
