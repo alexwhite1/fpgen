@@ -238,6 +238,12 @@ def update_french(args):
                 skip=False
             continue
 
+        # Skip over lines defining a html macro
+        # e.g. '<macro stars="<l rend='center'>\ \ \ \ \ \ *\ \ \ \ \ \ *\ \ \ \ \ \ *\ \ \ \ \ \ </l>"/>'
+        if line.count('<macro')>0:
+            out.write(line)
+            continue
+
         # Insert fpgen line at the start of other html options
         if line.count('<option name=')>0:
             if add_fpgen:
@@ -341,7 +347,7 @@ def update_french(args):
         # Sanity checks
         check_end_of_line(line, ' \n', 'space at end of line')
         check_end_of_line(line, '«\n', 'left guillemet at end of line')
-        check_end_of_line(line, NBSPACE+'n', 'no-break space at end of line')
+        check_end_of_line(line, NBSPACE+'\n', 'no-break space at end of line')
 
         out.write(line)
 
@@ -402,6 +408,13 @@ def update_german(args):
             out.write(line)
             if line.count('</lit>')==1:
                 skip=False
+            continue
+
+        # Skip over lines defining a html macro
+        # e.g. '<macro stars="<l rend='center'>\ \ \ \ \ \ *\ \ \ \ \ \ *\ \ \ \ \ \ *\ \ \ \ \ \ </l>"/>'
+        # Just wrtie out the line, no processing
+        if line.count('<macro')>0:
+            out.write(line)
             continue
 
         # Hide em-dash based formatting (e.g., —————)
@@ -552,7 +565,7 @@ def get_args():
     VERSION_HELP ='Show version of script'
 
     # Increment number and change the date for every release
-    VERSION      ='V5. December 27, 2025, 03:00 PM'
+    VERSION      ='V6. January, 2026, 10:00 AM'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
