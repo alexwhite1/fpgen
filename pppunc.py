@@ -565,7 +565,7 @@ def get_args():
     VERSION_HELP ='Show version of script'
 
     # Increment number and change the date for every release
-    VERSION      ='V6. January, 2026, 10:00 AM'
+    VERSION      ='V6. January 03, 2026, 10:00 AM'
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
