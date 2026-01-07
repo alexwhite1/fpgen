@@ -203,8 +203,9 @@ from time import gmtime, strftime
 # 4.66     Add option toc-levels
 # 4.67     Support for python 3.13 (Strings that should be regexs)
 # 4.67a    Fix illustration in text output with <alt>
+# 4.67b    Fix double insertion of fpgen html line in pppunc.py
 
-VERSION="4.67a"
+VERSION="4.67b"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

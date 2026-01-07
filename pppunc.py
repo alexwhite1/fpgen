@@ -1,5 +1,6 @@
 import argparse
 import re
+import config
 
 
 GIT_HASH='$Id:$'
@@ -210,14 +211,15 @@ def update_french(args):
         file.close()
 
     # Needs to be inserted into file so fpgen will do the narrow no-break space insertions
-    FPGEN_LINE='<option name=\'french-with-typographic-spaces\' content=\'true\'>\n'
+    FPGEN_NAME='french-with-typographic-spaces'
+    FPGEN_LINE='<option name=\''+FPGEN_NAME+'\' content=\'true\'>\n'
 
     out= open(args.output, 'w', encoding='utf-8')
 
     # Deterine if the FPGEN_LINE is already in the file
     add_fpgen=True
     for line in lines:
-        if line.count(FPGEN_LINE)>0:
+        if line.count(FPGEN_NAME)>0:
             add_fpgen=False
             break;
 
@@ -564,8 +566,10 @@ def get_args():
     VERBOSE_HELP ='Show details'
     VERSION_HELP ='Show version of script'
 
-    # Increment number and change the date for every release
-    VERSION      ='V6. January 03, 2026, 10:00 AM'
+    # For VERSION update
+    # edit config.py
+    # update VERSION (e.g. 4.67a -> 4.67b)
+    # update VERSION comments (e.g. '# 4.67b    Fix double insertion of fpgen html line in pppunc.py')
 
     BOOLEAN_CHOICES=['True', 'T', 'False', 'F']
 
@@ -574,7 +578,7 @@ def get_args():
     parser.add_argument('-l', '--language',  action='store',      type=str, required=True,          help=LANGUAGE_HELP)
     parser.add_argument('-o', '--output',    action='store',      type=str, required=True,          help=OUTPUT_HELP)
     parser.add_argument('-v', '--verbose',   action='store_true',           default='store_false',  help=VERBOSE_HELP)
-    parser.add_argument(      '--version',   action='version',    version=VERSION,                  help=VERSION_HELP)
+    parser.add_argument(      '--version',   action='version',    version=config.VERSION,           help=VERSION_HELP)
 
     args=parser.parse_args()
     if args.verbose==True:
