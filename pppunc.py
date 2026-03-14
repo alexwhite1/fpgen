@@ -314,6 +314,17 @@ def update_french(args):
             new=tidy_punctuation(new, '!', ' !', '\\ !', '  !', 'too many spaces before exclamation point')
             new=tidy_punctuation(new, '?', ' ?', '\\ ?', '  ?', 'too many spaces before question mark')
 
+            # Correct any changes to fpgen links (e.g. '#123:chap5#')
+            # The above code would have changed it to '#123:\ chap5#'
+            if new.count('#')>1:
+                # Find all the numbers
+                regex='\\d+'
+                nums=re.findall(regex, new)
+
+                # Correct the links, if they exist
+                for num in nums:
+                    new=new.replace('#'+num+NBSPACE+':', '#'+num+':')
+
             if first_text:
                 new=fix_right_guillemet_at_start_of_line(new)
 
@@ -357,14 +368,14 @@ def update_french(args):
 
 
 ##########
-# Remove any spaces between target and text (either before or after)
+# Remove any extra spaces between target and text (either before or after)
 ##########
-def remove_spaces(part, target):
+def remove_extra_spaces(part, target):
     if part.count(target)==0:
         # Nothing to do
         return part
 
-    replace=target.replace(" ", "")
+    replace=target.replace('  ', ' ')
     # Remove all target characters
     while True:
         if part.count(target):
@@ -414,7 +425,7 @@ def update_german(args):
 
         # Skip over lines defining a html macro
         # e.g. '<macro stars="<l rend='center'>\ \ \ \ \ \ *\ \ \ \ \ \ *\ \ \ \ \ \ *\ \ \ \ \ \ </l>"/>'
-        # Just wrtie out the line, no processing
+        # Just write out the line, no processing
         if line.count('<macro')>0:
             out.write(line)
             continue
@@ -422,6 +433,13 @@ def update_german(args):
         # Hide em-dash based formatting (e.g., —————)
         # This also includes unspoken names (i.e., ——)
         line=hide_doubles(line, EM_DASH, FORMAT_EMDASH_MARKER, 'em-dash formatting will be ignored')
+
+        # Shrink multiple en-dash to one en-dash
+        if line.count(EN_DASH+EN_DASH):
+            # Inform the user, so they can check it makes sense
+            print_warning(line, 'treating multiple adjacent en-dash as one en-dash')
+            while line.count(EN_DASH+EN_DASH)>0:
+                line=line.replace(EN_DASH+EN_DASH, EN_DASH)
 
         # Strip off leading white space
         temp=line.lstrip()
@@ -470,38 +488,38 @@ def update_german(args):
             new=tidy_punctuation(new, '“', ' “', ' “', '  “', 'too many spaces before right quote')
 
             # Sanity check for unwanted spaces (Plenk in German)
-            if new.count("...")==0:
+            if new.count('...')==0:
                 # no unspaced ellipsis
-                if new.count(". . .")==0:
+                if new.count('. . .')==0:
                     # no spaced ellipsis
-                    check_for_unwanted_space(new, " .", "space before period")
-            check_for_unwanted_space(new, " ,", "space before comma")
-            check_for_unwanted_space(new, " ?", "space before question mark")
-            check_for_unwanted_space(new, " !", "space before exclamation mark")
-            check_for_unwanted_space(new, " :", "space before colon")
-            check_for_unwanted_space(new, " ;", "space before semicolon")
-
-            # Removing spaces around the different dashes
-            new=remove_spaces(new, " "+EM_DASH)
-            new=remove_spaces(new, " "+EN_DASH)
-            new=remove_spaces(new, EM_DASH+" ")
-            new=remove_spaces(new, EN_DASH+" ")
+                    check_for_unwanted_space(new, ' .', 'space before period')
+            check_for_unwanted_space(new, ' ,', 'space before comma')
+            check_for_unwanted_space(new, ' ?', 'space before question mark')
+            check_for_unwanted_space(new, ' !', 'space before exclamation mark')
+            check_for_unwanted_space(new, ' :', 'space before colon')
+            check_for_unwanted_space(new, ' ;', 'space before semicolon')
 
             # Add 1 space around the different dashes
-            new=new.replace(EM_DASH," "+EM_DASH+" ")
-            new=new.replace(EN_DASH," "+EN_DASH+" ")
+            new=new.replace(EM_DASH,' '+EM_DASH+' ')
+            new=new.replace(EN_DASH,' '+EN_DASH+' ')
 
             # Correct any double spaces around dashes
-            new=new.replace(EM_DASH+"  "+EM_DASH, EM_DASH+" "+EM_DASH)
-            new=new.replace(EN_DASH+"  "+EN_DASH, EN_DASH+" "+EN_DASH)
-            new=new.replace(EM_DASH+"  "+EN_DASH, EM_DASH+" "+EN_DASH)
-            new=new.replace(EN_DASH+"  "+EM_DASH, EN_DASH+" "+EM_DASH)
+            new=remove_extra_spaces(new, '  '+EM_DASH)
+            new=remove_extra_spaces(new, '  '+EN_DASH)
+            new=remove_extra_spaces(new, EM_DASH+'  ')
+            new=remove_extra_spaces(new, EN_DASH+'  ')
+
+            # Correct any space after dash, but before punctuation
+            puncts={',', '?', '!', ':', ';'}
+            for punc in puncts:
+                new=new.replace(punc+EM_DASH+' ', punc+EM_DASH)
+                new=new.replace(punc+EN_DASH+' ', punc+EN_DASH)
 
             if first_text:
-                if new.startswith(" "+EM_DASH):
-                    new=new.replace(" "+EM_DASH, EM_DASH, 1)
-                if new.startswith(" "+EN_DASH):
-                    new=new.replace(" "+EN_DASH, EN_DASH, 1)
+                if new.startswith(' '+EM_DASH):
+                    new=new.replace(' '+EM_DASH, EM_DASH, 1)
+                if new.startswith(' '+EN_DASH):
+                    new=new.replace(' '+EN_DASH, EN_DASH, 1)
 
                 # Sanity checks
                 check_start_of_line(new, line, DE_RG_Q, 'end quote at start of line')
@@ -526,7 +544,7 @@ def update_german(args):
         line=line.replace(EN_DASH+' '+'\n', EN_DASH+'\n')
 
         # Restore any em-dash based formatting
-        line=restore_doubles(line, FORMAT_EMDASH_MARKER, TIRET)
+        line=restore_doubles(line, FORMAT_EMDASH_MARKER, EM_DASH)
 
         # Sanity checks
         check_end_of_line(line, ' \n', 'space at end of line')

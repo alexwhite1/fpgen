@@ -109,3 +109,24 @@ Test case 309
 Test case 310
 text « X add nbspace » text
 
+
+fpgen link testing
+------------------
+No changes to any of the following
+Do not want to interfer with the fpgen indexing (e.g. #17:ch2#)
+<table pattern='r9 h35 rB7'>
+||<fs:xs><i>Pages</i></fs>
+<i>I.</i>| <i>Au large</i> | #7:ch1#
+<i>II.</i>| <i>La maison des signaux</i> | #17:ch2#
+<i>III.</i>| <i>Une spécialité</i> | #27:ch3#
+<i>IV.</i>| <i>Deux collègues</i> | #38:ch4#
+<i>V.</i>| <i>Une vieille connaissance</i> | #49:ch5#
+<i>VI.</i>| <i>Les vautours</i> | #59:ch6#
+<i>VII.</i>| <i>A la frontière</i> | #69:ch7#
+<i>VIII.</i>| <i>Une ville lointaine</i> | #80:ch8#
+<i>IX.</i>| <i>Les terrassiers</i> | #90:ch9#
+<i>X.</i>| <i>Un avertissement</i> | #98:ch10#
+<i>XI.</i>| <i>Une demande de rappel</i> | #107:ch11#
+<i>XII.</i>| <i>Le Destin</i> | #116:ch12#
+</table>
+Top
