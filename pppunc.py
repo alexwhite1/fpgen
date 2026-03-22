@@ -510,10 +510,11 @@ def update_german(args):
             new=remove_extra_spaces(new, EN_DASH+'  ')
 
             # Correct any space after dash, but before punctuation
-            puncts={',', '?', '!', ':', ';'}
+            puncts={'.', ',', '?', '!', ':', ';'}
             for punc in puncts:
-                new=new.replace(punc+EM_DASH+' ', punc+EM_DASH)
-                new=new.replace(punc+EN_DASH+' ', punc+EN_DASH)
+                if punc in new:
+                    new=new.replace(EM_DASH+' '+punc, EM_DASH+punc)
+                    new=new.replace(EN_DASH+' '+punc, EN_DASH+punc)
 
             if first_text:
                 if new.startswith(' '+EM_DASH):

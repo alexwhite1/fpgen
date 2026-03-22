@@ -205,8 +205,9 @@ from time import gmtime, strftime
 # 4.67a    Fix illustration in text output with <alt>
 # 4.67b    Fix double insertion of fpgen html line in pppunc.py
 # 4.67c    Fix two spaces between dashes (em and en) in pppunc.py
+# 4.67d    Fix for space after dash, and before punctuation in pppunc.py
 
-VERSION="4.67c"
+VERSION="4.67d"
 
 NOW = strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " GMT"
 

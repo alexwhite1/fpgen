@@ -187,6 +187,8 @@ test case 72
 TEXT — LEAVE EMDASH
 LEAVE EMDASH —
 —  TEXT  —    —     —      —   REMOVE EXTRA  SPACES   AROUND    EMDASH   —
+— TEXT — . — ,  — : — ; — ! — ? REMOVE SPACE BEFORE PUNCTUATION —
+— TEXT —. —, —: —; —! —? DO NOT CHANGE ANYTHING —
 
 test case 73
 —  REMOVE SPACE
@@ -201,6 +203,8 @@ test case 74
 TEXT – LEAVE ENDASH
 LEAVE ENDASH –
 –  TEXT  –    –     ––––––      –   REMOVE EXTRA  SPACES   AROUND    EMDASH   –
+– TEXT – . – ,  – : – ; – ! – ? REMOVE SPACE BEFORE PUNCTUATION –
+– TEXT –. –, –: –; –! –? DO NOT CHANGE ANYTHING –
 
 test case 75
 –  REMOVE SPACE
